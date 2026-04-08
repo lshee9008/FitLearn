@@ -3,15 +3,15 @@ import json
 import os
 from typing import AsyncGenerator
 
-import anthropic
+import google.generativeai as genai
 
-MODEL = "claude-sonnet-4-20250514"
+MODEL = "gemma-3-27b-it"
 LEARNING_TYPES = ["요약형", "상세형", "예시형"]
 
 
 class ClaudeService:
     def __init__(self):
-        self.client = anthropic.AsyncAnthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+        genai.configure(api_key=os.environ["GEMINI_API_KEY"])
 
     async def classify_learning_type(self, answers: list[str]) -> str:
         """Few-shot + Self-consistency로 학습 유형 분류 (temperature=0.2)"""
@@ -23,13 +23,15 @@ class ClaudeService:
         return max(set(results), key=results.count)
 
     async def _classify_once(self, prompt: str) -> str:
-        response = await self.client.messages.create(
-            model=MODEL,
-            max_tokens=100,
-            temperature=0.2,
-            messages=[{"role": "user", "content": prompt}],
+        model = genai.GenerativeModel(
+            model_name=MODEL,
+            generation_config=genai.GenerationConfig(
+                temperature=0.2,
+                max_output_tokens=100,
+            ),
         )
-        text = response.content[0].text.strip()
+        response = await asyncio.to_thread(model.generate_content, prompt)
+        text = response.text.strip()
         for t in LEARNING_TYPES:
             if t in text:
                 return t
@@ -39,9 +41,7 @@ class ClaudeService:
         self, lecture_content: str, user_id: str
     ) -> AsyncGenerator[str, None]:
         """3가지 유형 병렬 재가공 후 SSE 스트리밍 (asyncio.gather + temperature=0.7)"""
-        tasks = [
-            self._reforge_one(lecture_content, t) for t in LEARNING_TYPES
-        ]
+        tasks = [self._reforge_one(lecture_content, t) for t in LEARNING_TYPES]
         results = await asyncio.gather(*tasks)
 
         for learning_type, content in zip(LEARNING_TYPES, results):
@@ -52,13 +52,15 @@ class ClaudeService:
 
     async def _reforge_one(self, lecture_content: str, learning_type: str) -> str:
         prompt = self._build_reforge_prompt(lecture_content, learning_type)
-        response = await self.client.messages.create(
-            model=MODEL,
-            max_tokens=2048,
-            temperature=0.7,
-            messages=[{"role": "user", "content": prompt}],
+        model = genai.GenerativeModel(
+            model_name=MODEL,
+            generation_config=genai.GenerationConfig(
+                temperature=0.7,
+                max_output_tokens=2048,
+            ),
         )
-        return response.content[0].text
+        response = await asyncio.to_thread(model.generate_content, prompt)
+        return response.text
 
     def _build_diagnosis_prompt(self, answers: list[str]) -> str:
         examples = (
