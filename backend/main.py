@@ -15,7 +15,11 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # TODO: 배포 시 Flutter Web 도메인으로 제한
+    allow_origins=[
+        "https://fit-learn-phi.vercel.app",
+        "http://localhost:3000",
+        "http://localhost:8080",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
