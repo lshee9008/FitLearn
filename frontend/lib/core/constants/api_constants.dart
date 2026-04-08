@@ -1,7 +1,7 @@
 class ApiConstants {
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://localhost:8000',
+    defaultValue: 'https://fitlearn-backend.onrender.com',
   );
 
   static const String diagnosis = '/api/v1/diagnosis';
