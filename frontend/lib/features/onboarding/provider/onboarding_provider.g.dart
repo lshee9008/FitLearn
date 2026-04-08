@@ -7,12 +7,12 @@ part of 'onboarding_provider.dart';
 // **************************************************************************
 
 String _$onboardingNotifierHash() =>
-    r'9b1bfa1cf70f66081b06559f4123bf2647d5946c';
+    r'61e81c631c2e3578bc0530fdb2cdff53b79b07f7';
 
 /// See also [OnboardingNotifier].
 @ProviderFor(OnboardingNotifier)
 final onboardingNotifierProvider = AutoDisposeNotifierProvider<
-    OnboardingNotifier, AsyncValue<LearningType?>>.internal(
+    OnboardingNotifier, AsyncValue<DiagnosisResult?>>.internal(
   OnboardingNotifier.new,
   name: r'onboardingNotifierProvider',
   debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
@@ -22,6 +22,7 @@ final onboardingNotifierProvider = AutoDisposeNotifierProvider<
   allTransitiveDependencies: null,
 );
 
-typedef _$OnboardingNotifier = AutoDisposeNotifier<AsyncValue<LearningType?>>;
+typedef _$OnboardingNotifier
+    = AutoDisposeNotifier<AsyncValue<DiagnosisResult?>>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package
