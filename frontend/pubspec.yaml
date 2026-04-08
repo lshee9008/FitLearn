@@ -48,6 +48,15 @@ dependencies:
   firebase_auth: ^5.3.1
   cloud_firestore: ^5.4.3
 
+  # 파일 처리
+  file_picker: ^8.0.0+1
+
+  # 로컬 저장소
+  shared_preferences: ^2.2.2
+
+  # UUID 생성
+  uuid: ^4.4.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -1,32 +1,79 @@
 import 'package:go_router/go_router.dart';
-import '../../features/onboarding/view/onboarding_page.dart';
-import '../../features/onboarding/view/result_page.dart';
-import '../../features/onboarding/provider/onboarding_provider.dart';
-import '../../features/lecture/view/lecture_page.dart';
-import '../../features/dashboard/view/dashboard_page.dart';
+import '../../features/auth/view/welcome_page.dart';
+import '../../features/student/diagnosis/view/diagnosis_page.dart';
+import '../../features/student/diagnosis/view/diagnosis_result_page.dart';
+import '../../features/student/diagnosis/provider/diagnosis_provider.dart';
+import '../../features/student/room/view/student_home_page.dart';
+import '../../features/student/lecture/view/lecture_view_page.dart';
+import '../../features/professor/room/view/professor_home_page.dart';
+import '../../features/professor/room/view/room_detail_page.dart';
+import '../../features/professor/lecture/view/upload_page.dart';
+import '../../features/professor/lecture/view/core_point_review_page.dart';
+import '../../features/professor/dashboard/view/dashboard_page.dart';
 
 final appRouter = GoRouter(
-  initialLocation: '/onboarding',
+  initialLocation: '/',
   routes: [
+    // ── Auth ──────────────────────────────────────────────────────
     GoRoute(
-      path: '/onboarding',
-      builder: (context, state) => const OnboardingPage(),
+      path: '/',
+      builder: (_, __) => const WelcomePage(),
+    ),
+
+    // ── Student ───────────────────────────────────────────────────
+    GoRoute(
+      path: '/student/home',
+      builder: (_, __) => const StudentHomePage(),
     ),
     GoRoute(
-      path: '/result',
-      builder: (context, state) => ResultPage(
-        result: state.extra as DiagnosisResult,
+      path: '/student/diagnosis',
+      builder: (_, __) => const DiagnosisPage(),
+    ),
+    GoRoute(
+      path: '/student/diagnosis/result',
+      builder: (_, state) => DiagnosisResultPage(result: state.extra as DiagnosisResult),
+    ),
+    GoRoute(
+      path: '/student/lecture',
+      builder: (_, state) {
+        final extra = state.extra as Map<String, dynamic>;
+        return LectureViewPage(
+          roomId: extra['room_id'] as String,
+          lectureId: extra['lecture_id'] as String,
+          userId: extra['user_id'] as String,
+          title: extra['title'] as String? ?? '교안',
+        );
+      },
+    ),
+
+    // ── Professor ─────────────────────────────────────────────────
+    GoRoute(
+      path: '/professor/home',
+      builder: (_, __) => const ProfessorHomePage(),
+    ),
+    GoRoute(
+      path: '/professor/room/:roomId',
+      builder: (_, state) => RoomDetailPage(roomId: state.pathParameters['roomId']!),
+    ),
+    GoRoute(
+      path: '/professor/lecture/:roomId/upload',
+      builder: (_, state) => LectureUploadPage(roomId: state.pathParameters['roomId']!),
+    ),
+    GoRoute(
+      path: '/professor/lecture/:roomId/:lectureId/review',
+      builder: (_, state) => CorePointReviewPage(
+        roomId: state.pathParameters['roomId']!,
+        lectureId: state.pathParameters['lectureId']!,
+        uploadData: state.extra as Map<String, dynamic>,
       ),
     ),
     GoRoute(
-      path: '/lecture',
-      builder: (context, state) => const LecturePage(),
+      path: '/professor/dashboard/:roomId',
+      builder: (_, state) => DashboardPage(roomId: state.pathParameters['roomId']!),
     ),
-    GoRoute(
-      path: '/dashboard/:instructorId',
-      builder: (context, state) => DashboardPage(
-        instructorId: state.pathParameters['instructorId']!,
-      ),
-    ),
+
+    // ── Legacy (backward compat) ───────────────────────────────────
+    GoRoute(path: '/onboarding', redirect: (_, __) => '/'),
+    GoRoute(path: '/lecture', redirect: (_, __) => '/student/home'),
   ],
 );

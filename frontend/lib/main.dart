@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/router/app_router.dart';
+import 'core/theme/app_theme.dart';
 
 void main() {
   runApp(const ProviderScope(child: FitLearnApp()));
@@ -14,10 +15,7 @@ class FitLearnApp extends StatelessWidget {
     return MaterialApp.router(
       title: 'FitLearn',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF4F46E5)),
-        useMaterial3: true,
-      ),
+      theme: AppTheme.dark,
       routerConfig: appRouter,
     );
   }

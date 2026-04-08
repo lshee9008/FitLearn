@@ -4,11 +4,11 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
-from api.v1.routers import diagnosis, reforge, questions, dashboard
+from api.v1.routers import auth, rooms, diagnosis, lectures, dashboard
 
 limiter = Limiter(key_func=get_remote_address)
 
-app = FastAPI(title="FitLearn API", version="1.0.0")
+app = FastAPI(title="FitLearn API", version="2.0.0")
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -25,12 +25,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router, prefix="/api/v1")
+app.include_router(rooms.router, prefix="/api/v1")
 app.include_router(diagnosis.router, prefix="/api/v1")
-app.include_router(reforge.router, prefix="/api/v1")
-app.include_router(questions.router, prefix="/api/v1")
+app.include_router(lectures.router, prefix="/api/v1")
 app.include_router(dashboard.router, prefix="/api/v1")
 
 
 @app.get("/api/v1/health")
 async def health():
-    return {"status": "ok"}
+    return {"status": "ok", "version": "2.0.0"}
