@@ -1,3 +1,4 @@
+import json
 import os
 from datetime import datetime, timezone
 
@@ -12,12 +13,11 @@ def _init_firebase() -> None:
     if _initialized or firebase_admin._apps:
         _initialized = True
         return
-    cred_path = os.getenv("FIREBASE_CREDENTIALS_PATH")
-    if cred_path and os.path.exists(cred_path):
-        cred = credentials.Certificate(cred_path)
-    else:
-        # Render 환경: Application Default Credentials
-        cred = credentials.ApplicationDefault()
+    cred_json = os.getenv("FIREBASE_CREDENTIALS")
+    if not cred_json:
+        raise RuntimeError("환경변수 FIREBASE_CREDENTIALS가 설정되지 않았습니다.")
+    cred_dict = json.loads(cred_json)
+    cred = credentials.Certificate(cred_dict)
     firebase_admin.initialize_app(cred)
     _initialized = True
 
