@@ -1,5 +1,5 @@
 {
-  "buildCommand": "curl -fsSL https://storage.googleapis.com/flutter-builds/releases/stable/linux/flutter_linux_3.27.4-stable.tar.xz | tar -xJ -C /opt && export PATH=$PATH:/opt/flutter/bin && flutter build web --release",
+  "buildCommand": "git clone https://github.com/flutter/flutter.git -b stable --depth 1 /opt/flutter && export PATH=$PATH:/opt/flutter/bin && flutter config --enable-web && flutter build web --release",
   "outputDirectory": "build/web",
   "framework": null
 }
