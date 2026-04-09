@@ -121,7 +121,7 @@ class ReforgeService:
 3. 마크다운 형식으로 완성된 교안을 작성하세요
 4. 학생이 즉시 학습에 활용할 수 있도록 완성도 있게 작성하세요"""
 
-        genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+        genai.configure(api_key=os.environ["GEMINI_API_KEY"], transport="rest")
         model = genai.GenerativeModel(
             model_name=MODEL,
             generation_config=genai.GenerationConfig(

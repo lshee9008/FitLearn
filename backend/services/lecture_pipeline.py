@@ -74,7 +74,7 @@ class LecturePipeline:
     """
 
     def __init__(self):
-        genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+        genai.configure(api_key=os.environ["GEMINI_API_KEY"], transport="rest")
 
     def _model(self, temp: float = 0.2) -> genai.GenerativeModel:
         return genai.GenerativeModel(

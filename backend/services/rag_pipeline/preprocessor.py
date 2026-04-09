@@ -20,6 +20,7 @@ def _make_embeddings() -> GoogleGenerativeAIEmbeddings:
     return GoogleGenerativeAIEmbeddings(
         model="models/text-embedding-004",
         google_api_key=os.environ["GEMINI_API_KEY"],
+        transport="rest",  # gRPC DNS 타임아웃 방지 (Render 호환)
     )
 
 
