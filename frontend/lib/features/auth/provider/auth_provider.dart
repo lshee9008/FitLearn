@@ -38,7 +38,7 @@ class UserProfile {
 // Firebase Console → Authentication → Sign-in method → Google → Web SDK configuration → Web client ID
 final _googleSignIn = GoogleSignIn(
   clientId:
-      '14190977451-REPLACE_WITH_WEB_CLIENT_ID.apps.googleusercontent.com',
+      '14190977451-mn22vhe4pqn2acqlscvk73v7f52sc1ja.apps.googleusercontent.com',
 );
 
 String firebaseErrorToKorean(Object e) {
