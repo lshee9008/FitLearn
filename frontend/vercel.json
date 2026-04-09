@@ -1,4 +1,5 @@
 {
+  "buildCommand": "",
   "outputDirectory": "build/web",
   "framework": null
 }
