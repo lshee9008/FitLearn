@@ -18,12 +18,19 @@ class ApiService {
     required String userId,
     required String name,
     required String role,
+    String email = '',
   }) async {
     final res = await _dio.post(ApiConstants.register, data: {
       'user_id': userId,
       'name': name,
       'role': role,
+      'email': email,
     });
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getProfile(String userId) async {
+    final res = await _dio.get(ApiConstants.profile(userId));
     return res.data as Map<String, dynamic>;
   }
 

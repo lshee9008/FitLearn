@@ -57,6 +57,9 @@ dependencies:
   # UUID 생성
   uuid: ^4.4.0
 
+  # Google 소셜 로그인
+  google_sign_in: ^6.2.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
