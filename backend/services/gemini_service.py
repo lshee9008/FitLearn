@@ -66,7 +66,7 @@ def _extract_json(text: str) -> dict:
 
 class GeminiService:
     def __init__(self):
-        genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+        genai.configure(api_key=os.environ["GEMINI_API_KEY"], transport="rest")
 
     def _model(self, temperature: float = 0.3, max_tokens: int = 2048) -> genai.GenerativeModel:
         return genai.GenerativeModel(

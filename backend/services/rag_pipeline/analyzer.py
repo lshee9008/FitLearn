@@ -94,7 +94,7 @@ def _analyze_response_times(response_times: list[int]) -> dict:
 
 class RAGAnalyzer:
     def __init__(self):
-        genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+        genai.configure(api_key=os.environ["GEMINI_API_KEY"], transport="rest")
 
     def _model(self) -> genai.GenerativeModel:
         return genai.GenerativeModel(

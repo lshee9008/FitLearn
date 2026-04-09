@@ -44,7 +44,14 @@ class LearningProfile(BaseModel):
     scores: DimensionScores
     analysis: str
     reliability: ReliabilityCheck = ReliabilityCheck()
-    writing_insight: str = ""  # 글쓰기 패턴 분석 결과
+    writing_insight: str = ""       # 글쓰기 패턴 분석 결과
+    # RAG 분석 확장 필드
+    vark: dict = {}                 # VARK 점수
+    felder: dict = {}               # Felder 차원 점수
+    cognitive_load: dict = {}       # 인지부하 점수
+    kolb_type: str = ""             # Kolb 유형
+    confidence_score: int = 70      # AI 신뢰도 점수
+    paper_citations: list[str] = [] # 논문 인용 목록
 
 
 class DiagnosisResponse(BaseModel):

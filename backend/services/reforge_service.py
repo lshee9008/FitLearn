@@ -13,7 +13,7 @@ from .gemini_service import STYLE_GUIDES
 
 logger = logging.getLogger(__name__)
 
-MODEL = "gemma-3-27b-it"
+MODEL = "gemini-2.0-flash"
 
 # 재가공 스타일별 논문 기반 지침 보강
 PAPER_STRATEGY = {
@@ -121,7 +121,7 @@ class ReforgeService:
 3. 마크다운 형식으로 완성된 교안을 작성하세요
 4. 학생이 즉시 학습에 활용할 수 있도록 완성도 있게 작성하세요"""
 
-        genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+        genai.configure(api_key=os.environ["GEMINI_API_KEY"], transport="rest")
         model = genai.GenerativeModel(
             model_name=MODEL,
             generation_config=genai.GenerationConfig(
