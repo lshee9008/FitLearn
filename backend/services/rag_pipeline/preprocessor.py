@@ -57,7 +57,12 @@ class PaperVectorStore:
         if _store is not None:
             return  # 이미 초기화됨
 
-        genai.configure(api_key=os.environ["GEMINI_API_KEY"], transport="rest")
+        api_key = os.environ.get("GEMINI_API_KEY", "")
+        if not api_key:
+            logger.warning("[RAG] GEMINI_API_KEY 미설정 — RAG 비활성화")
+            return
+
+        genai.configure(api_key=api_key, transport="rest")
 
         logger.info("[RAG] 논문 지식베이스 벡터화 시작...")
         splitter = RecursiveCharacterTextSplitter(
