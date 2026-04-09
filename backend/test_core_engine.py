@@ -87,13 +87,13 @@ async def main():
     print("=" * 60)
     
     reforge_service = ReforgeService()
-    results = await reforge_service.reforge_with_rag(original_content, core_points, profile)
+    # 6스타일로 전부 변환하던 부분을 선택된 단일 맞춤형 프로파일 적용으로 변경
+    result = await reforge_service.reforge_for_student(original_content, core_points, profile)
 
-    print("\n🎉 변환 완료! 아래에서 각 스타일별 맞춤형 교안을 확인하세요.\n")
-    for style, content in results.items():
-        print(f"🌟🌟🌟 [{style} 맞춤형 교안 결과] 🌟🌟🌟")
-        print(content)
-        print("\n" + "-" * 70 + "\n")
+    print(f"\n🎉 변환 완료! 아래에서 [{profile['learning_style']}] 맞춤형 교안을 확인하세요.\n")
+    print("🌟🌟🌟 맞춤형 교안 결과 🌟🌟🌟")
+    print(result)
+    print("\n" + "-" * 70 + "\n")
 
     print("테스트 종료.")
 

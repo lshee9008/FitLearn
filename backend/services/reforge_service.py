@@ -76,6 +76,29 @@ class ReforgeService:
         results = await asyncio.gather(*tasks)
         return dict(zip(styles, results))
 
+    async def reforge_for_student(
+        self,
+        original_content: str,
+        core_points: list[dict],
+        profile: dict,
+    ) -> str:
+        """
+        단일 학생 프로파일 맞춤형 교안 재가공
+        """
+        style = profile.get("learning_style", "시각형")
+        if style not in PAPER_STRATEGY:
+            style = "상세형" # 기본값 폴백
+
+        paper_context = await _get_paper_context_for_style(style)
+
+        return await self._reforge_one_with_context(
+            style=style,
+            original_content=original_content,
+            core_points=core_points,
+            profile=profile,
+            paper_context=paper_context,
+        )
+
     async def _reforge_one_with_context(
         self,
         style: str,
