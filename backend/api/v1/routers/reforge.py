@@ -5,12 +5,10 @@ from slowapi import Limiter
 
 from models.lecture import ReforgeRequest
 from services.claude_service import ClaudeService
-from services.rag_service import RAGService
 
 router = APIRouter(tags=["reforge"])
 limiter = Limiter(key_func=get_remote_address)
 claude = ClaudeService()
-rag = RAGService()
 
 
 @router.post("/reforge")
