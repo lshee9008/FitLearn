@@ -14,7 +14,7 @@ import google.generativeai as genai
 from .rag_pipeline.knowledge_base import PAPER_CHUNKS
 
 logger = logging.getLogger(__name__)
-MODEL = "gemma-4-31b-it"
+MODEL = "models/gemma-4-31b-it"
 
 # ── 교육 이론 기반 난이도 가중치 ────────────────────────────────────────────
 DIFFICULTY_CUES = {

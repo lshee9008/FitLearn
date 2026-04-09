@@ -13,7 +13,7 @@ from .gemini_service import STYLE_GUIDES
 
 logger = logging.getLogger(__name__)
 
-MODEL = "gemma-4-31b-it"
+MODEL = "models/gemma-4-31b-it"
 
 # 재가공 스타일별 논문 기반 지침 보강
 PAPER_STRATEGY = {
@@ -118,7 +118,8 @@ class ReforgeService:
         paper_strategy = PAPER_STRATEGY.get(style, "")
         style_guide = STYLE_GUIDES.get(style, "")
 
-        prompt = f"""당신은 최고 수준의 교육공학 전문가입니다. 제공된 교육심리학 이론과 논문 근거를 바탕으로 '{style}' 학습자 맞춤형 교안을 즉시 학습 가능한 형태로 재가공하세요.
+        prompt = f"""당신은 최고 수준의 교육공학 전문가입니다. 제공된 교육심리학 이론과 논문 근거를 바탕으로 '{style}' 학습자 맞춤형 교안을 "즉시 학습 가능한 본문 형태"로 재가공하세요.
+절대로 당신의 역할, 목표, 프로파일, 프롬프트 내용을 다시 설명하거나 복창(Echo)하지 마세요. 오직 재가공된 '한국어' 본문만 출력해야 합니다.
 
 [필수 논문 근거 (이 이론을 내용 전개 방식에 반드시 반영)]
 {paper_context}
@@ -138,10 +139,12 @@ class ReforgeService:
 {original_content[:3000]}
 
 [재가공 절대 규칙]
-1. 단순 요약이 아닙니다. '{style}' 학습자의 주의를 끌고 인지 부하를 최적화할 수 있도록 문체, 구조, 예시를 완전히 재구성하세요.
+1. 단순 요약이 아닙니다. '{style}' 학습자의 주의를 끌고 인지 부하를 최적화할 수 있도록 문체, 구조, 예시를 완전히 한국어로 재구성하세요.
 2. 위에서 정의된 [교육심리학 전략]에 명시된 표현 방식(예: 도식 활용, 대화체, 핵심 압축 등)을 극단적으로 강조하여 반영하세요.
 3. 교수가 확정한 핵심 포인트는 무조건 빠짐없이 포함되어야 합니다.
 4. 마크다운(Markdown) 포맷으로 가독성 있게 작성하되, 인사말 없이 바로 교안 내용부터 출력하세요.
+5. 절대로 프롬프트에 주어진 조건들(Role, Goal, Profile, Input Material 등)을 출력 결과에 포함하거나 번역해서 나열하지 마세요. 곧바로 '학생이 읽게 될 실제 본문'만 출력하세요.
+6. 원본 교안 텍스트가 비어 있거나 파일명만 있더라도, [교수 확정 핵심 포인트]를 기반으로 살을 붙여서 완벽한 교안을 생성하세요.
 """
 
         genai.configure(api_key=os.environ["GEMINI_API_KEY"], transport="rest")
@@ -149,8 +152,22 @@ class ReforgeService:
             model_name=MODEL,
             generation_config=genai.GenerationConfig(
                 temperature=0.4,
-                max_output_tokens=2500,
+                max_output_tokens=1200,  # 토큰 줄여 응답 속도 개선
             ),
         )
-        response = await asyncio.to_thread(model.generate_content, prompt)
-        return response.text
+        try:
+            response = await asyncio.wait_for(
+                asyncio.to_thread(model.generate_content, prompt),
+                timeout=25.0,  # Render 30초 제한 대비 여유
+            )
+            return response.text
+        except asyncio.TimeoutError:
+            logger.error(f"[reforge] {style} 타임아웃 (25s 초과)")
+            return _fallback_content(style, core_text)
+        except Exception as e:
+            err = str(e)
+            if "429" in err or "quota" in err.lower():
+                logger.warning(f"[reforge] {style} 429 할당량 초과 — fallback 사용")
+            else:
+                logger.error(f"[reforge] {style} 모델 호출 실패: {err}")
+            return _fallback_content(style, core_text)
