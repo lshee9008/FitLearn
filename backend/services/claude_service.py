@@ -5,7 +5,7 @@ from typing import AsyncGenerator
 
 import google.generativeai as genai
 
-MODEL = "gemma-3-27b-it"
+MODEL = "gemma-4-31b-it"
 LEARNING_TYPES = ["요약형", "상세형", "예시형"]
 
 

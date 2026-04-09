@@ -13,7 +13,7 @@ from .gemini_service import STYLE_GUIDES
 
 logger = logging.getLogger(__name__)
 
-MODEL = "gemini-2.0-flash"
+MODEL = "gemma-4-31b-it"
 
 # 재가공 스타일별 논문 기반 지침 보강
 PAPER_STRATEGY = {

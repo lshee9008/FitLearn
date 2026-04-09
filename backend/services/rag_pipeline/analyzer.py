@@ -12,7 +12,7 @@ import statistics
 import google.generativeai as genai
 
 logger = logging.getLogger(__name__)
-MODEL = "gemini-2.0-flash"
+MODEL = "gemma-4-31b-it"
 
 
 def _extract_json(text: str) -> dict:

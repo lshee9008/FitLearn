@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["demo"])
 file_svc = FileService()
 
-MODEL = "gemini-2.0-flash"
+MODEL = "gemma-4-31b-it"
 
 # ── 성향별 재가공 가이드 ──────────────────────────────────────────────────────
 
