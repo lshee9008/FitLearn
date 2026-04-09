@@ -111,3 +111,10 @@ def postprocess(result: dict, retrieved: list[dict]) -> dict:
         f"신뢰도: {result['confidence_score']}%"
     )
     return result
+
+
+class Postprocessor:
+    """함수형 후처리 모듈의 클래스 래퍼"""
+
+    def run(self, result: dict, retrieved: list[dict]) -> dict:
+        return postprocess(result, retrieved)

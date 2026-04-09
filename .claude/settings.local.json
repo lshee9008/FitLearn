@@ -4,7 +4,9 @@
       "Bash(flutter create:*)",
       "Bash(flutter pub:*)",
       "Bash(flutter analyze:*)",
-      "Bash(dart run:*)"
+      "Bash(dart run:*)",
+      "Bash(python -c \"from services.rag_pipeline import Postprocessor; print\\('OK'\\)\")",
+      "Bash(python3 -c \"from services.rag_pipeline.postprocessor import Postprocessor; print\\('OK'\\)\")"
     ]
   }
 }
