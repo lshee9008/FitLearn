@@ -14,6 +14,52 @@ reforge_svc = ReforgeService()
 file_svc = FileService()
 firebase = FirebaseService()
 
+_DEMO_LECTURE = """
+# 학습심리학 기초 — 인지부하이론과 학습 전략
+
+## 1. 인지부하이론 (Cognitive Load Theory)
+Sweller(1988)가 제안한 이론으로, 인간의 작업기억(Working Memory)은 한정된 용량을 가지며
+한 번에 처리할 수 있는 정보의 양에 제한이 있다.
+
+### 핵심 개념
+- **내재적 부하(Intrinsic Load)**: 학습 내용 자체의 복잡성에서 비롯된 부하
+- **외재적 부하(Extraneous Load)**: 잘못된 교수 설계로 인한 불필요한 부하
+- **생성적 부하(Germane Load)**: 스키마 형성을 위한 유용한 인지 활동
+
+### 교육적 시사점
+1. 한 번에 너무 많은 정보 제시 금지
+2. 불필요한 장식 요소 제거
+3. 사전 지식과 연결하여 스키마 활성화
+
+## 2. VARK 학습 모델 (Fleming, 1992)
+학습자를 네 가지 감각 선호에 따라 분류:
+
+- **V(Visual)**: 도표, 그래프, 흐름도 선호
+- **A(Aural)**: 강의, 토론, 설명 선호
+- **R(Read/Write)**: 읽기와 필기 선호
+- **K(Kinesthetic)**: 실습, 체험, 사례 선호
+
+## 3. Kolb의 경험학습 사이클 (1984)
+구체적 경험 → 반성적 관찰 → 추상적 개념화 → 능동적 실험
+
+학습자 유형:
+- 수렴형: 실용적, 문제 해결 중심
+- 발산형: 창의적, 다양한 관점
+- 동화형: 논리적, 이론 중심
+- 조절형: 행동 지향, 실험적
+
+## 4. Felder-Silverman 학습 스타일 모델
+감각/직관, 시각/언어, 능동/반성, 순차/전체 4개 차원으로 학습 스타일 분류.
+각 차원은 연속적 스펙트럼으로 구성되며 절대적 분류가 아님.
+"""
+
+_DEMO_CORE_POINTS = [
+    {"id": 1, "content": "작업기억의 한정 용량 — 인지부하 3종류(내재적/외재적/생성적)", "priority": 5, "topic": "인지부하이론", "difficulty": "중"},
+    {"id": 2, "content": "VARK 4가지 학습 감각 유형 분류와 교수 전략", "priority": 5, "topic": "VARK 모델", "difficulty": "하"},
+    {"id": 3, "content": "Kolb 경험학습 사이클 4단계와 학습자 유형", "priority": 4, "topic": "경험학습", "difficulty": "중"},
+    {"id": 4, "content": "Felder-Silverman 4차원 연속 스펙트럼 모델", "priority": 3, "topic": "학습 스타일", "difficulty": "중"},
+]
+
 
 @router.post("/lectures/upload", response_model=LectureUploadResponse)
 async def upload_lecture(
@@ -98,6 +144,26 @@ _TEST_PROFILES = {
     "상세형": {"learning_style": "상세형", "cognitive_style": "분석형", "focus_pattern": "장기몰입형",
                "pace": "숙고형", "preferred_format": "상세 단계 설명", "kolb_type": "동화형", "confidence_score": 90},
 }
+
+
+@router.get("/lectures/demo/reforged")
+async def get_demo_reforged(test_style: str = "읽기형"):
+    """
+    Firebase 없이 내장 샘플 교안으로 재가공 테스트.
+    URL: GET /api/v1/lectures/demo/reforged?test_style=시각형
+    """
+    profile = _TEST_PROFILES.get(test_style, _TEST_PROFILES["읽기형"])
+    logger.info(f"[demo-reforged] style={test_style}")
+    try:
+        styles = await reforge_svc.reforge_with_rag(
+            original_content=_DEMO_LECTURE,
+            core_points=_DEMO_CORE_POINTS,
+            profile=profile,
+        )
+    except Exception as e:
+        logger.error(f"[demo-reforged] 실패: {e}", exc_info=True)
+        raise HTTPException(status_code=502, detail=f"재가공 실패: {e}")
+    return {"lecture_id": "demo", "primary_style": test_style, "styles": styles}
 
 
 @router.get("/lectures/{room_id}/{lecture_id}/reforged")

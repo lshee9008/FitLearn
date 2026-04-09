@@ -154,6 +154,14 @@ class ApiService {
     required String userId,
     String? testStyle,
   }) async {
+    // 데모 모드: Firebase 없이 내장 샘플로 테스트
+    if (roomId == 'demo' || lectureId == 'demo') {
+      final res = await _dio.get(
+        '/api/v1/lectures/demo/reforged',
+        queryParameters: {'test_style': testStyle ?? '읽기형'},
+      );
+      return res.data as Map<String, dynamic>;
+    }
     final params = <String, String>{'user_id': userId};
     if (testStyle != null && testStyle.isNotEmpty) params['test_style'] = testStyle;
     final res = await _dio.get(

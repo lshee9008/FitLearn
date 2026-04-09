@@ -157,9 +157,9 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
   void _goToEnrolledLecture(_EnrolledCourse course) {
     final user = ref.read(authNotifierProvider);
     context.push('/student/lecture', extra: {
-      'room_id': 'mock_room',
-      'lecture_id': 'mock_lecture',
-      'user_id': user?.userId ?? '',
+      'room_id': 'demo',
+      'lecture_id': 'demo',
+      'user_id': user?.userId ?? 'demo-student',
       'title': course.title,
     });
   }
