@@ -91,13 +91,8 @@ class StudentHomePage extends ConsumerStatefulWidget {
 
 class _StudentHomePageState extends ConsumerState<StudentHomePage> {
   final _codeCtrl = TextEditingController();
-
-  // 실제 서버에서 불러온 방 + 교안
-  List<Map<String, dynamic>> _rooms = [];
-  Map<String, List<dynamic>> _lecturesByRoom = {};
-  bool _loadingRooms = false;
-
-  // 방 코드 입력으로 새로 참여
+  Map<String, dynamic>? _room;
+  List<dynamic> _lectures = [];
   bool _joining = false;
   String? _error;
 
@@ -116,31 +111,21 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
     super.dispose();
   }
 
-  // ── 참여 중인 방 + 교안 자동 로드 ──────────────────────────────
+  // 참여한 방 자동 로드
   Future<void> _loadMyRooms() async {
     final user = ref.read(authNotifierProvider);
     if (user == null) return;
-    setState(() => _loadingRooms = true);
     try {
       final rooms = await ApiService().getStudentRooms(user.userId);
-      final Map<String, List<dynamic>> lecturesMap = {};
-      await Future.wait(rooms.map((r) async {
-        final roomId = r['room_id'] as String;
-        final lectures = await ApiService().getRoomLectures(roomId);
-        lecturesMap[roomId] = lectures;
-      }));
-      if (!mounted) return;
-      setState(() {
-        _rooms = rooms.cast<Map<String, dynamic>>();
-        _lecturesByRoom = lecturesMap;
-        _loadingRooms = false;
-      });
-    } catch (_) {
-      if (mounted) setState(() => _loadingRooms = false);
-    }
+      if (rooms.isNotEmpty) {
+        final room = rooms.first as Map<String, dynamic>;
+        final lectures = await ApiService().getRoomLectures(room['room_id'] as String);
+        if (!mounted) return;
+        setState(() { _room = room; _lectures = lectures; });
+      }
+    } catch (_) {}
   }
 
-  // ── 방 코드로 새로 참여 ────────────────────────────────────────
   Future<void> _joinRoom() async {
     final user = ref.read(authNotifierProvider);
     if (user == null) return;
@@ -151,11 +136,11 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
     }
     setState(() { _joining = true; _error = null; });
     try {
-      await ApiService().joinRoom(userId: user.userId, roomCode: code);
-      _codeCtrl.clear();
+      final room = await ApiService().joinRoom(userId: user.userId, roomCode: code);
+      final lectures = await ApiService().getRoomLectures(room['room_id'] as String);
       if (!mounted) return;
-      setState(() => _joining = false);
-      await _loadMyRooms(); // 참여 후 목록 새로고침
+      _codeCtrl.clear();
+      setState(() { _room = room; _lectures = lectures; _joining = false; });
     } catch (e) {
       if (!mounted) return;
       setState(() { _error = '방을 찾을 수 없습니다. 코드를 확인해주세요.'; _joining = false; });
@@ -169,9 +154,19 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
 
   void _goToDiagnosis() => context.push('/student/diagnosis');
 
-  void _goToLecture(Map<String, dynamic> lecture, String roomId, String userId) {
+  void _goToEnrolledLecture(_EnrolledCourse course) {
+    final user = ref.read(authNotifierProvider);
     context.push('/student/lecture', extra: {
-      'room_id': roomId,
+      'room_id': 'mock_room',
+      'lecture_id': 'mock_lecture',
+      'user_id': user?.userId ?? '',
+      'title': course.title,
+    });
+  }
+
+  void _goToLecture(Map<String, dynamic> lecture, String userId) {
+    context.push('/student/lecture', extra: {
+      'room_id': _room!['room_id'],
       'lecture_id': lecture['lecture_id'],
       'user_id': userId,
       'title': lecture['title'],
@@ -194,10 +189,6 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
   }
 
   Widget _buildMain(UserProfile? user) {
-    final allLectures = _lecturesByRoom.entries
-        .expand((e) => e.value.map((l) => (roomId: e.key, lecture: l as Map<String, dynamic>)))
-        .toList();
-
     return CustomScrollView(
       slivers: [
         SliverPadding(
@@ -215,61 +206,50 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
                   onTap: (t) => setState(() => _activeTag = t),
                 ),
                 const SizedBox(height: 20),
-                // 방 코드 입력
-                _JoinRoomCard(
-                  controller: _codeCtrl,
-                  joining: _joining,
-                  error: _error,
-                  onJoin: _joinRoom,
+                // 진행바 + 오늘 할 일
+                const _CourseProgressCard(),
+                const SizedBox(height: 24),
+                // 수강 중인 강의 (가로 스크롤 카드)
+                const _SectionTitle(title: '수강 중인 강의'),
+                const SizedBox(height: 12),
+                _EnrolledCoursesSection(
+                  courses: _kEnrolled,
+                  onResume: _goToEnrolledLecture,
                 ),
                 const SizedBox(height: 24),
-                // 교안 목록 (참여한 방의 교안 전체)
-                if (_loadingRooms)
-                  const Center(child: Padding(
-                    padding: EdgeInsets.all(24),
-                    child: CircularProgressIndicator(color: _C.lime, strokeWidth: 2),
-                  ))
-                else if (allLectures.isNotEmpty) ...[
-                  _SectionTitle(title: '교안 목록', sub: '${allLectures.length}개'),
-                  const SizedBox(height: 12),
-                ],
+                // 추천강의
+                const _SectionTitle(title: '추천강의'),
+                const SizedBox(height: 12),
               ],
             ),
           ),
         ),
-        // 실제 교안 목록
-        if (!_loadingRooms && allLectures.isNotEmpty)
+        _courseGrid(_kRecommended, 0),
+        if (_room != null && _lectures.isNotEmpty) ...[
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(28, 24, 28, 12),
+            sliver: SliverToBoxAdapter(
+              child: _SectionTitle(title: '교안 목록', sub: '${_lectures.length}개'),
+            ),
+          ),
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 28),
             sliver: SliverList(
               delegate: SliverChildBuilderDelegate(
-                (_, i) {
-                  final item = allLectures[i];
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: _LectureCard(
-                      lecture: item.lecture,
-                      onTap: () => _goToLecture(
-                        item.lecture,
-                        item.roomId,
-                        user?.userId ?? '',
-                      ),
+                (_, i) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _LectureCard(
+                    lecture: _lectures[i] as Map<String, dynamic>,
+                    onTap: () => _goToLecture(
+                      _lectures[i] as Map<String, dynamic>,
+                      user?.userId ?? '',
                     ),
-                  );
-                },
-                childCount: allLectures.length,
+                  ),
+                ),
+                childCount: _lectures.length,
               ),
             ),
           ),
-        // 교안 없을 때 추천강의 표시 (UI 데모용)
-        if (!_loadingRooms && allLectures.isEmpty) ...[
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(28, 0, 28, 12),
-            sliver: SliverToBoxAdapter(
-              child: const _SectionTitle(title: '추천강의'),
-            ),
-          ),
-          _courseGrid(_kRecommended, 0),
         ],
         const SliverPadding(padding: EdgeInsets.only(bottom: 40)),
       ],
@@ -1284,90 +1264,6 @@ class _MyLectureRow extends StatelessWidget {
 // ════════════════════════════════════════════════════════════════
 // 일정 행
 // ════════════════════════════════════════════════════════════════
-// ════════════════════════════════════════════════════════════════
-// 방 코드 입력 카드
-// ════════════════════════════════════════════════════════════════
-class _JoinRoomCard extends StatelessWidget {
-  final TextEditingController controller;
-  final bool joining;
-  final String? error;
-  final VoidCallback onJoin;
-
-  const _JoinRoomCard({
-    required this.controller,
-    required this.joining,
-    required this.error,
-    required this.onJoin,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: _C.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _C.border),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('강의 방 입장', style: TextStyle(
-          color: _C.textPri, fontSize: 14, fontWeight: FontWeight.w700,
-        )),
-        const SizedBox(height: 4),
-        const Text('교수님께 받은 6자리 코드를 입력하세요', style: TextStyle(
-          color: _C.textSec, fontSize: 12,
-        )),
-        const SizedBox(height: 14),
-        Row(children: [
-          Expanded(
-            child: TextField(
-              controller: controller,
-              textCapitalization: TextCapitalization.characters,
-              maxLength: 6,
-              style: const TextStyle(color: _C.textPri, letterSpacing: 4, fontSize: 16),
-              decoration: InputDecoration(
-                counterText: '',
-                hintText: 'XXXXXX',
-                hintStyle: TextStyle(color: _C.textMute, letterSpacing: 4),
-                filled: true,
-                fillColor: _C.surface2,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          GestureDetector(
-            onTap: joining ? null : onJoin,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-              decoration: BoxDecoration(
-                color: _C.lime,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: joining
-                  ? const SizedBox(
-                      width: 18, height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: _C.limeDark),
-                    )
-                  : const Text('입장', style: TextStyle(
-                      color: _C.limeDark, fontWeight: FontWeight.w800, fontSize: 14)),
-            ),
-          ),
-        ]),
-        if (error != null) ...[
-          const SizedBox(height: 8),
-          Text(error!, style: const TextStyle(color: Color(0xFFFF6B5B), fontSize: 12)),
-        ],
-      ]),
-    );
-  }
-}
-
-
 class _ScheduleRow extends StatelessWidget {
   final String title, date, time;
   final Color color, colorBg;
