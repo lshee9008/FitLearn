@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import traceback
 from contextlib import asynccontextmanager
@@ -90,14 +91,18 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("[startup] 모든 모듈 임포트 성공")
 
-    if _rag_available and PaperVectorStore is not None:
-        try:
-            await PaperVectorStore.initialize()
-            logger.info("[startup] ✅ RAG 벡터 DB 초기화 완료")
-        except Exception as e:
-            logger.error(f"[startup] ❌ RAG 초기화 실패: {e}\n{traceback.format_exc()}")
-    else:
-        logger.warning("[startup] ⚠️ RAG 비활성화 (PaperVectorStore 임포트 실패)")
+    async def _init_rag():
+        if _rag_available and PaperVectorStore is not None:
+            try:
+                await PaperVectorStore.initialize()
+                logger.info("[startup] ✅ RAG 벡터 DB 초기화 완료")
+            except Exception as e:
+                logger.error(f"[startup] ❌ RAG 초기화 실패: {e}")
+        else:
+            logger.warning("[startup] ⚠️ RAG 비활성화 (PaperVectorStore 임포트 실패)")
+
+    # 서버가 포트를 먼저 열고 RAG는 백그라운드에서 초기화
+    asyncio.create_task(_init_rag())
 
     yield
     logger.info("[shutdown] 서버 종료")
