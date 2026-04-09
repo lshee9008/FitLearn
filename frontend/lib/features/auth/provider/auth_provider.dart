@@ -130,16 +130,24 @@ class AuthNotifier extends _$AuthNotifier {
       email: email.trim(),
       password: password,
     );
-    await cred.user!.updateDisplayName(name.trim());
-    final uid = cred.user!.uid;
-    await ApiService().register(
-      userId: uid,
-      name: name.trim(),
-      role: role == UserRole.professor ? 'professor' : 'student',
-      email: email.trim(),
-    );
+    final user = cred.user!;
+    await user.updateDisplayName(name.trim());
+
+    try {
+      await ApiService().register(
+        userId: user.uid,
+        name: name.trim(),
+        role: role == UserRole.professor ? 'professor' : 'student',
+        email: email.trim(),
+      );
+    } catch (e) {
+      // 백엔드 실패 → Firebase Auth 롤백
+      await user.delete();
+      throw Exception('회원 정보 저장에 실패했습니다. 다시 시도해주세요.');
+    }
+
     final profile = UserProfile(
-      userId: uid,
+      userId: user.uid,
       name: name.trim(),
       email: email.trim(),
       role: role,
@@ -198,13 +206,19 @@ class AuthNotifier extends _$AuthNotifier {
       await _saveToPrefs(profile);
       state = profile;
     } catch (_) {
-      // 신규 사용자 등록
-      await ApiService().register(
-        userId: uid,
-        name: name,
-        role: role == UserRole.professor ? 'professor' : 'student',
-        email: email,
-      );
+      // 신규 사용자 등록 — 백엔드 실패 시 Firebase Auth 롤백
+      try {
+        await ApiService().register(
+          userId: uid,
+          name: name,
+          role: role == UserRole.professor ? 'professor' : 'student',
+          email: email,
+        );
+      } catch (e) {
+        await FirebaseAuth.instance.currentUser?.delete();
+        await _googleSignIn.signOut();
+        throw Exception('회원 정보 저장에 실패했습니다. 다시 시도해주세요.');
+      }
       final profile = UserProfile(
         userId: uid,
         name: name,
