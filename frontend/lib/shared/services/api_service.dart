@@ -95,10 +95,14 @@ class ApiService {
     required String userId,
     required List<Map<String, dynamic>> answers,
     String? roomId,
+    String writingResponse = '',
+    Map<String, dynamic> learningHistory = const {},
   }) async {
     final res = await _dio.post(ApiConstants.diagnosis, data: {
       'user_id': userId,
       'answers': answers,
+      'writing_response': writingResponse,
+      'learning_history': learningHistory,
       if (roomId != null) 'room_id': roomId,
     });
     return res.data as Map<String, dynamic>;

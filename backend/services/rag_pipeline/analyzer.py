@@ -1,5 +1,5 @@
 """
-RAG 기반 Gemini 분석 — 논문 근거 + 학생 응답 → 6차원 학습 프로파일
+RAG 기반 Gemini 분석 — 논문 근거 + 25문항 + 글쓰기 + 응답시간 + 학습이력 → 8차원 학습 프로파일
 temperature=0.1 (최대 정확도)
 """
 import asyncio
@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import re
+import statistics
 
 import google.generativeai as genai
 
@@ -26,6 +27,71 @@ def _extract_json(text: str) -> dict:
     return json.loads(text)
 
 
+def _calc_reliability(answers: list[dict]) -> dict:
+    """신뢰도 쌍 일치율 계산 (LLM 없이 Python에서 처리)"""
+    def get_ans(qid: int) -> str | None:
+        return next((a["answer"] for a in answers if a["question_id"] == qid), None)
+
+    def _adjacent(a: str | None, b: str | None) -> bool:
+        """인접 선택지 (A-B, B-C 등) 여부"""
+        if not a or not b:
+            return False
+        return abs(ord(a) - ord(b)) == 1
+
+    def match_score(q1: int, q2: int) -> float:
+        a1, a2 = get_ans(q1), get_ans(q2)
+        if a1 is None or a2 is None:
+            return 0.75  # 결측 시 중간값
+        if a1 == a2:
+            return 1.0
+        if _adjacent(a1, a2):
+            return 0.5
+        return 0.0
+
+    p1 = match_score(3, 18)
+    p2 = match_score(7, 22)
+    p3 = match_score(11, 24)
+    overall = (p1 + p2 + p3) / 3
+
+    return {
+        "pair_q3_q18": round(p1, 3),
+        "pair_q7_q22": round(p2, 3),
+        "pair_q11_q24": round(p3, 3),
+        "overall": round(overall, 3),
+    }
+
+
+def _analyze_response_times(response_times: list[int]) -> dict:
+    """응답시간 패턴 분석"""
+    if not response_times:
+        return {"avg_ms": 0, "slow_questions": [], "style": "알 수 없음"}
+
+    avg = statistics.mean(response_times)
+    try:
+        std = statistics.stdev(response_times)
+    except statistics.StatisticsError:
+        std = 0
+
+    slow = [
+        i + 1 for i, t in enumerate(response_times)
+        if t > avg + 1.5 * std and t > 5000
+    ]
+
+    if avg < 4000:
+        style = "직관형 (빠른 응답)"
+    elif avg > 10000:
+        style = "분석형 (신중한 응답)"
+    else:
+        style = "균형형"
+
+    return {
+        "avg_ms": int(avg),
+        "std_ms": int(std),
+        "slow_questions": slow,
+        "style": style,
+    }
+
+
 class RAGAnalyzer:
     def __init__(self):
         genai.configure(api_key=os.environ["GEMINI_API_KEY"])
@@ -34,47 +100,95 @@ class RAGAnalyzer:
         return genai.GenerativeModel(
             model_name=MODEL,
             generation_config=genai.GenerationConfig(
-                temperature=0.1,  # 정확도 최대화
-                max_output_tokens=2048,
+                temperature=0.1,
+                max_output_tokens=3000,
             ),
         )
 
     def _build_context(self, retrieved: list[dict]) -> str:
         if not retrieved:
             return "논문 컨텍스트 없음"
-        lines = []
-        for r in retrieved:
-            lines.append(
-                f"[{r['paper']} — {r['title']}]\n{r['content']}"
-            )
-        return "\n\n".join(lines)
+        return "\n\n".join(
+            f"[{r['paper']} — {r['title']}]\n{r['content']}"
+            for r in retrieved
+        )
 
     def _build_answers_summary(self, answers: list[dict]) -> str:
         q_map = {a["question_id"]: a["answer"] for a in answers}
-        parts = []
-        for qid in range(1, 16):
-            parts.append(f"Q{qid}: {q_map.get(qid, '?')}")
-        return "\n".join(parts)
+        lines = []
+        sections = [
+            ("파트A VARK (Q1-7)", range(1, 8)),
+            ("파트B Felder (Q8-13)", range(8, 14)),
+            ("파트C 인지부하 (Q14-19)", range(14, 20)),
+            ("파트D Kolb (Q20-25)", range(20, 26)),
+        ]
+        for label, qrange in sections:
+            lines.append(label + ":")
+            for qid in qrange:
+                lines.append(f"  Q{qid}: {q_map.get(qid, '?')}")
+        return "\n".join(lines)
 
-    async def analyze(self, answers: list[dict], retrieved: list[dict]) -> dict:
-        """논문 근거 + 학생 응답 → JSON 분석 결과"""
+    async def analyze(
+        self,
+        answers: list[dict],
+        retrieved: list[dict],
+        writing_response: str = "",
+        response_times: list[int] = None,
+        learning_history: dict = None,
+    ) -> dict:
+        """논문 근거 + 25문항 + 글쓰기 + 응답시간 → JSON 분석 결과"""
+        if response_times is None:
+            response_times = []
+        if learning_history is None:
+            learning_history = {}
+
         context = self._build_context(retrieved)
         answers_text = self._build_answers_summary(answers)
-
+        reliability = _calc_reliability(answers)
+        time_analysis = _analyze_response_times(response_times)
         citations = list({r["paper"] for r in retrieved if r.get("paper")})
 
-        prompt = f"""당신은 교육심리학 전문가입니다. 아래 논문 근거와 학생 응답을 바탕으로 학습 프로파일을 분석하세요.
+        # 학습이력 포맷
+        lh_text = (
+            f"잘한 과목: {learning_history.get('subject', '미응답')}\n"
+            f"잘한 이유: {learning_history.get('reason', '미응답')}\n"
+            f"힘든 방식: {learning_history.get('difficulty', '미응답')}"
+        )
+
+        # 신뢰도 텍스트
+        reliability_pct = int(reliability["overall"] * 100)
+        reliability_text = (
+            f"Q3↔Q18(시각): {int(reliability['pair_q3_q18']*100)}% 일치\n"
+            f"Q7↔Q22(실습): {int(reliability['pair_q7_q22']*100)}% 일치\n"
+            f"Q11↔Q24(순차): {int(reliability['pair_q11_q24']*100)}% 일치\n"
+            f"전체 신뢰도: {reliability_pct}%"
+        )
+
+        prompt = f"""당신은 교육심리학 전문가입니다. 아래 다차원 데이터를 통합 분석해 학습 프로파일을 도출하세요.
 
 [논문 근거]
 {context}
 
-[학생 응답 — 15문항]
-파트A (Q1-5): 학습 스타일 (A=시각형 B=청각형 C=읽기형 D=실습형)
-파트B (Q6-10): 인지 유형 (A=분석형 B=직관형 C=중간)
-파트C (Q11-15): 학습 환경
+[글쓰기 패턴 분석]
+자유서술: "{writing_response[:500] if writing_response else '(미응답)'}"
+→ 어휘 구체성, 메타인지 표현, 시각/청각/행동 단어 비율을 분석하세요.
+
+[응답시간 패턴]
+평균 응답시간: {time_analysis['avg_ms']}ms | 성향: {time_analysis['style']}
+느린 문항(불확실): {time_analysis['slow_questions'] if time_analysis['slow_questions'] else '없음'}
+→ 빠를수록 직관형, 느릴수록 분석형 가중치를 적용하세요.
+
+[25문항 응답]
 {answers_text}
 
-위 논문 근거를 인용하며 다음 JSON 형식으로만 응답하세요. JSON 외 다른 텍스트 없이:
+[학습이력]
+{lh_text}
+
+[신뢰도 검증 결과]
+{reliability_text}
+→ 불일치 차원은 "상황에 따라 유연하게 변하는 성향"으로 해석하세요.
+
+위 데이터를 종합하여 아래 JSON 형식으로만 응답하세요. JSON 외 텍스트 없이:
 
 {{
   "learning_style": "시각형",
@@ -89,7 +203,9 @@ class RAGAnalyzer:
     "focus_depth": 40,
     "detail_pref": 35,
     "speed": 70,
-    "collaboration": 25
+    "collaboration": 25,
+    "metacognition": 65,
+    "consistency": {reliability_pct}
   }},
   "vark": {{
     "visual": 75,
@@ -109,15 +225,22 @@ class RAGAnalyzer:
   }},
   "kolb_type": "동화형",
   "confidence_score": 85,
-  "analysis": "Fleming(1992)의 VARK 모델에 따르면 이 학생은... (논문 인용 포함, 150자 이내)",
+  "writing_insight": "구체적 사례 중심, 시각적 어휘 다수, 메타인지 표현 적음",
+  "analysis": "Fleming(1992) VARK 모델 + 응답시간 패턴 분석 결과... (200자 이내, 논문 인용 포함)",
   "strengths": ["강점1", "강점2", "강점3"],
   "weaknesses": ["개선점1", "개선점2"],
   "strategies": [
-    "Fleming(1992)의 시각형 학습자 전략에 따르면...",
-    "Sweller(1988)의 인지부하 이론을 적용하면...",
-    "Kolb(1984)의 경험학습 사이클에 기반하면..."
+    "Fleming(1992) 시각형 전략: ...",
+    "Sweller(1988) 인지부하 감소: ...",
+    "Kolb(1984) 경험학습 사이클: ..."
   ],
-  "paper_citations": {json.dumps(citations, ensure_ascii=False)}
+  "paper_citations": {json.dumps(citations, ensure_ascii=False)},
+  "reliability": {{
+    "pair_q3_q18": {reliability['pair_q3_q18']},
+    "pair_q7_q22": {reliability['pair_q7_q22']},
+    "pair_q11_q24": {reliability['pair_q11_q24']},
+    "overall": {reliability['overall']}
+  }}
 }}
 
 허용값:
@@ -129,14 +252,20 @@ class RAGAnalyzer:
 - interaction: 독립형 | 협력형
 - kolb_type: 확산형 | 동화형 | 수렴형 | 적응형
 - scores 각 값: 0-100 정수
-- felder 값: -100~100 (양수=sensing/sequential/active, 음수=intuitive/global/reflective)
+- felder 값: -100~100 (양수=sensing/sequential/active)
 - confidence_score: 0-100"""
 
         response = await asyncio.to_thread(
             self._model().generate_content, prompt
         )
         try:
-            return _extract_json(response.text)
+            result = _extract_json(response.text)
+            # 신뢰도는 Python 계산값으로 덮어씀 (LLM 오류 방지)
+            result["reliability"] = reliability
+            result.setdefault("consistency", reliability_pct)
+            if "scores" in result:
+                result["scores"]["consistency"] = reliability_pct
+            return result
         except Exception as e:
             logger.error(f"[RAGAnalyzer] JSON 파싱 실패: {e}\n응답: {response.text[:500]}")
             raise

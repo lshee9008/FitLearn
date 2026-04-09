@@ -6,7 +6,7 @@ part of 'diagnosis_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$diagnosisNotifierHash() => r'02d3493a853922dbe81c6fa2ebf0c84056f7fc07';
+String _$diagnosisNotifierHash() => r'a21d61f2ef293c82809be2961249d4b99bbdbeb4';
 
 /// See also [DiagnosisNotifier].
 @ProviderFor(DiagnosisNotifier)
