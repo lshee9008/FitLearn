@@ -133,7 +133,7 @@ class _ReforgeTestPageState extends State<ReforgeTestPage> with SingleTickerProv
       final stream = (response.data as ResponseBody).stream;
       final buffer = StringBuffer();
 
-      await for (final chunk in stream.transform(utf8.decoder)) {
+      await for (final chunk in stream.cast<List<int>>().transform(utf8.decoder)) {
         buffer.write(chunk);
         // SSE 이벤트 파싱
         final raw = buffer.toString();
