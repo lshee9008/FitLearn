@@ -8,7 +8,7 @@ import re
 
 import google.generativeai as genai
 
-MODEL = "gemma-3-27b-it"
+MODEL = "gemini-2.0-flash"
 
 # 6가지 재가공 스타일
 REFORGE_STYLES = ["시각형", "청각형", "읽기형", "실습형", "요약형", "상세형"]

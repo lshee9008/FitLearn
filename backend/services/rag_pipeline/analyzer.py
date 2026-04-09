@@ -11,7 +11,7 @@ import re
 import google.generativeai as genai
 
 logger = logging.getLogger(__name__)
-MODEL = "gemma-3-27b-it"
+MODEL = "gemini-2.0-flash"
 
 
 def _extract_json(text: str) -> dict:
