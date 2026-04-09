@@ -84,12 +84,48 @@ async def confirm_core_points(room_id: str, lecture_id: str, body: CorePointConf
     return {"status": "confirmed", "count": len(points)}
 
 
+_TEST_PROFILES = {
+    "시각형": {"learning_style": "시각형", "cognitive_style": "직관형", "focus_pattern": "단기집중형",
+               "pace": "속도형", "preferred_format": "시각적 다이어그램", "kolb_type": "수렴형", "confidence_score": 90},
+    "청각형": {"learning_style": "청각형", "cognitive_style": "직관형", "focus_pattern": "장기몰입형",
+               "pace": "숙고형", "preferred_format": "대화체 설명", "kolb_type": "발산형", "confidence_score": 90},
+    "읽기형": {"learning_style": "읽기형", "cognitive_style": "분석형", "focus_pattern": "장기몰입형",
+               "pace": "숙고형", "preferred_format": "체계적 텍스트", "kolb_type": "동화형", "confidence_score": 90},
+    "실습형": {"learning_style": "실습형", "cognitive_style": "직관형", "focus_pattern": "단기집중형",
+               "pace": "속도형", "preferred_format": "단계별 실습", "kolb_type": "조절형", "confidence_score": 90},
+    "요약형": {"learning_style": "요약형", "cognitive_style": "분석형", "focus_pattern": "단기집중형",
+               "pace": "속도형", "preferred_format": "핵심 압축", "kolb_type": "수렴형", "confidence_score": 90},
+    "상세형": {"learning_style": "상세형", "cognitive_style": "분석형", "focus_pattern": "장기몰입형",
+               "pace": "숙고형", "preferred_format": "상세 단계 설명", "kolb_type": "동화형", "confidence_score": 90},
+}
+
+
 @router.get("/lectures/{room_id}/{lecture_id}/reforged")
-async def get_reforged(room_id: str, lecture_id: str, user_id: str):
+async def get_reforged(room_id: str, lecture_id: str, user_id: str, test_style: str = ""):
     """
     학생 성향에 맞는 6스타일 재가공 교안 반환.
-    캐시 있으면 즉시 반환, 없으면 asyncio.gather()로 6스타일 동시 생성.
+    - test_style 지정 시: Firebase 진단 없이 해당 스타일 프로필로 즉시 재가공 (테스트용)
+    - 캐시 있으면 즉시 반환, 없으면 asyncio.gather()로 6스타일 동시 생성.
     """
+    # ── 테스트 모드 ───────────────────────────────────────────────
+    if test_style:
+        profile = _TEST_PROFILES.get(test_style, _TEST_PROFILES["읽기형"])
+        logger.info(f"[reforged] 테스트 모드 style={test_style} lecture={lecture_id}")
+        lecture = await firebase.get_lecture(room_id, lecture_id)
+        if not lecture:
+            raise HTTPException(status_code=404, detail="교안을 찾을 수 없습니다.")
+        try:
+            styles = await reforge_svc.reforge_with_rag(
+                original_content=lecture.get("original_text", ""),
+                core_points=lecture.get("core_points", []),
+                profile=profile,
+            )
+        except Exception as e:
+            logger.error(f"[reforged] 재가공 실패: {e}", exc_info=True)
+            raise HTTPException(status_code=502, detail=f"교안 재가공 실패: {e}")
+        return {"lecture_id": lecture_id, "primary_style": test_style, "styles": styles}
+
+    # ── 정상 모드 ─────────────────────────────────────────────────
     cached = await firebase.get_reforged_all(room_id, lecture_id, user_id)
     if cached:
         logger.info(f"[reforged] 캐시 히트 user={user_id} lecture={lecture_id}")
@@ -106,10 +142,7 @@ async def get_reforged(room_id: str, lecture_id: str, user_id: str):
         raise HTTPException(status_code=400, detail="학습 성향 진단을 먼저 완료해주세요.")
 
     profile = diagnosis["profile"]
-    logger.info(
-        f"[reforged] 6스타일 병렬 생성 시작 user={user_id} "
-        f"style={profile.get('learning_style')}"
-    )
+    logger.info(f"[reforged] 6스타일 병렬 생성 시작 user={user_id} style={profile.get('learning_style')}")
 
     try:
         styles = await reforge_svc.reforge_with_rag(

@@ -24,6 +24,15 @@ const _styleColors = {
   '상세형': Color(0xFFEC4899),
 };
 
+const _styleDescs = {
+  '시각형': '도식·흐름도·색상 구분',
+  '청각형': '대화체·스토리텔링',
+  '읽기형': '체계적 텍스트·목록',
+  '실습형': '단계별 실습 가이드',
+  '요약형': '핵심만 3-5줄 압축',
+  '상세형': '단계별 상세·예외 포함',
+};
+
 class LectureViewPage extends ConsumerStatefulWidget {
   final String roomId;
   final String lectureId;
@@ -45,28 +54,47 @@ class LectureViewPage extends ConsumerStatefulWidget {
 class _LectureViewPageState extends ConsumerState<LectureViewPage> {
   Map<String, String>? _styleContents;
   String? _primaryStyle;
-  String _selectedStyle = '시각형';
-  bool _loading = true;
+  String _selectedStyle = '읽기형';
+  bool _loading = false;
   String? _error;
+  String? _testStyle; // 테스트 모드 선택 스타일
 
   @override
   void initState() {
     super.initState();
-    _load();
+    // 시작 시 스타일 선택 시트 표시
+    WidgetsBinding.instance.addPostFrameCallback((_) => _showStylePicker());
   }
 
-  Future<void> _load() async {
+  Future<void> _showStylePicker() async {
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _StylePickerSheet(current: _testStyle),
+    );
+    if (picked != null) {
+      setState(() {
+        _testStyle = picked;
+        _selectedStyle = picked;
+      });
+      await _load(testStyle: picked);
+    }
+  }
+
+  Future<void> _load({String? testStyle}) async {
     setState(() { _loading = true; _error = null; });
     try {
       final data = await ApiService().getReforgedLecture(
         roomId: widget.roomId,
         lectureId: widget.lectureId,
         userId: widget.userId,
+        testStyle: testStyle ?? _testStyle,
       );
       final rawStyles = data['styles'] as Map<String, dynamic>? ?? {};
       setState(() {
         _styleContents = rawStyles.map((k, v) => MapEntry(k, v as String));
-        _primaryStyle = data['primary_style'] as String? ?? '읽기형';
+        _primaryStyle = data['primary_style'] as String? ?? testStyle ?? '읽기형';
         _selectedStyle = _primaryStyle!;
         _loading = false;
       });
@@ -79,13 +107,24 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg,
+      floatingActionButton: _styleContents != null
+          ? FloatingActionButton.extended(
+              onPressed: _showStylePicker,
+              backgroundColor: AppColors.primary,
+              icon: const Icon(Icons.tune_rounded, color: Colors.white),
+              label: const Text('스타일 변경',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+            )
+          : null,
       body: SafeArea(
         child: Column(children: [
           _buildHeader(),
           if (_loading)
             const Expanded(child: _LoadingView())
           else if (_error != null)
-            Expanded(child: _ErrorView(message: _error!, onRetry: _load))
+            Expanded(child: _ErrorView(message: _error!, onRetry: _showStylePicker))
+          else if (_styleContents == null)
+            Expanded(child: _EmptyView(onPick: _showStylePicker))
           else ...[
             _buildStyleTabs(),
             Expanded(child: _buildContent()),
@@ -110,8 +149,22 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
             color: AppColors.textPrimary, fontSize: 17, fontWeight: FontWeight.w800,
           ), maxLines: 1, overflow: TextOverflow.ellipsis),
           if (_primaryStyle != null)
-            Text('기본: $_primaryStyle',
-                style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+            Row(children: [
+              Text('${_styleEmojis[_primaryStyle]} $_primaryStyle 맞춤 교안',
+                  style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+              if (_testStyle != null) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: AppColors.accent.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text('테스트 모드',
+                      style: TextStyle(color: AppColors.accent, fontSize: 10, fontWeight: FontWeight.w700)),
+                ),
+              ],
+            ]),
         ])),
       ]),
     );
@@ -128,12 +181,11 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
         itemBuilder: (_, i) {
           final s = _styles[i];
           final isSelected = _selectedStyle == s;
+          final hasContent = _styleContents?.containsKey(s) == true;
           final color = _styleColors[s] ?? AppColors.primary;
           final isPrimary = s == _primaryStyle;
           return GestureDetector(
-            onTap: _styleContents?.containsKey(s) == true
-                ? () => setState(() => _selectedStyle = s)
-                : null,
+            onTap: hasContent ? () => setState(() => _selectedStyle = s) : null,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 180),
               padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -149,10 +201,10 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
               ),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 Text(_styleEmojis[s] ?? '📄',
-                    style: const TextStyle(fontSize: 14)),
+                    style: TextStyle(fontSize: 14, color: hasContent ? null : AppColors.textMuted.withValues(alpha: 0.4))),
                 const SizedBox(width: 6),
                 Text(s, style: TextStyle(
-                  color: isSelected ? color : AppColors.textMuted,
+                  color: isSelected ? color : (hasContent ? AppColors.textMuted : AppColors.textMuted.withValues(alpha: 0.4)),
                   fontSize: 12,
                   fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
                 )),
@@ -160,8 +212,7 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
                   const SizedBox(width: 4),
                   Container(
                     width: 6, height: 6,
-                    decoration: BoxDecoration(
-                        color: color, shape: BoxShape.circle),
+                    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
                   ),
                 ],
               ]),
@@ -179,7 +230,7 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
           style: TextStyle(color: AppColors.textMuted)));
     }
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 100),
       child: Column(children: [
         _StyleHeader(style: _selectedStyle),
         const SizedBox(height: 16),
@@ -188,6 +239,103 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
     );
   }
 }
+
+// ── 스타일 선택 바텀시트 ──────────────────────────────────────────────────────
+
+class _StylePickerSheet extends StatelessWidget {
+  final String? current;
+  const _StylePickerSheet({this.current});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.bgSurface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Container(
+          width: 40, height: 4,
+          decoration: BoxDecoration(
+            color: AppColors.border, borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(height: 20),
+        const Text('학습 성향 선택',
+            style: TextStyle(color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 6),
+        const Text('교안을 재가공할 학습 스타일을 선택하세요',
+            style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+        const SizedBox(height: 24),
+        ...List.generate(_styles.length, (i) {
+          final s = _styles[i];
+          final color = _styleColors[s] ?? AppColors.primary;
+          final isSelected = s == current;
+          return GestureDetector(
+            onTap: () => Navigator.pop(context, s),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: isSelected ? color.withValues(alpha: 0.12) : AppColors.bg,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: isSelected ? color : AppColors.border,
+                  width: isSelected ? 2 : 1,
+                ),
+              ),
+              child: Row(children: [
+                Text(_styleEmojis[s] ?? '📄', style: const TextStyle(fontSize: 22)),
+                const SizedBox(width: 14),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(s, style: TextStyle(
+                    color: isSelected ? color : AppColors.textPrimary,
+                    fontSize: 15, fontWeight: FontWeight.w700,
+                  )),
+                  Text(_styleDescs[s] ?? '', style: const TextStyle(
+                    color: AppColors.textMuted, fontSize: 12,
+                  )),
+                ])),
+                if (isSelected)
+                  Icon(Icons.check_circle_rounded, color: color, size: 20)
+                else
+                  const Icon(Icons.arrow_forward_ios_rounded,
+                      color: AppColors.textMuted, size: 14),
+              ]),
+            ),
+          );
+        }),
+      ]),
+    );
+  }
+}
+
+// ── 빈 상태 ───────────────────────────────────────────────────────────────────
+
+class _EmptyView extends StatelessWidget {
+  final VoidCallback onPick;
+  const _EmptyView({required this.onPick});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+      const Text('🎯', style: TextStyle(fontSize: 56)),
+      const SizedBox(height: 16),
+      const Text('학습 성향을 선택하세요', style: TextStyle(
+        color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w800,
+      )),
+      const SizedBox(height: 8),
+      const Text('AI가 선택한 성향에 맞게\n교안을 재가공합니다', textAlign: TextAlign.center,
+          style: TextStyle(color: AppColors.textMuted, fontSize: 14)),
+      const SizedBox(height: 28),
+      GlowButton(text: '성향 선택하기', onTap: onPick),
+    ]));
+  }
+}
+
+// ── 스타일 헤더 ───────────────────────────────────────────────────────────────
 
 class _StyleHeader extends StatelessWidget {
   final String style;
@@ -345,7 +493,7 @@ class _ErrorView extends StatelessWidget {
         Text(message, textAlign: TextAlign.center,
             style: const TextStyle(color: AppColors.textMuted, fontSize: 13)),
         const SizedBox(height: 24),
-        GlowButton(text: '다시 시도', onTap: onRetry),
+        GlowButton(text: '스타일 다시 선택', onTap: onRetry),
       ]),
     ));
   }

@@ -152,10 +152,13 @@ class ApiService {
     required String roomId,
     required String lectureId,
     required String userId,
+    String? testStyle,
   }) async {
+    final params = <String, String>{'user_id': userId};
+    if (testStyle != null && testStyle.isNotEmpty) params['test_style'] = testStyle;
     final res = await _dio.get(
       ApiConstants.reforgedLecture(roomId, lectureId),
-      queryParameters: {'user_id': userId},
+      queryParameters: params,
     );
     return res.data as Map<String, dynamic>;
   }
