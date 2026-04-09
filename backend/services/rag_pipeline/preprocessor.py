@@ -1,13 +1,18 @@
 """
 논문 지식베이스 벡터화 — 서버 시작 시 1회 로드 후 메모리 캐싱
+
+langchain_google_genai의 GoogleGenerativeAIEmbeddings는 내부적으로 gRPC를 사용하여
+Render 같은 환경에서 DNS 타임아웃이 발생. genai.embed_content() REST API를 직접
+사용하는 커스텀 임베딩 클래스를 사용.
 """
 import asyncio
 import logging
 import os
+from typing import List
 
+import google.generativeai as genai
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
 from .knowledge_base import PAPER_CHUNKS
 
@@ -16,12 +21,31 @@ logger = logging.getLogger(__name__)
 _store: FAISS | None = None  # 서버 전체 공유 싱글톤
 
 
-def _make_embeddings() -> GoogleGenerativeAIEmbeddings:
-    return GoogleGenerativeAIEmbeddings(
-        model="models/text-embedding-004",
-        google_api_key=os.environ["GEMINI_API_KEY"],
-        transport="rest",  # gRPC DNS 타임아웃 방지 (Render 호환)
-    )
+class _RestEmbeddings:
+    """genai.embed_content() REST 기반 임베딩 — gRPC 없이 동작"""
+
+    def __init__(self, model: str = "models/text-embedding-004"):
+        self.model = model
+
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        result = genai.embed_content(
+            model=self.model,
+            content=texts,
+            task_type="retrieval_document",
+        )
+        emb = result.get("embedding", [])
+        # 단일 텍스트면 중첩 리스트로, 다중이면 그대로
+        if emb and isinstance(emb[0], (int, float)):
+            return [emb]
+        return emb
+
+    def embed_query(self, text: str) -> List[float]:
+        result = genai.embed_content(
+            model=self.model,
+            content=text,
+            task_type="retrieval_query",
+        )
+        return result["embedding"]
 
 
 class PaperVectorStore:
@@ -32,6 +56,8 @@ class PaperVectorStore:
         global _store
         if _store is not None:
             return  # 이미 초기화됨
+
+        genai.configure(api_key=os.environ["GEMINI_API_KEY"], transport="rest")
 
         logger.info("[RAG] 논문 지식베이스 벡터화 시작...")
         splitter = RecursiveCharacterTextSplitter(
@@ -51,7 +77,7 @@ class PaperVectorStore:
                     "title": chunk["title"],
                 })
 
-        embeddings = _make_embeddings()
+        embeddings = _RestEmbeddings()
         _store = await asyncio.to_thread(
             FAISS.from_texts, texts, embeddings, metadatas=metadatas
         )
