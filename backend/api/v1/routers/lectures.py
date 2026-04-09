@@ -148,10 +148,7 @@ _TEST_PROFILES = {
 
 @router.get("/lectures/demo/reforged")
 async def get_demo_reforged(test_style: str = "읽기형"):
-    """
-    Firebase 없이 내장 샘플 교안으로 재가공 테스트.
-    URL: GET /api/v1/lectures/demo/reforged?test_style=시각형
-    """
+    """Firebase 없이 내장 샘플 교안으로 재가공 테스트."""
     profile = _TEST_PROFILES.get(test_style, _TEST_PROFILES["읽기형"])
     logger.info(f"[demo-reforged] style={test_style}")
     try:
@@ -164,6 +161,31 @@ async def get_demo_reforged(test_style: str = "읽기형"):
         logger.error(f"[demo-reforged] 실패: {e}", exc_info=True)
         raise HTTPException(status_code=502, detail=f"재가공 실패: {e}")
     return {"lecture_id": "demo", "primary_style": test_style, "styles": styles}
+
+
+from pydantic import BaseModel as _BM
+
+class _CustomReforgeRequest(_BM):
+    test_style: str = "읽기형"
+    content: str = ""  # 비어 있으면 내장 샘플 사용
+
+
+@router.post("/lectures/demo/reforged")
+async def post_custom_reforged(body: _CustomReforgeRequest):
+    """커스텀 텍스트로 재가공 테스트 (POST)."""
+    profile = _TEST_PROFILES.get(body.test_style, _TEST_PROFILES["읽기형"])
+    content = body.content.strip() if body.content.strip() else _DEMO_LECTURE
+    logger.info(f"[custom-reforged] style={body.test_style} len={len(content)}")
+    try:
+        styles = await reforge_svc.reforge_with_rag(
+            original_content=content,
+            core_points=_DEMO_CORE_POINTS,
+            profile=profile,
+        )
+    except Exception as e:
+        logger.error(f"[custom-reforged] 실패: {e}", exc_info=True)
+        raise HTTPException(status_code=502, detail=f"재가공 실패: {e}")
+    return {"lecture_id": "custom", "primary_style": body.test_style, "styles": styles}
 
 
 @router.get("/lectures/{room_id}/{lecture_id}/reforged")

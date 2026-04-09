@@ -101,6 +101,32 @@ class _WelcomePageState extends ConsumerState<WelcomePage> {
                   loading: _loading,
                   onTap: () => _enter(UserRole.professor),
                 ),
+                const SizedBox(height: 24),
+                const Divider(color: AppColors.border),
+                const SizedBox(height: 16),
+                GestureDetector(
+                  onTap: () => context.push('/reforge-test'),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+                    decoration: BoxDecoration(
+                      color: AppColors.bgSurface,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.accent.withValues(alpha: 0.5)),
+                    ),
+                    child: Row(children: [
+                      const Text('🧪', style: TextStyle(fontSize: 22)),
+                      const SizedBox(width: 14),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        const Text('재가공 시스템 테스트',
+                            style: TextStyle(color: AppColors.accent, fontSize: 14, fontWeight: FontWeight.w800)),
+                        const Text('로그인 없이 AI 교안 재해석 바로 체험',
+                            style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                      ])),
+                      const Icon(Icons.arrow_forward_ios_rounded, color: AppColors.accent, size: 14),
+                    ]),
+                  ),
+                ),
               ],
             ),
           ),
