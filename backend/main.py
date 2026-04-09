@@ -60,6 +60,14 @@ except Exception as e:
     dashboard = None
 
 try:
+    from api.v1.routers import demo
+    logger.info("[import] ✅ demo 라우터")
+except Exception as e:
+    logger.error(f"[import] ❌ demo 라우터 실패: {e}\n{traceback.format_exc()}")
+    _import_errors.append(f"demo: {e}")
+    demo = None
+
+try:
     from services.rag_pipeline.preprocessor import PaperVectorStore
     logger.info("[import] ✅ PaperVectorStore")
     _rag_available = True
@@ -137,6 +145,8 @@ if lectures:
     app.include_router(lectures.router, prefix="/api/v1")
 if dashboard:
     app.include_router(dashboard.router, prefix="/api/v1")
+if demo:
+    app.include_router(demo.router, prefix="/api/v1")
 
 # ── CORS 미들웨어 — 반드시 마지막에 추가 ─────────────────────────────────────
 app.add_middleware(
