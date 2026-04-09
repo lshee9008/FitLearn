@@ -15,6 +15,12 @@ async def create_room(body: RoomCreate):
     return Room(**{k: data[k] for k in Room.model_fields if k in data})
 
 
+@router.get("/rooms/student/{user_id}", response_model=list[Room])
+async def list_student_rooms(user_id: str):
+    rooms = await firebase.get_rooms_by_student(user_id)
+    return [Room(**{k: r[k] for k in Room.model_fields if k in r}) for r in rooms]
+
+
 @router.get("/rooms/professor/{professor_uid}", response_model=list[Room])
 async def list_rooms(professor_uid: str):
     rooms = await firebase.get_rooms_by_professor(professor_uid)

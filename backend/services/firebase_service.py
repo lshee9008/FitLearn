@@ -67,6 +67,19 @@ class FirebaseService:
         room_ref.set(data)
         return data
 
+    async def get_rooms_by_student(self, user_id: str) -> list[dict]:
+        docs = (
+            self.db.collection("rooms")
+            .where("students", "array_contains", user_id)
+            .stream()
+        )
+        rooms = []
+        for doc in docs:
+            d = doc.to_dict()
+            d["student_count"] = len(d.get("students", []))
+            rooms.append(d)
+        return rooms
+
     async def get_rooms_by_professor(self, professor_uid: str) -> list[dict]:
         docs = (
             self.db.collection("rooms")

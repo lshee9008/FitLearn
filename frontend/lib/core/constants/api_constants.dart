@@ -10,6 +10,7 @@ class ApiConstants {
 
   // Rooms
   static const String createRoom = '/api/v1/rooms';
+  static String studentRooms(String uid) => '/api/v1/rooms/student/$uid';
   static String professorRooms(String uid) => '/api/v1/rooms/professor/$uid';
   static const String joinRoom = '/api/v1/rooms/join';
   static String room(String id) => '/api/v1/rooms/$id';
