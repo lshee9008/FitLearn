@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../provider/auth_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../provider/auth_provider.dart';
 
 // ── 데모 모드 우회 화면 ───────────────────────────────────────────────────────
 // TODO: 인증 시스템 재활성화 시 아래 클래스를 _AuthWelcomePage로 교체
@@ -110,36 +110,38 @@ class _WelcomePageState extends ConsumerState<WelcomePage> {
   }
 
   Widget _buildLogo() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: AppColors.primary,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primary.withValues(alpha: 0.4),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: const Center(
-            child: Text('FL', style: TextStyle(
-              color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900,
-            )),
-          ),
+    return Column(children: [
+      Container(
+        width: 72,
+        height: 72,
+        decoration: BoxDecoration(
+          color: AppColors.primary,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withValues(alpha: 0.45),
+              blurRadius: 36,
+              offset: const Offset(0, 14),
+            ),
+          ],
         ),
-        const SizedBox(width: 12),
-        const Text('FitLearn', style: TextStyle(
-          color: AppColors.textPrimary, fontSize: 26, fontWeight: FontWeight.w900,
-          letterSpacing: -1,
-        )),
-      ],
-    );
+        child: const Center(
+          child: Text('FL', style: TextStyle(
+            color: Colors.white, fontSize: 26, fontWeight: FontWeight.w900,
+            letterSpacing: -1,
+          )),
+        ),
+      ),
+      const SizedBox(height: 18),
+      const Text('FitLearn', style: TextStyle(
+        color: AppColors.textPrimary, fontSize: 32, fontWeight: FontWeight.w900,
+        letterSpacing: -1.2,
+      )),
+      const SizedBox(height: 6),
+      const Text('나의 학습 성향에 맞춘 AI 교안 학습', style: TextStyle(
+        color: AppColors.textMuted, fontSize: 14,
+      )),
+    ]);
   }
 }
 
