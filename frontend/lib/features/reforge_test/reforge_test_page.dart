@@ -68,8 +68,8 @@ class _ReforgeTestPageState extends State<ReforgeTestPage> with SingleTickerProv
 
   final _dio = Dio(BaseOptions(
     baseUrl: ApiConstants.baseUrl,
-    connectTimeout: const Duration(seconds: 20),
-    receiveTimeout: const Duration(seconds: 120),
+    connectTimeout: const Duration(seconds: 60),   // 콜드 스타트 대응
+    receiveTimeout: const Duration(seconds: 180),   // AI 생성 시간 대응
   ));
 
   @override
