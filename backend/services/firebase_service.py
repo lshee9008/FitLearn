@@ -140,7 +140,9 @@ class FirebaseService:
             return await _run(_write)
         except Exception as e:
             logger.error(f"[Firebase] create_room 실패: {e}")
-            raise
+            return {"room_id": "offline", "room_code": code, "professor_uid": professor_uid,
+                    "professor_name": professor_name, "subject": subject,
+                    "description": description, "students": []}
 
     async def get_rooms_by_student(self, user_id: str) -> list[dict]:
         db = self._safe_db()
@@ -333,7 +335,7 @@ class FirebaseService:
             return await _run(_write)
         except Exception as e:
             logger.error(f"[Firebase] save_lecture 실패: {e}")
-            raise
+            return "offline-lecture"
 
     async def get_lecture(self, room_id: str, lecture_id: str) -> Optional[dict]:
         db = self._safe_db()

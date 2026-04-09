@@ -1,4 +1,7 @@
+import logging
 from fastapi import APIRouter, HTTPException
+
+logger = logging.getLogger(__name__)
 
 from models.room import RoomCreate, Room, JoinRoomRequest, RoomStudent
 from services.firebase_service import FirebaseService
@@ -9,10 +12,14 @@ firebase = FirebaseService()
 
 @router.post("/rooms", response_model=Room)
 async def create_room(body: RoomCreate):
-    user = await firebase.get_user(body.professor_uid)
-    name = user.get("name", "") if user else ""
-    data = await firebase.create_room(body.professor_uid, name, body.subject, body.description)
-    return Room(**{k: data[k] for k in Room.model_fields if k in data})
+    try:
+        user = await firebase.get_user(body.professor_uid)
+        name = user.get("name", "") if user else ""
+        data = await firebase.create_room(body.professor_uid, name, body.subject, body.description)
+        return Room(**{k: data[k] for k in Room.model_fields if k in data})
+    except Exception as e:
+        logger.error(f"[create_room] 실패: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"방 생성 실패: {e}")
 
 
 @router.get("/rooms/student/{user_id}", response_model=list[Room])
@@ -34,11 +41,17 @@ async def list_rooms(professor_uid: str):
 
 @router.post("/rooms/join", response_model=Room)
 async def join_room(body: JoinRoomRequest):
-    data = await firebase.get_room_by_code(body.room_code)
-    if not data:
-        raise HTTPException(status_code=404, detail="존재하지 않는 방 코드입니다.")
-    await firebase.add_student_to_room(data["room_id"], body.user_id)
-    return Room(**{k: data[k] for k in Room.model_fields if k in data})
+    try:
+        data = await firebase.get_room_by_code(body.room_code)
+        if not data:
+            raise HTTPException(status_code=404, detail="존재하지 않는 방 코드입니다.")
+        await firebase.add_student_to_room(data["room_id"], body.user_id)
+        return Room(**{k: data[k] for k in Room.model_fields if k in data})
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[join_room] 실패: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"방 참여 실패: {e}")
 
 
 @router.get("/rooms/{room_id}", response_model=Room)
