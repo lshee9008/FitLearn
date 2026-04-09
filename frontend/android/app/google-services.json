@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "14190977451",
+    "project_id": "fitlearn-37d34",
+    "storage_bucket": "fitlearn-37d34.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:14190977451:android:08a0e5c7b6e18c917472ee",
+        "android_client_info": {
+          "package_name": "com.fitlearn.fitlearn"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBX11eaxaJoGgNnbEc_WJBWwSl_qD7-iow"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
