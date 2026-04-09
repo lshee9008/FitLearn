@@ -68,12 +68,33 @@ String firebaseErrorToKorean(Object e) {
   return e.toString();
 }
 
+// ── 데모 모드 플래그 ──────────────────────────────────────────────────────────
+// TODO: 인증 시스템 재활성화 시 아래 값을 false로 변경
+const bool kDemoMode = true;
+// ─────────────────────────────────────────────────────────────────────────────
+
 @riverpod
 class AuthNotifier extends _$AuthNotifier {
   @override
   UserProfile? build() {
     _loadFromPrefs();
     return null;
+  }
+
+  // ── 데모 로그인 (인증 없이 역할만 선택) ──────────────────────────────────
+  Future<void> demoLogin(UserRole role) async {
+    final profile = UserProfile(
+      userId: 'demo-${role.name}-001',
+      name: role == UserRole.student ? '데모 학생' : '데모 교수',
+      email: '',
+      role: role,
+    );
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('user_id', profile.userId);
+    await prefs.setString('user_name', profile.name);
+    await prefs.setString('user_role', profile.roleValue);
+    await prefs.setString('user_email', '');
+    state = profile;
   }
 
   Future<void> _loadFromPrefs() async {
@@ -83,6 +104,20 @@ class AuthNotifier extends _$AuthNotifier {
     final role = prefs.getString('user_role');
     final email = prefs.getString('user_email') ?? '';
 
+    if (kDemoMode) {
+      // 데모 모드: Firebase 확인 없이 로컬 캐시만 사용
+      if (uid != null && name != null && role != null) {
+        state = UserProfile(
+          userId: uid,
+          name: name,
+          email: email,
+          role: role == 'professor' ? UserRole.professor : UserRole.student,
+        );
+      }
+      return;
+    }
+
+    // TODO: 인증 재활성화 시 아래 블록 사용
     // Firebase currentUser 일치 여부 확인
     final firebaseUser = FirebaseAuth.instance.currentUser;
     if (uid != null && name != null && role != null && firebaseUser?.uid == uid) {
