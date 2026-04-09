@@ -18,7 +18,7 @@ _store: FAISS | None = None  # 서버 전체 공유 싱글톤
 
 def _make_embeddings() -> GoogleGenerativeAIEmbeddings:
     return GoogleGenerativeAIEmbeddings(
-        model="models/embedding-001",
+        model="models/text-embedding-004",
         google_api_key=os.environ["GEMINI_API_KEY"],
     )
 
