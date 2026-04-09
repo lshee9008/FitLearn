@@ -95,9 +95,9 @@ class ReforgeService:
         paper_strategy = PAPER_STRATEGY.get(style, "")
         style_guide = STYLE_GUIDES.get(style, "")
 
-        prompt = f"""당신은 교육 콘텐츠 전문가입니다. 교육심리학 이론에 기반하여 '{style}' 학습자를 위한 맞춤 교안을 재가공하세요.
+        prompt = f"""당신은 최고 수준의 교육공학 전문가입니다. 제공된 교육심리학 이론과 논문 근거를 바탕으로 '{style}' 학습자 맞춤형 교안을 즉시 학습 가능한 형태로 재가공하세요.
 
-[논문 근거]
+[필수 논문 근거 (이 이론을 내용 전개 방식에 반드시 반영)]
 {paper_context}
 
 [교육심리학 전략 — {style}]
@@ -107,26 +107,26 @@ class ReforgeService:
 - 학습유형: {profile.get('learning_style')} / 인지스타일: {profile.get('cognitive_style')}
 - 집중패턴: {profile.get('focus_pattern')} / 페이스: {profile.get('pace')}
 - 선호형식: {profile.get('preferred_format')} / Kolb유형: {profile.get('kolb_type', '동화형')}
-- 신뢰도: {profile.get('confidence_score', 70)}%
 
 [교수 확정 핵심 포인트 (중요도 순)]
 {core_text}
 
 [원본 교안]
-{original_content[:2500]}
+{original_content[:3000]}
 
-[재가공 규칙]
-1. 위 논문 이론을 실제로 적용해 재가공하세요
-2. '{style}' 학습자에게 최적화된 형식과 구조를 사용하세요
-3. 마크다운 형식으로 완성된 교안을 작성하세요
-4. 학생이 즉시 학습에 활용할 수 있도록 완성도 있게 작성하세요"""
+[재가공 절대 규칙]
+1. 단순 요약이 아닙니다. '{style}' 학습자의 주의를 끌고 인지 부하를 최적화할 수 있도록 문체, 구조, 예시를 완전히 재구성하세요.
+2. 위에서 정의된 [교육심리학 전략]에 명시된 표현 방식(예: 도식 활용, 대화체, 핵심 압축 등)을 극단적으로 강조하여 반영하세요.
+3. 교수가 확정한 핵심 포인트는 무조건 빠짐없이 포함되어야 합니다.
+4. 마크다운(Markdown) 포맷으로 가독성 있게 작성하되, 인사말 없이 바로 교안 내용부터 출력하세요.
+"""
 
         genai.configure(api_key=os.environ["GEMINI_API_KEY"], transport="rest")
         model = genai.GenerativeModel(
             model_name=MODEL,
             generation_config=genai.GenerationConfig(
-                temperature=0.7,
-                max_output_tokens=2048,
+                temperature=0.4,
+                max_output_tokens=2500,
             ),
         )
         response = await asyncio.to_thread(model.generate_content, prompt)
