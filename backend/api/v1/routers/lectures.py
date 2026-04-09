@@ -2,13 +2,15 @@ import logging
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from models.lecture import LectureUploadResponse, CorePoint, CorePointConfirmRequest
-from services.gemini_service import GeminiService, REFORGE_STYLES
+from services.gemini_service import GeminiService
+from services.reforge_service import ReforgeService
 from services.file_service import FileService
 from services.firebase_service import FirebaseService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["lectures"])
 gemini = GeminiService()
+reforge_svc = ReforgeService()
 file_svc = FileService()
 firebase = FirebaseService()
 
@@ -92,7 +94,7 @@ async def get_reforged(room_id: str, lecture_id: str, user_id: str):
     logger.info(f"[reforged] 6스타일 생성 시작 user={user_id} style={profile.get('learning_style')}")
 
     try:
-        styles = await gemini.reforge_all_styles(
+        styles = await reforge_svc.reforge_with_rag(
             original_content=lecture.get("original_text", ""),
             core_points=lecture.get("core_points", []),
             profile=profile,
