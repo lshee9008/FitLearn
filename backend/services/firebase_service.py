@@ -178,17 +178,48 @@ class FirebaseService:
         )
         return [doc.to_dict() for doc in docs]
 
-    async def save_reforged(self, room_id: str, lecture_id: str, user_id: str, content: str, style: str) -> None:
+    async def save_reforged_all(
+        self,
+        room_id: str,
+        lecture_id: str,
+        user_id: str,
+        styles: dict[str, str],
+        primary_style: str,
+    ) -> None:
+        """6스타일 재가공 결과 전체 저장"""
         self.db.collection("rooms").document(room_id)\
             .collection("lectures").document(lecture_id)\
             .collection("reforged").document(user_id)\
-            .set({"content": content, "style": style, "generated_at": datetime.now(timezone.utc)})
+            .set({
+                "styles": styles,
+                "primary_style": primary_style,
+                "generated_at": datetime.now(timezone.utc),
+            })
 
-    async def get_reforged(self, room_id: str, lecture_id: str, user_id: str) -> Optional[dict]:
+    async def get_reforged_all(self, room_id: str, lecture_id: str, user_id: str) -> Optional[dict]:
+        """6스타일 재가공 캐시 조회"""
         doc = (
             self.db.collection("rooms").document(room_id)
             .collection("lectures").document(lecture_id)
             .collection("reforged").document(user_id)
             .get()
         )
-        return doc.to_dict() if doc.exists else None
+        if not doc.exists:
+            return None
+        d = doc.to_dict()
+        return {
+            "lecture_id": lecture_id,
+            "primary_style": d.get("primary_style", "읽기형"),
+            "styles": d.get("styles", {}),
+        }
+
+    # 하위호환 단일 스타일 메서드 유지
+    async def save_reforged(self, room_id: str, lecture_id: str, user_id: str, content: str, style: str) -> None:
+        await self.save_reforged_all(room_id, lecture_id, user_id, {style: content}, style)
+
+    async def get_reforged(self, room_id: str, lecture_id: str, user_id: str) -> Optional[dict]:
+        result = await self.get_reforged_all(room_id, lecture_id, user_id)
+        if not result:
+            return None
+        primary = result["primary_style"]
+        return {"content": result["styles"].get(primary, ""), "style": primary}

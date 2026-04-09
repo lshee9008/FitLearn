@@ -1,98 +1,57 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../provider/diagnosis_provider.dart';
 import '../../../../features/auth/provider/auth_provider.dart';
 import '../../../../core/theme/app_theme.dart';
-import '../../../../shared/widgets/app_card.dart';
-
-// ── 15문항 정의 ──────────────────────────────────────────────────
+import '../provider/diagnosis_provider.dart';
 
 class _Q {
   final int id;
-  final String category;
+  final String part;
   final String text;
-  final List<String> choices;
-  const _Q(this.id, this.category, this.text, this.choices);
+  final List<String> options;
+  const _Q(this.id, this.part, this.text, this.options);
 }
 
 const _questions = [
-  // 학습 스타일 (Q1-5)
-  _Q(1, '학습 스타일', '새로운 개념을 배울 때 가장 도움이 되는 방법은?', [
-    'A. 그림, 도표, 다이어그램으로 보는 것',
-    'B. 강의나 설명을 들으며 이해하는 것',
-    'C. 교재나 노트를 읽으며 정리하는 것',
-    'D. 직접 만들거나 실습해보는 것',
-  ]),
-  _Q(2, '학습 스타일', '복잡한 정보를 기억할 때 어떤 방법이 가장 효과적인가요?', [
-    'A. 색깔, 표, 마인드맵으로 시각화',
-    'B. 소리 내어 읽거나 누군가에게 설명',
-    'C. 중요한 내용을 직접 필기하고 정리',
-    'D. 모형을 만들거나 직접 경험해보기',
-  ]),
-  _Q(3, '학습 스타일', '좋아하는 수업 형태는?', [
-    'A. 슬라이드, 영상 중심의 강의',
-    'B. 토론, 발표 중심의 강의',
-    'C. 교재 중심의 강의',
-    'D. 실습, 실험 중심의 강의',
-  ]),
-  _Q(4, '학습 스타일', '새로운 소프트웨어를 배울 때 선호하는 방식은?', [
-    'A. UI 화면을 보며 직접 탐색',
-    'B. 동영상 튜토리얼을 보며 따라하기',
-    'C. 매뉴얼이나 가이드를 읽기',
-    'D. 직접 눌러보며 실험',
-  ]),
-  _Q(5, '학습 스타일', '시험 공부를 할 때 주로 사용하는 방법은?', [
-    'A. 요약 노트, 개념도, 플래시카드',
-    'B. 소리 내어 읽기, 스터디 그룹 토론',
-    'C. 교재나 필기를 여러 번 읽기',
-    'D. 연습문제를 많이 풀고 적용해보기',
-  ]),
-  // 사회적 성향 (Q6-10)
-  _Q(6, '사회적 성향', '오랜 시간 사람들과 어울린 후 기분이 어떤가요?', [
-    'A. 더욱 활기차고 에너지가 생긴다',
-    'B. 피곤하고 혼자만의 시간이 필요하다',
-  ]),
-  _Q(7, '사회적 성향', '가장 집중이 잘 되는 공부 환경은?', [
-    'A. 조용히 혼자 공부하는 환경',
-    'B. 약간의 소음이 있는 카페나 도서관',
-  ]),
-  _Q(8, '사회적 성향', '어려운 문제를 만났을 때 주로 어떻게 하나요?', [
-    'A. 혼자 충분히 생각하고 고민한다',
-    'B. 친구나 동료에게 바로 물어보거나 토론한다',
-  ]),
-  _Q(9, '사회적 성향', '팀 프로젝트에서 주로 어떤 역할을 맡나요?', [
-    'A. 자료조사, 분석 등 개인 작업 중심 역할',
-    'B. 의견 조율, 발표 등 소통 중심 역할',
-  ]),
-  _Q(10, '사회적 성향', '스트레스를 해소하는 방법은?', [
-    'A. 독서, 산책 등 혼자 하는 활동',
-    'B. 친구 만남, 모임 등 사람들과 함께하는 활동',
-  ]),
-  // 사고 유형 (Q11-15)
-  _Q(11, '사고 유형', '중요한 결정을 내릴 때 주로 의존하는 것은?', [
-    'A. 데이터, 사실, 논리적 분석',
-    'B. 직감, 경험, 전체적인 느낌',
-  ]),
-  _Q(12, '사고 유형', '새로운 프로젝트를 시작할 때 접근 방식은?', [
-    'A. 세부 계획을 먼저 꼼꼼히 세운다',
-    'B. 큰 방향을 잡고 진행하면서 조율한다',
-  ]),
-  _Q(13, '사고 유형', '글을 읽을 때 주로 어떻게 읽나요?', [
-    'A. 처음부터 끝까지 빠짐없이 정독한다',
-    'B. 핵심 부분과 전체 구조를 먼저 파악한다',
-  ]),
-  _Q(14, '사고 유형', '업무나 과제를 처리할 때 스타일은?', [
-    'A. 마감 전 꼼꼼하게 체크리스트로 완료',
-    'B. 흐름에 따라 유연하게 처리',
-  ]),
-  _Q(15, '사고 유형', '아이디어를 생각할 때 방식은?', [
-    'A. 기존 사례를 분석하고 개선점을 찾는다',
-    'B. 새로운 가능성을 상상하고 창의적으로 발전',
-  ]),
+  _Q(1, 'A', '새로운 개념을 배울 때 가장 도움이 되는 것은?',
+      ['도표·그림으로 시각화', '강의 듣거나 소리 내어 이해', '교재 꼼꼼히 읽고 필기', '직접 해보며 체득']),
+  _Q(2, 'A', '강의 내용을 복습할 때 주로 어떻게 하나요?',
+      ['마인드맵·도식으로 정리', '혼자 설명해보거나 녹음 듣기', '노트 필기 다시 읽기', '예제·문제 직접 풀기']),
+  _Q(3, 'A', '기억에 가장 오래 남는 학습 방식은?',
+      ['색깔펜·하이라이트·그림 활용', '친구에게 설명하거나 토론', '꼼꼼한 반복 읽기', '실험·실습·프로젝트']),
+  _Q(4, 'A', '어려운 개념 이해 시 먼저 하는 것은?',
+      ['관련 이미지·영상 검색', '교수나 친구에게 설명 요청', '관련 문서·책 더 읽기', '비슷한 문제 직접 풀기']),
+  _Q(5, 'A', '선호하는 수업 형태는?',
+      ['슬라이드·판서 중심 시각 수업', '강의·토론·발표 중심', '자료 중심 자기 주도 학습', '실험·프로젝트·실습 기반']),
+  _Q(6, 'B', '문제 해결 시 접근 방식은?',
+      ['논리적으로 단계별 분석', '전체 그림 보고 직관적 파악', '상황에 따라 다름', '']),
+  _Q(7, 'B', '새로운 정보를 접할 때?',
+      ['세부사항부터 꼼꼼히 확인', '큰 흐름과 핵심부터 파악', '중요도에 따라 다름', '']),
+  _Q(8, 'B', '계획 수립 방식은?',
+      ['세부 일정까지 촘촘히 계획', '큰 방향만 정하고 유연하게', '중간 정도의 계획', '']),
+  _Q(9, 'B', '판단을 내릴 때?',
+      ['충분한 데이터·근거 확인 후', '경험과 직감으로 빠르게', '상황에 따라 다름', '']),
+  _Q(10, 'B', '학습 중 막힐 때?',
+      ['원인 파악 후 체계적으로 해결', '잠시 쉬다가 새 시각으로 접근', '둘 다 해봄', '']),
+  _Q(11, 'C', '집중이 잘 되는 학습 환경은?',
+      ['완전히 조용한 공간', '약간의 배경음이 있는 공간', '카페·공공장소', '환경 상관없음']),
+  _Q(12, 'C', '공부가 가장 잘 되는 방식은?',
+      ['짧게 여러 번 (25분 집중 후 휴식)', '한 번에 길게 몰입 (2시간+)', '불규칙하게 그때그때', '']),
+  _Q(13, 'C', '새 내용을 배울 때 선호하는 방식은?',
+      ['핵심만 빠르게 파악 후 넘어감', '하나씩 완벽히 이해 후 진행', '예시·사례 통해 이해', '']),
+  _Q(14, 'C', '피드백 선호 방식은?',
+      ['즉각적이고 짧은 피드백', '상세하고 심층적인 피드백', '동료와 함께 상호 피드백', '']),
+  _Q(15, 'C', '혼자 vs 함께 공부할 때?',
+      ['혼자 집중이 훨씬 효율적', '함께 공부가 더 동기부여', '상황에 따라 다름', '']),
 ];
 
-// ── 페이지 ───────────────────────────────────────────────────────
+const _partColors = {
+  'A': AppColors.primary,
+  'B': AppColors.secondary,
+  'C': AppColors.accent,
+};
+const _partLabels = {'A': '학습 스타일', 'B': '인지 유형', 'C': '학습 환경'};
 
 class DiagnosisPage extends ConsumerStatefulWidget {
   const DiagnosisPage({super.key});
@@ -102,214 +61,245 @@ class DiagnosisPage extends ConsumerStatefulWidget {
 }
 
 class _DiagnosisPageState extends ConsumerState<DiagnosisPage>
-    with SingleTickerProviderStateMixin {
-  int _idx = 0;
+    with TickerProviderStateMixin {
+  int _current = 0;
   final Map<int, String> _answers = {};
-  late final AnimationController _anim;
-  late Animation<double> _fade;
+  late AnimationController _slideCtrl;
+  late Animation<Offset> _slide;
 
   @override
   void initState() {
     super.initState();
-    _anim = AnimationController(vsync: this, duration: const Duration(milliseconds: 300));
-    _fade = CurvedAnimation(parent: _anim, curve: Curves.easeOut);
-    _anim.forward();
+    _slideCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 300));
+    _buildAnim(true);
+    _slideCtrl.forward();
+  }
+
+  void _buildAnim(bool fwd) {
+    _slide = Tween<Offset>(
+      begin: Offset(fwd ? 1.0 : -1.0, 0),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _slideCtrl, curve: Curves.easeOutCubic));
   }
 
   @override
   void dispose() {
-    _anim.dispose();
+    _slideCtrl.dispose();
     super.dispose();
   }
 
-  void _select(String choice) => setState(() => _answers[_questions[_idx].id] = choice);
+  void _select(String label) =>
+      setState(() => _answers[_questions[_current].id] = label);
 
-  void _next() async {
-    if (_idx < _questions.length - 1) {
-      await _anim.reverse();
-      setState(() => _idx++);
-      _anim.forward();
+  Future<void> _next() async {
+    if (_answers[_questions[_current].id] == null) return;
+    if (_current < _questions.length - 1) {
+      _buildAnim(true);
+      _slideCtrl.reset();
+      setState(() => _current++);
+      _slideCtrl.forward();
     } else {
-      _submit();
+      await _submit();
     }
   }
 
-  void _prev() async {
-    if (_idx > 0) {
-      await _anim.reverse();
-      setState(() => _idx--);
-      _anim.forward();
+  void _prev() {
+    if (_current == 0) {
+      Navigator.of(context).maybePop();
+      return;
     }
+    _buildAnim(false);
+    _slideCtrl.reset();
+    setState(() => _current--);
+    _slideCtrl.forward();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     final user = ref.read(authNotifierProvider);
     if (user == null) return;
     final answers = _answers.entries
-        .map((e) => {'question_id': e.key, 'answer': e.value.substring(0, 1)})
+        .map((e) => {'question_id': e.key, 'answer': e.value})
         .toList();
-    ref.read(diagnosisNotifierProvider.notifier).submit(user.userId, answers);
+    try {
+      final result = await ref
+          .read(diagnosisNotifierProvider.notifier)
+          .submit(user.userId, answers);
+      if (mounted) context.push('/student/diagnosis/result', extra: result);
+    } catch (_) {}
   }
 
   @override
   Widget build(BuildContext context) {
-    ref.listen(diagnosisNotifierProvider, (_, next) {
-      if (next is AsyncData && next.value != null) {
-        context.go('/student/diagnosis/result', extra: next.value);
-      }
-    });
+    final diagState = ref.watch(diagnosisNotifierProvider);
+    final q = _questions[_current];
+    final partColor = _partColors[q.part]!;
 
-    final state = ref.watch(diagnosisNotifierProvider);
-    if (state is AsyncLoading) return const _AnalyzingScreen();
-    if (state is AsyncError) return _ErrorScreen(onRetry: _submit);
-
-    final q = _questions[_idx];
-    final selected = _answers[q.id];
-    final progress = (_idx + 1) / _questions.length;
+    if (diagState is AsyncLoading) return _LoadingScreen();
+    if (diagState is AsyncError) {
+      return _ErrorScreen(
+          message: diagState.error.toString(), onRetry: _submit);
+    }
 
     return Scaffold(
       backgroundColor: AppColors.bg,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildHeader(progress),
-              const SizedBox(height: 32),
-              FadeTransition(
-                opacity: _fade,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _CategoryChip(q.category),
-                    const SizedBox(height: 16),
-                    Text(q.text, style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
-                      height: 1.4,
-                    )),
-                  ],
-                ),
+        child: Column(children: [
+          _buildHeader(q, partColor),
+          Expanded(
+            child: SlideTransition(
+              position: _slide,
+              child: _QuestionCard(
+                key: ValueKey(_current),
+                question: q,
+                partColor: partColor,
+                answered: _answers[q.id],
+                onSelect: _select,
               ),
-              const SizedBox(height: 28),
-              Expanded(
-                child: FadeTransition(
-                  opacity: _fade,
-                  child: ListView.separated(
-                    itemCount: q.choices.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 12),
-                    itemBuilder: (_, i) => _ChoiceCard(
-                      label: q.choices[i].substring(0, 1),
-                      text: q.choices[i].substring(3),
-                      isSelected: selected == q.choices[i].substring(0, 1),
-                      onTap: () => _select(q.choices[i].substring(0, 1)),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              _buildNav(selected != null, _idx == _questions.length - 1),
-            ],
+            ),
           ),
-        ),
+          _buildNavBtn(),
+        ]),
       ),
     );
   }
 
-  Widget _buildHeader(double progress) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text('FitLearn 학습 성향 진단', style: TextStyle(
-              color: AppColors.primaryLight, fontSize: 13, fontWeight: FontWeight.w600,
-            )),
-            Text('${_idx + 1} / ${_questions.length}', style: const TextStyle(
-              color: AppColors.textMuted, fontSize: 13,
-            )),
-          ],
-        ),
-        const SizedBox(height: 12),
+  Widget _buildHeader(_Q q, Color partColor) {
+    final progress = (_current + 1) / _questions.length;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          GestureDetector(
+            onTap: _prev,
+            child: const Icon(Icons.arrow_back_ios_new_rounded,
+                color: AppColors.textMuted, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: partColor.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text('파트 ${q.part} · ${_partLabels[q.part]}',
+                style: TextStyle(
+                    color: partColor,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700)),
+          ),
+          const Spacer(),
+          Text('${_current + 1} / ${_questions.length}',
+              style: const TextStyle(color: AppColors.textMuted, fontSize: 13)),
+        ]),
+        const SizedBox(height: 10),
         ClipRRect(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(4),
           child: LinearProgressIndicator(
             value: progress,
-            minHeight: 6,
             backgroundColor: AppColors.bgSurface,
-            valueColor: AlwaysStoppedAnimation(AppColors.primaryLight),
+            valueColor: AlwaysStoppedAnimation(partColor),
+            minHeight: 4,
           ),
         ),
-      ],
+        const SizedBox(height: 16),
+      ]),
     );
   }
 
-  Widget _buildNav(bool canNext, bool isLast) {
-    return Row(
-      children: [
-        if (_idx > 0) ...[
-          Expanded(
-            flex: 1,
-            child: OutlinedButton(
-              onPressed: _prev,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.textSecondary,
-                side: const BorderSide(color: AppColors.border),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+  Widget _buildNavBtn() {
+    final answered = _answers[_questions[_current].id];
+    final isLast = _current == _questions.length - 1;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
+      child: GestureDetector(
+        onTap: answered != null ? _next : null,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          height: 54,
+          decoration: BoxDecoration(
+            color: answered != null ? AppColors.primary : AppColors.bgSurface,
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: answered != null
+                ? [BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.4),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6))]
+                : null,
+          ),
+          child: Center(
+            child: Text(
+              isLast ? '결과 분석하기 →' : '다음 문항 →',
+              style: TextStyle(
+                color:
+                    answered != null ? Colors.white : AppColors.textMuted,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
               ),
-              child: const Text('이전'),
             ),
           ),
-          const SizedBox(width: 12),
-        ],
-        Expanded(
-          flex: 2,
-          child: GlowButton(
-            text: isLast ? '진단 완료' : '다음',
-            onTap: canNext ? _next : null,
-          ),
         ),
-      ],
+      ),
     );
   }
 }
 
-// ── 하위 위젯 ────────────────────────────────────────────────────
+class _QuestionCard extends StatelessWidget {
+  final _Q question;
+  final Color partColor;
+  final String? answered;
+  final void Function(String) onSelect;
 
-class _CategoryChip extends StatelessWidget {
-  final String label;
-  const _CategoryChip(this.label);
+  const _QuestionCard({
+    super.key,
+    required this.question,
+    required this.partColor,
+    required this.answered,
+    required this.onSelect,
+  });
+
+  static const _labels = ['A', 'B', 'C', 'D'];
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-      decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.4)),
-      ),
-      child: Text(label, style: const TextStyle(
-        color: AppColors.primaryLight, fontSize: 12, fontWeight: FontWeight.w600,
-      )),
+    final opts = question.options.where((o) => o.isNotEmpty).toList();
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 4, 24, 8),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(question.text,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              height: 1.4,
+            )),
+        const SizedBox(height: 28),
+        ...List.generate(opts.length, (i) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _ChoiceCard(
+                label: _labels[i],
+                text: opts[i],
+                selected: answered == _labels[i],
+                partColor: partColor,
+                onTap: () => onSelect(_labels[i]),
+              ),
+            )),
+      ]),
     );
   }
 }
 
 class _ChoiceCard extends StatelessWidget {
-  final String label;
-  final String text;
-  final bool isSelected;
+  final String label, text;
+  final bool selected;
+  final Color partColor;
   final VoidCallback onTap;
 
   const _ChoiceCard({
     required this.label,
     required this.text,
-    required this.isSelected,
+    required this.selected,
+    required this.partColor,
     required this.onTap,
   });
 
@@ -318,96 +308,184 @@ class _ChoiceCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        duration: const Duration(milliseconds: 180),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary.withValues(alpha: 0.12) : AppColors.bgCard,
+          color: selected
+              ? partColor.withValues(alpha: 0.1)
+              : AppColors.bgCard,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: isSelected ? AppColors.primaryLight : AppColors.border,
-            width: isSelected ? 2 : 1,
+            color: selected ? partColor : AppColors.border,
+            width: selected ? 2 : 1,
           ),
         ),
-        child: Row(
-          children: [
-            Container(
-              width: 34,
-              height: 34,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: isSelected ? AppColors.primary : AppColors.bgSurface,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(label, style: TextStyle(
-                color: isSelected ? Colors.white : AppColors.textSecondary,
-                fontWeight: FontWeight.w700,
-                fontSize: 14,
-              )),
+        child: Row(children: [
+          Container(
+            width: 32,
+            height: 32,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: selected ? partColor : AppColors.bgSurface,
+              borderRadius: BorderRadius.circular(8),
             ),
-            const SizedBox(width: 14),
-            Expanded(child: Text(text, style: TextStyle(
-              color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
-              fontSize: 14,
-              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-              height: 1.3,
-            ))),
-            if (isSelected)
-              const Icon(Icons.check_circle_rounded, color: AppColors.primaryLight, size: 20),
-          ],
-        ),
+            child: Text(label,
+                style: TextStyle(
+                  color:
+                      selected ? Colors.white : AppColors.textMuted,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                )),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+              child: Text(text,
+                  style: TextStyle(
+                    color: selected
+                        ? AppColors.textPrimary
+                        : AppColors.textSecondary,
+                    fontSize: 15,
+                    fontWeight: selected
+                        ? FontWeight.w600
+                        : FontWeight.w400,
+                  ))),
+          if (selected)
+            Icon(Icons.check_circle_rounded,
+                color: partColor, size: 20),
+        ]),
       ),
     );
   }
 }
 
-class _AnalyzingScreen extends StatelessWidget {
-  const _AnalyzingScreen();
+class _LoadingScreen extends StatefulWidget {
+  @override
+  State<_LoadingScreen> createState() => _LoadingScreenState();
+}
+
+class _LoadingScreenState extends State<_LoadingScreen>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  int _msgIdx = 0;
+  static const _msgs = [
+    'AI가 학습 패턴을 분석하고 있어요',
+    '6차원 성향을 도출하는 중이에요',
+    '맞춤 학습 전략을 수립하고 있어요',
+    '거의 다 됐어요',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 800))
+      ..repeat();
+    Future.doWhile(() async {
+      await Future.delayed(const Duration(seconds: 2));
+      if (!mounted) return false;
+      setState(() => _msgIdx = (_msgIdx + 1) % _msgs.length);
+      return true;
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg,
       body: Center(
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Container(
-            width: 80, height: 80,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
+          child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: const Center(
+                  child: Text('🧠',
+                      style: TextStyle(fontSize: 36))),
             ),
-            child: const Center(child: CircularProgressIndicator(color: AppColors.primaryLight)),
-          ),
-          const SizedBox(height: 28),
-          const Text('AI가 학습 성향을 분석 중입니다', style: TextStyle(
-            color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w700,
-          )),
-          const SizedBox(height: 8),
-          const Text('잠시만 기다려 주세요...', style: TextStyle(color: AppColors.textMuted, fontSize: 14)),
-        ]),
-      ),
+            const SizedBox(height: 24),
+            const Text('AI 분석 중',
+                style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800)),
+            const SizedBox(height: 12),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 400),
+              child: Text(_msgs[_msgIdx],
+                  key: ValueKey(_msgIdx),
+                  style: const TextStyle(
+                      color: AppColors.textMuted, fontSize: 14)),
+            ),
+            const SizedBox(height: 32),
+            SizedBox(
+                width: 200,
+                child: LinearProgressIndicator(
+                  backgroundColor: AppColors.bgSurface,
+                  valueColor: const AlwaysStoppedAnimation(
+                      AppColors.primaryLight),
+                )),
+          ])),
     );
   }
 }
 
 class _ErrorScreen extends StatelessWidget {
+  final String message;
   final VoidCallback onRetry;
-  const _ErrorScreen({required this.onRetry});
+
+  const _ErrorScreen({required this.message, required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg,
       body: Center(
+          child: Padding(
+        padding: const EdgeInsets.all(32),
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          const Icon(Icons.error_outline, color: AppColors.rose, size: 64),
+          const Text('⚠️', style: TextStyle(fontSize: 48)),
           const SizedBox(height: 16),
-          const Text('분석 중 오류가 발생했습니다', style: TextStyle(
-            color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w700,
-          )),
+          const Text('분석 실패',
+              style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          Text(message,
+              textAlign: TextAlign.center,
+              style:
+                  const TextStyle(color: AppColors.textMuted, fontSize: 13)),
           const SizedBox(height: 24),
-          GlowButton(text: '다시 시도', onTap: onRetry, fullWidth: false),
+          GestureDetector(
+            onTap: onRetry,
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 24, vertical: 14),
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text('다시 시도',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700)),
+            ),
+          ),
         ]),
-      ),
+      )),
     );
   }
 }

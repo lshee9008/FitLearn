@@ -1,10 +1,12 @@
+import logging
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
-from models.lecture import LectureUploadResponse, CorePoint, CorePointConfirmRequest, ReforgeResponse
-from services.gemini_service import GeminiService
+from models.lecture import LectureUploadResponse, CorePoint, CorePointConfirmRequest
+from services.gemini_service import GeminiService, REFORGE_STYLES
 from services.file_service import FileService
 from services.firebase_service import FirebaseService
 
+logger = logging.getLogger(__name__)
 router = APIRouter(tags=["lectures"])
 gemini = GeminiService()
 file_svc = FileService()
@@ -17,8 +19,10 @@ async def upload_lecture(
     professor_uid: str = Form(...),
     file: UploadFile = File(...),
 ):
-    """파일 업로드 → 텍스트 추출 → Gemini 핵심 포인트 3~5개 추출"""
+    """파일 업로드 → 텍스트 추출 → Gemini 핵심 포인트 5개 추출 + 중요도 점수"""
+    logger.info(f"[upload] room={room_id} professor={professor_uid} file={file.filename}")
     content = await file.read()
+
     try:
         text = await file_svc.extract_text(content, file.filename or "upload.txt")
     except ValueError as e:
@@ -27,6 +31,7 @@ async def upload_lecture(
     try:
         core_points_raw = await gemini.extract_core_points(text)
     except Exception as e:
+        logger.error(f"[upload] 핵심 포인트 추출 실패: {e}", exc_info=True)
         raise HTTPException(status_code=502, detail=f"AI 분석 실패: {e}")
 
     lecture_id = await firebase.save_lecture(
@@ -35,6 +40,7 @@ async def upload_lecture(
         original_text=text,
         core_points=core_points_raw,
     )
+    logger.info(f"[upload] 완료 lecture_id={lecture_id} points={len(core_points_raw)}")
 
     core_points = [CorePoint(**cp) for cp in core_points_raw]
     return LectureUploadResponse(
@@ -54,18 +60,23 @@ async def get_lecture(room_id: str, lecture_id: str):
 
 @router.post("/lectures/{room_id}/{lecture_id}/confirm")
 async def confirm_core_points(room_id: str, lecture_id: str, body: CorePointConfirmRequest):
-    """교수가 핵심 포인트 검토 후 확정"""
+    """교수가 핵심 포인트 검토 확정"""
     points = [cp.model_dump() for cp in body.confirmed_points]
     await firebase.confirm_core_points(room_id, lecture_id, points)
+    logger.info(f"[confirm] room={room_id} lecture={lecture_id} points={len(points)}")
     return {"status": "confirmed", "count": len(points)}
 
 
-@router.get("/lectures/{room_id}/{lecture_id}/reforged", response_model=ReforgeResponse)
+@router.get("/lectures/{room_id}/{lecture_id}/reforged")
 async def get_reforged(room_id: str, lecture_id: str, user_id: str):
-    """학생 성향에 맞는 재가공 교안 반환 (캐시 → Gemini 생성)"""
-    cached = await firebase.get_reforged(room_id, lecture_id, user_id)
+    """
+    학생 성향에 맞는 6스타일 재가공 교안 반환.
+    캐시 있으면 즉시 반환, 없으면 asyncio.gather()로 6버전 동시 생성.
+    """
+    cached = await firebase.get_reforged_all(room_id, lecture_id, user_id)
     if cached:
-        return ReforgeResponse(lecture_id=lecture_id, style=cached["style"], content=cached["content"])
+        logger.info(f"[reforged] 캐시 히트 user={user_id} lecture={lecture_id}")
+        return cached
 
     lecture = await firebase.get_lecture(room_id, lecture_id)
     if not lecture:
@@ -78,15 +89,23 @@ async def get_reforged(room_id: str, lecture_id: str, user_id: str):
         raise HTTPException(status_code=400, detail="학습 성향 진단을 먼저 완료해주세요.")
 
     profile = diagnosis["profile"]
-    content = await gemini.reforge_content(
-        original_content=lecture.get("original_text", ""),
-        core_points=lecture.get("core_points", []),
-        primary_style=profile.get("primary_style", "읽기형"),
-        secondary_style=profile.get("secondary_style", ""),
-        social_type=profile.get("social_type", "내향형"),
-        cognitive_type=profile.get("cognitive_type", "분석형"),
-    )
+    logger.info(f"[reforged] 6스타일 생성 시작 user={user_id} style={profile.get('learning_style')}")
 
-    style = profile.get("primary_style", "읽기형")
-    await firebase.save_reforged(room_id, lecture_id, user_id, content, style)
-    return ReforgeResponse(lecture_id=lecture_id, style=style, content=content)
+    try:
+        styles = await gemini.reforge_all_styles(
+            original_content=lecture.get("original_text", ""),
+            core_points=lecture.get("core_points", []),
+            profile=profile,
+        )
+    except Exception as e:
+        logger.error(f"[reforged] 재가공 실패: {e}", exc_info=True)
+        raise HTTPException(status_code=502, detail=f"교안 재가공 실패: {e}")
+
+    await firebase.save_reforged_all(room_id, lecture_id, user_id, styles, profile.get("learning_style", "읽기형"))
+    logger.info(f"[reforged] 완료 user={user_id}")
+
+    return {
+        "lecture_id": lecture_id,
+        "primary_style": profile.get("learning_style", "읽기형"),
+        "styles": styles,
+    }
