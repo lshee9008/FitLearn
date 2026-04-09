@@ -37,6 +37,9 @@ class _CorePointReviewPageState extends ConsumerState<CorePointReviewPage> {
           final m = Map<String, dynamic>.from(e as Map);
           m['confirmed'] = m['confirmed'] ?? true;
           m['priority'] = (m['priority'] as num?)?.toInt() ?? 3;
+          m['topic'] = m['topic'] as String? ?? '';
+          m['difficulty'] = m['difficulty'] as String? ?? '중';
+          m['review_question'] = m['review_question'] as String? ?? '';
           return m;
         })
         .toList();
@@ -155,29 +158,10 @@ class _CorePointReviewPageState extends ConsumerState<CorePointReviewPage> {
           ),
           const SizedBox(height: 16),
 
-          // ── 파일 정보 ─────────────────────────────────────────
+          // ── 교안 요약 카드 ────────────────────────────────────
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: AppCard(
-              borderColor: AppColors.gold.withValues(alpha: 0.3),
-              child: Row(children: [
-                const Text('📄', style: TextStyle(fontSize: 20)),
-                const SizedBox(width: 12),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(title,
-                      style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
-                  const Text('AI가 추출한 핵심 포인트를 검토하고 중요도를 설정하세요',
-                      style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
-                ])),
-                Icon(Icons.auto_awesome_rounded,
-                    color: AppColors.gold.withValues(alpha: 0.8), size: 18),
-              ]),
-            ),
+            child: _PipelineResultCard(uploadData: widget.uploadData, title: title),
           ),
           const SizedBox(height: 16),
 
@@ -258,6 +242,120 @@ class _CorePointReviewPageState extends ConsumerState<CorePointReviewPage> {
   }
 }
 
+// ── 파이프라인 결과 카드 ──────────────────────────────────────────────────────
+
+class _PipelineResultCard extends StatelessWidget {
+  final Map<String, dynamic> uploadData;
+  final String title;
+  const _PipelineResultCard({required this.uploadData, required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    final summary = uploadData['lecture_summary'] as String? ?? '';
+    final topics = (uploadData['topics'] as List<dynamic>?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        [];
+    final objectives = (uploadData['learning_objectives'] as List<dynamic>?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        [];
+    final difficulty = uploadData['estimated_difficulty'] as String? ?? '중';
+    final diffColor = difficulty == '상'
+        ? AppColors.rose
+        : difficulty == '중'
+            ? AppColors.gold
+            : AppColors.accent;
+
+    return AppCard(
+      borderColor: AppColors.gold.withValues(alpha: 0.3),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Text('📄', style: TextStyle(fontSize: 18)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(title,
+                style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: diffColor.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text('난이도 $difficulty',
+                style: TextStyle(
+                    color: diffColor,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700)),
+          ),
+        ]),
+        if (summary.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Text(summary,
+              style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                  height: 1.5)),
+        ],
+        if (topics.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: topics
+                .map((t) => Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.secondary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                            color: AppColors.secondary
+                                .withValues(alpha: 0.3)),
+                      ),
+                      child: Text(t,
+                          style: const TextStyle(
+                              color: AppColors.secondary,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600)),
+                    ))
+                .toList(),
+          ),
+        ],
+        if (objectives.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          const Text('학습 목표',
+              style: TextStyle(
+                  color: AppColors.textMuted,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          ...objectives.map((o) => Padding(
+                padding: const EdgeInsets.only(bottom: 2),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Text('• ',
+                      style: TextStyle(
+                          color: AppColors.primaryLight, fontSize: 11)),
+                  Expanded(
+                      child: Text(o,
+                          style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 11,
+                              height: 1.4))),
+                ]),
+              )),
+        ],
+      ]),
+    );
+  }
+}
+
 // ── 포인트 카드 ──────────────────────────────────────────────────────────────
 
 class _PointCard extends StatefulWidget {
@@ -301,6 +399,14 @@ class _PointCardState extends State<_PointCard> {
   Widget build(BuildContext context) {
     final confirmed = widget.point['confirmed'] as bool;
     final priority = (widget.point['priority'] as num?)?.toInt() ?? 3;
+    final topic = widget.point['topic'] as String? ?? '';
+    final difficulty = widget.point['difficulty'] as String? ?? '중';
+    final reviewQ = widget.point['review_question'] as String? ?? '';
+    final diffColor = difficulty == '상'
+        ? AppColors.rose
+        : difficulty == '중'
+            ? AppColors.gold
+            : AppColors.accent;
 
     return AnimatedOpacity(
       opacity: confirmed ? 1.0 : 0.45,
@@ -369,6 +475,66 @@ class _PointCardState extends State<_PointCard> {
               ),
             ),
           ]),
+
+          // 주제·난이도 배지
+          if (topic.isNotEmpty || difficulty.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Row(children: [
+              if (topic.isNotEmpty) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.secondary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(topic,
+                      style: const TextStyle(
+                          color: AppColors.secondary,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600)),
+                ),
+                const SizedBox(width: 6),
+              ],
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: diffColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text('난이도 $difficulty',
+                    style: TextStyle(
+                        color: diffColor,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600)),
+              ),
+            ]),
+          ],
+
+          // AI 검토 질문
+          if (confirmed && reviewQ.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.07),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                    color: AppColors.primary.withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                const Text('💡', style: TextStyle(fontSize: 12)),
+                const SizedBox(width: 6),
+                Expanded(
+                    child: Text(reviewQ,
+                        style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                            height: 1.4))),
+              ]),
+            ),
+          ],
 
           // 중요도 슬라이더
           if (confirmed) ...[

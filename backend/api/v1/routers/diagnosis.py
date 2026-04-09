@@ -104,6 +104,12 @@ def _parse_profile(result: dict) -> LearningProfile:
         analysis=result.get("analysis", ""),
         reliability=reliability,
         writing_insight=result.get("writing_insight", ""),
+        vark=result.get("vark", {}),
+        felder=result.get("felder", {}),
+        cognitive_load=result.get("cognitive_load", {}),
+        kolb_type=result.get("kolb_type", ""),
+        confidence_score=result.get("confidence_score", 70),
+        paper_citations=result.get("paper_citations", []),
     )
 
 
@@ -139,20 +145,12 @@ async def run_diagnosis(request: Request, body: DiagnosisRequest):
         logger.error(f"[diagnosis] 프로필 파싱 실패: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"결과 처리 실패: {e}")
 
-    extra = {
-        "vark": result.get("vark", {}),
-        "felder": result.get("felder", {}),
-        "cognitive_load": result.get("cognitive_load", {}),
-        "kolb_type": result.get("kolb_type", ""),
-        "confidence_score": result.get("confidence_score", 70),
-        "paper_citations": result.get("paper_citations", []),
-        "reliability": result.get("reliability", {}),
-        "writing_insight": result.get("writing_insight", ""),
-    }
-    merged_profile = {**profile.model_dump(), **extra}
-    await firebase.save_diagnosis(body.user_id, merged_profile, report)
-    logger.info(f"[diagnosis] 완료 user={body.user_id} style={profile.learning_style}")
+    try:
+        await firebase.save_diagnosis(body.user_id, profile.model_dump(), report)
+    except Exception as e:
+        logger.warning(f"[diagnosis] Firebase 저장 실패 (결과는 반환): {e}")
 
+    logger.info(f"[diagnosis] 완료 user={body.user_id} style={profile.learning_style}")
     return DiagnosisResponse(user_id=body.user_id, profile=profile, **report)
 
 

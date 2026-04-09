@@ -23,7 +23,7 @@ class _LectureUploadPageState extends ConsumerState<LectureUploadPage> {
   Future<void> _pickFile() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['pdf', 'ppt', 'pptx', 'docx', 'md', 'txt'],
+      allowedExtensions: ['pdf', 'ppt', 'pptx', 'docx', 'hwp', 'hwpx', 'md', 'txt'],
       withData: true,
     );
     if (result != null && result.files.isNotEmpty) {
@@ -61,7 +61,7 @@ class _LectureUploadPageState extends ConsumerState<LectureUploadPage> {
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const SectionTitle(title: '교안 파일 업로드', subtitle: 'PDF, PPT, PPTX, DOCX, MD 지원'),
+          const SectionTitle(title: '교안 파일 업로드', subtitle: 'PDF, PPT, PPTX, DOCX, HWP, MD 지원'),
           const SizedBox(height: 24),
           GestureDetector(
             onTap: _uploading ? null : _pickFile,
@@ -89,7 +89,7 @@ class _LectureUploadPageState extends ConsumerState<LectureUploadPage> {
                           color: AppColors.textSecondary, fontSize: 16, fontWeight: FontWeight.w600,
                         )),
                         const SizedBox(height: 4),
-                        const Text('PDF, PPT, PPTX, DOCX, MD, TXT', style: TextStyle(
+                        const Text('PDF, PPT, PPTX, DOCX, HWP, MD, TXT', style: TextStyle(
                           color: AppColors.textMuted, fontSize: 12,
                         )),
                       ])
@@ -119,7 +119,7 @@ class _LectureUploadPageState extends ConsumerState<LectureUploadPage> {
           ),
           const SizedBox(height: 12),
           const Center(
-            child: Text('AI가 교안을 분석해 핵심 포인트를 자동 추출합니다', style: TextStyle(
+            child: Text('8단계 AI 파이프라인으로 핵심 포인트·주제·학습목표를 자동 추출합니다', style: TextStyle(
               color: AppColors.textMuted, fontSize: 12,
             )),
           ),
