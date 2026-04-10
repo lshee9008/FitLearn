@@ -116,6 +116,34 @@ app = FastAPI(title="FitLearn API", version="3.0.0", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+
+# ── 헬스체크 (Render 호환성 및 빠른 응답을 위해 상단 배치) ───────────────────
+@app.get("/")
+@app.head("/")
+async def root():
+    return {
+        "status": "ok",
+        "service": "FitLearn API",
+        "health": "/api/v1/health",
+    }
+
+
+@app.get("/api/v1/health")
+async def health():
+    return {
+        "status": "ok",
+        "version": "3.0.0",
+        "rag": _rag_available and (PaperVectorStore is not None and PaperVectorStore.get_store() is not None),
+        "import_errors": _import_errors,
+        "routers": {
+            "auth": auth is not None,
+            "rooms": rooms is not None,
+            "diagnosis": diagnosis is not None,
+            "lectures": lectures is not None,
+            "dashboard": dashboard is not None,
+        },
+    }
+
 # ── 전역 500 에러 핸들러 — CORS 헤더 포함 ────────────────────────────────────
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -164,19 +192,3 @@ app.add_middleware(
 )
 
 
-# ── 헬스체크 ──────────────────────────────────────────────────────────────────
-@app.get("/api/v1/health")
-async def health():
-    return {
-        "status": "ok",
-        "version": "3.0.0",
-        "rag": _rag_available and (PaperVectorStore is not None and PaperVectorStore.get_store() is not None),
-        "import_errors": _import_errors,
-        "routers": {
-            "auth": auth is not None,
-            "rooms": rooms is not None,
-            "diagnosis": diagnosis is not None,
-            "lectures": lectures is not None,
-            "dashboard": dashboard is not None,
-        },
-    }

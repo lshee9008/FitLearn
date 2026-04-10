@@ -120,34 +120,93 @@ async def demo_reforge(
     learning_type: str = Form(...),
     content: str = Form(""),
     file: UploadFile = File(None),
+    room_id: str = Form(""),      # lecture_id와 함께 쓰면 Firebase 교안 자동 로드
+    lecture_id: str = Form(""),   # 지정 시 Firebase에서 original_text 직접 사용
 ):
     """
-    교안 재가공 데모 — SSE 스트리밍 응답 (로그인/Firebase 불필요)
+    교안 재가공 데모 — SSE 스트리밍 응답 (로그인 불필요)
 
     Form fields:
-    - learning_type: "시각형+분석형+요약형" 형태의 조합 문자열
-    - content: 텍스트 직접 입력 (파일 없을 때)
-    - file: PDF/DOCX 파일 (선택)
-    """
-    text = content.strip()
+    - learning_type : "시각형+분석형+요약형" 형태 조합 (필수)
+    - content       : 텍스트 직접 입력 (선택)
+    - file          : PDF/DOCX/PPTX 파일 (선택)
+    - room_id       : Firebase 강의실 ID (lecture_id와 함께 사용)
+    - lecture_id    : Firebase 교안 ID (지정 시 original_text 자동 사용)
 
-    if file and file.filename:
+    우선순위: lecture_id > file > content
+    """
+    # ── 수신 파라미터 상세 로그 ────────────────────────────────────────────
+    logger.info(
+        f"[demo] 요청 수신 │ "
+        f"learning_type={learning_type!r} │ "
+        f"content_len={len(content)} │ "
+        f"file={getattr(file, 'filename', None)!r} │ "
+        f"room_id={room_id!r} │ lecture_id={lecture_id!r}"
+    )
+
+    text = content.strip()
+    source = "content"
+
+    # ── ① lecture_id 있으면 Firebase에서 교안 가져오기 ─────────────────────
+    if room_id and lecture_id:
+        try:
+            from services.firebase_service import FirebaseService
+            _fb = FirebaseService()
+            lecture = await _fb.get_lecture(room_id, lecture_id)
+            if lecture and lecture.get("original_text"):
+                text = lecture["original_text"]
+                source = f"firebase(room={room_id}, lec={lecture_id})"
+                logger.info(f"[demo] Firebase 교안 로드 ✓ len={len(text)}")
+            else:
+                logger.warning(
+                    f"[demo] Firebase 교안 없음 — room={room_id} lec={lecture_id} "
+                    f"(doc={lecture is not None})"
+                )
+        except Exception as e:
+            logger.warning(f"[demo] Firebase 교안 로드 실패: {type(e).__name__}: {e}")
+
+    # ── ② 파일 업로드 처리 (lecture_id 없거나 Firebase 실패 시) ────────────
+    if not text and file and file.filename:
         try:
             raw = await file.read()
             extracted = await file_svc.extract_text(raw, file.filename)
             if extracted and not extracted.startswith("["):
                 text = extracted
+                source = f"file({file.filename})"
+                logger.info(f"[demo] 파일 추출 ✓ file={file.filename} len={len(text)}")
+            else:
+                logger.warning(
+                    f"[demo] 파일 추출 결과 이상 — file={file.filename} "
+                    f"result_head={repr(extracted[:80]) if extracted else 'EMPTY'}"
+                )
         except Exception as e:
-            logger.warning(f"[demo] 파일 추출 실패: {e}")
+            logger.warning(f"[demo] 파일 추출 실패: {type(e).__name__}: {e}")
 
+    # ── ③ 텍스트 없으면 400 (상세 원인 포함) ──────────────────────────────
     if not text:
-        raise HTTPException(status_code=400, detail="내용을 입력하거나 파일을 업로드하세요.")
+        if room_id and lecture_id:
+            detail = (
+                f"교안을 찾을 수 없습니다. "
+                f"(room_id={room_id!r}, lecture_id={lecture_id!r})"
+            )
+        elif file and file.filename:
+            detail = (
+                f"파일에서 텍스트를 추출할 수 없습니다. "
+                f"({file.filename}) — GEMINI_API_KEY 미설정이거나 지원하지 않는 형식일 수 있습니다."
+            )
+        else:
+            detail = "교안 내용을 입력하거나 파일을 업로드하거나 lecture_id를 지정하세요."
+        logger.error(f"[demo] 400 반환: {detail}")
+        raise HTTPException(status_code=400, detail=detail)
 
+    # ── ④ 학습 성향 파싱 ──────────────────────────────────────────────────
     types = [t.strip() for t in learning_type.replace("/", "+").split("+") if t.strip()]
     if not types:
-        raise HTTPException(status_code=400, detail="학습 성향을 하나 이상 선택하세요.")
+        detail = f"학습 성향을 하나 이상 선택하세요. (수신값: {learning_type!r})"
+        logger.error(f"[demo] 400 반환: {detail}")
+        raise HTTPException(status_code=400, detail=detail)
 
-    logger.info(f"[demo] types={types} content_len={len(text)}")
+    logger.info(f"[demo] 재가공 시작 │ types={types} │ source={source} │ text_len={len(text)}")
 
     return StreamingResponse(
         _stream_sse(text, types),
