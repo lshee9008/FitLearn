@@ -272,41 +272,76 @@ class ReforgeService:
         profile: dict,
         paper_context: str,
     ) -> str:
-        """단일 스타일 재가공 — 5차원 성향 완전 반영 프롬프트"""
+        """단일 스타일 재가공 — CoT + Few-shot + 환각방지 고급 프롬프트"""
 
         core_text = "\n".join(
-            f"[중요도 {p.get('priority', 1)}/5] {p['content']}"
+            f"⭐ [중요도 {p.get('priority', 1)}/5] {p['content']}"
             for p in sorted(core_points, key=lambda x: x.get("priority", 0), reverse=True)
         )
         paper_strategy = PAPER_STRATEGY.get(style, "")
         profile_instruction = _build_profile_instruction(style, profile)
 
-        prompt = f"""당신은 최고 수준의 교육공학 전문가입니다.
-아래의 원본 교안을 '{style}' 학습자 프로파일에 맞게 완전히 재해석하여, 학생이 바로 읽고 이해할 수 있는 한국어 교안 본문을 작성하세요.
+        # 학생 프로파일 요약 (헤더용)
+        vark = profile.get("learning_style", style)
+        focus = profile.get("focus_pattern", "")
+        diff_resp = profile.get("difficulty_response") or profile.get("pace", "")
+        dropout = profile.get("dropout_risk", "")
+        conf = profile.get("confidence_score", 0)
+        subject_level = profile.get("subject_level", "")
+        level_label = {"beginner": "초급", "intermediate": "중급", "advanced": "고급"}.get(subject_level, "")
+        profile_summary = f"VARK:{vark} / 집중:{focus} / 대응:{diff_resp}" + \
+                         (f" / 이탈위험:{dropout}" if dropout else "") + \
+                         (f" / 신뢰도:{conf}%" if conf else "") + \
+                         (f" / 과목수준:{level_label}" if level_label else "")
 
-절대 규칙:
-- 출력은 순수 마크다운 본문만. 인사말·역할설명·프롬프트 복창 절대 금지.
-- 단순 요약 금지. 원본 내용을 '{style}' 방식으로 완전히 재해석하는 것이 목적입니다.
-- 코드 예제, 실습 단계, 수식은 반드시 원형 그대로 보존하고 코드블록(```)으로 감싸세요.
-- LaTeX 수식($...$)은 반드시 백틱 인라인 코드로 변환하세요. ■·□ 등 특수문자는 마크다운 리스트(-)로 변환하세요.
-- 교수가 확정한 핵심 포인트는 모두 빠짐없이 포함해야 합니다.
-- 마크다운 형식: # 제목, ## 소제목, **굵게**, `인라인코드`, ```코드블록```, > 인용
+        prompt = f"""당신은 교육 콘텐츠 재해석 전문가입니다.
+원본 교안을 학생 프로파일에 맞게 재해석하세요. 한국어로만 출력하세요.
 
-[논문 기반 학습 이론 — {style}]
+━━━ 절대 원칙 ━━━
+1. 원본 내용을 요약하지 마세요 — 재해석(reinterpretation)이 목표입니다
+2. 코드 블록·수식·예제는 원본 그대로 보존, ``` 코드블록으로 감싸세요
+3. 원본에 없는 내용을 추가하지 마세요 (환각 금지)
+4. 이미지·시각자료 언급이 있으면 [📷 이미지: 원본 설명] 형태로 표시
+5. 인사말·역할 설명·"재해석하겠습니다" 같은 메타 문장 절대 금지
+6. 교수 핵심 포인트는 모두 빠짐없이 포함
+7. 순수 마크다운 본문만 출력 (노션 스타일)
+
+━━━ 학습 이론 근거 [{style}] ━━━
 {paper_strategy}
 {paper_context}
 
-[5차원 성향 기반 재가공 지침]
+━━━ 학생 프로파일 ━━━
+{profile_summary}
+
+━━━ 5차원 재해석 지침 ━━━
 {profile_instruction}
 
-[교수 확정 핵심 포인트 (중요도 순, 모두 포함 필수)]
+━━━ 교수 확정 핵심 포인트 (모두 포함 필수) ━━━
 {core_text}
 
-[원본 교안]
-{original_content[:4000]}
+━━━ 원본 교안 ━━━
+{original_content[:4500]}
 
-위 원본 교안과 핵심 포인트를 바탕으로, '{style}' 학습자가 강의 중 바로 활용할 수 있는 맞춤형 교안을 지금 작성하세요.
-"""
+━━━ Chain of Thought 재해석 절차 ━━━
+Step 1. 원본에서 핵심 개념·사실·코드를 식별한다
+Step 2. '{style}' 학습자에게 최적인 구조·어조·형식을 결정한다
+Step 3. 교수 핵심 포인트를 가장 잘 전달하는 섹션 배치를 계획한다
+Step 4. 위 계획대로 완성된 교안을 노션 스타일 마크다운으로 작성한다
+
+━━━ 출력 형식 ━━━
+# 📚 [강의 제목] — {style} 맞춤 교안
+> 🎯 학습 프로파일: {profile_summary}
+
+---
+
+## ⭐ 핵심 포인트
+[교수가 강조한 핵심 포인트를 {style} 방식으로 전달]
+
+---
+
+[재해석된 본문 — 노션 스타일 마크다운]
+
+━━━ 지금 바로 Step 4 출력만 작성하세요 ━━━"""
 
         genai.configure(api_key=os.environ["GEMINI_API_KEY"], transport="rest")
         model = genai.GenerativeModel(

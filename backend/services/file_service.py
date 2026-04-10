@@ -58,15 +58,56 @@ class FileService:
 
     # ── PDF ──────────────────────────────────────────────────────────────────
     async def _from_pdf(self, data: bytes) -> str:
+        # 1차: pdfplumber (레이아웃 보존 + 표 추출)
+        try:
+            import pdfplumber
+            pages_text: list[str] = []
+            with pdfplumber.open(io.BytesIO(data)) as pdf:
+                for i, page in enumerate(pdf.pages, 1):
+                    parts: list[str] = []
+
+                    text = (page.extract_text(x_tolerance=2, y_tolerance=3) or "").strip()
+                    if text:
+                        parts.append(text)
+
+                    # 표 추출 → 마크다운 변환
+                    for table in page.extract_tables():
+                        if not table:
+                            continue
+                        rows = []
+                        for j, row in enumerate(table):
+                            cells = [str(c or "").strip() for c in row]
+                            rows.append("| " + " | ".join(cells) + " |")
+                            if j == 0:
+                                rows.append("| " + " | ".join(["---"] * len(cells)) + " |")
+                        parts.append("\n".join(rows))
+
+                    combined = "\n\n".join(parts).strip()
+
+                    # 텍스트가 거의 없는 이미지 페이지 → Vision 분석
+                    if len(combined) < 40:
+                        try:
+                            vision_text = await self._pdf_page_to_vision(data, i - 1)
+                            if vision_text:
+                                combined = vision_text
+                        except Exception as e:
+                            logger.warning(f"[FileService] PDF p.{i} Vision 실패: {e}")
+
+                    if combined:
+                        pages_text.append(f"[페이지 {i}]\n{combined}")
+
+            return "\n\n".join(pages_text)
+
+        except ImportError:
+            logger.debug("[FileService] pdfplumber 미설치 — PyPDF2 폴백")
+
+        # 2차 폴백: PyPDF2
         try:
             import PyPDF2
             reader = PyPDF2.PdfReader(io.BytesIO(data))
-            pages_text: list[str] = []
-
+            pages_text = []
             for i, page in enumerate(reader.pages, 1):
                 text = (page.extract_text() or "").strip()
-
-                # 텍스트가 거의 없는 이미지 페이지 → Vision 분석 (순차)
                 if len(text) < 40:
                     try:
                         vision_text = await self._pdf_page_to_vision(data, i - 1)
@@ -74,13 +115,11 @@ class FileService:
                             text = vision_text
                     except Exception as e:
                         logger.warning(f"[FileService] PDF p.{i} Vision 실패: {e}")
-
                 if text:
                     pages_text.append(f"[페이지 {i}]\n{text}")
-
             return "\n\n".join(pages_text)
         except ImportError:
-            return "[PDF 파싱 실패: PyPDF2 미설치]"
+            return "[PDF 파싱 실패: pdfplumber·PyPDF2 미설치]"
 
     async def _pdf_page_to_vision(self, pdf_bytes: bytes, page_index: int) -> str:
         try:
