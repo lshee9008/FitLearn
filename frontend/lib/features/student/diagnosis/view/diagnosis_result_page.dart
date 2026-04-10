@@ -5,32 +5,6 @@ import '../provider/diagnosis_provider.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/app_card.dart';
 
-// ── 5차원 프로파일 유틸 ──────────────────────────────────────────────────────
-
-String _focusLabel(DiagnosisProfile p) {
-  if (p.scores.consistency < 50) return '분산형';
-  return p.focusPattern.replaceAll('형', '').contains('단기집중')
-      ? '단기집중'
-      : '장기몰입';
-}
-
-String _difficultyResponse(DiagnosisProfile p) {
-  if (p.interaction == '협력형') return '지원요청형';
-  if (p.cognitiveStyle == '분석형' && p.pace == '숙고형') return '우회형';
-  return '직진형';
-}
-
-List<String> _dropoutRisk(DiagnosisProfile p) {
-  final risks = <String>[];
-  if (p.scores.focusDepth < 40) risks.add('난이도');
-  if (p.scores.speed < 35) risks.add('동기');
-  if (p.interaction == '독립형' && p.scores.collaboration < 30) {
-    risks.add('고립');
-  }
-  if (p.scores.consistency < 50) risks.add('루틴');
-  return risks;
-}
-
 class DiagnosisResultPage extends StatefulWidget {
   final DiagnosisResult result;
 

@@ -70,7 +70,7 @@ def _fallback_result(answers) -> dict:
             "복습 주기를 일정하게 유지하세요.",
         ],
         "paper_citations": [],
-        "reliability": {"pair_q3_q18": 0.75, "pair_q7_q22": 0.75, "pair_q11_q24": 0.75, "overall": 0.75},
+        "reliability": {"pair_s8_s16": 0.75, "pair_s9_s17": 0.75, "pair_s11_s18": 0.75, "overall": 0.75},
     }
 
 
@@ -88,9 +88,9 @@ def _parse_profile(result: dict) -> LearningProfile:
     )
     rel_raw = result.get("reliability", {})
     reliability = ReliabilityCheck(
-        pair_q3_q18=rel_raw.get("pair_q3_q18", 0.75),
-        pair_q7_q22=rel_raw.get("pair_q7_q22", 0.75),
-        pair_q11_q24=rel_raw.get("pair_q11_q24", 0.75),
+        pair_s8_s16=rel_raw.get("pair_s8_s16", rel_raw.get("pair_q3_q18", 0.75)),
+        pair_s9_s17=rel_raw.get("pair_s9_s17", rel_raw.get("pair_q7_q22", 0.75)),
+        pair_s11_s18=rel_raw.get("pair_s11_s18", rel_raw.get("pair_q11_q24", 0.75)),
         overall=rel_raw.get("overall", 0.75),
     )
     return LearningProfile(

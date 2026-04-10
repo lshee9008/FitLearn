@@ -1053,55 +1053,138 @@ class _ScheduleRow extends StatelessWidget {
 // ════════════════════════════════════════════════════════════
 class _CreateRoomDialog extends StatefulWidget {
   const _CreateRoomDialog();
- 
+
   @override
   State<_CreateRoomDialog> createState() => _CreateRoomDialogState();
 }
- 
+
 class _CreateRoomDialogState extends State<_CreateRoomDialog> {
-  final _subjectCtrl = TextEditingController();
+  final _nameCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
+  final _currCtrl = TextEditingController();
+  final _videoCtrl = TextEditingController();
+  final _materialCtrl = TextEditingController();
   final _synopsisCtrl = TextEditingController();
   final _coreConceptsCtrl = TextEditingController();
   String _roomType = 'offline';
+  int _step = 1;
+
+  bool get _canNext => _nameCtrl.text.trim().isNotEmpty;
+  bool get _canCreate => _currCtrl.text.trim().isNotEmpty;
+
+  static const _bg = Color(0xFF141414);
+  static const _surf = Color(0xFF1A1A1A);
+  static const _lime = Color(0xFFC8F135);
+  static const _limeDark = Color(0xFF1A2E00);
+  static const _border = Color(0xFF2A2A2A);
+  static const _textPri = Color(0xFFFFFFFF);
+  static const _textSec = Color(0xFF888888);
+  static const _textMute = Color(0xFF555555);
+  static const _btnGhost = Color(0xFF1E1E1E);
+
+  @override
+  void initState() {
+    super.initState();
+    for (final c in [
+      _nameCtrl,
+      _descCtrl,
+      _currCtrl,
+      _videoCtrl,
+      _materialCtrl,
+      _synopsisCtrl,
+      _coreConceptsCtrl,
+    ]) {
+      c.addListener(() => setState(() {}));
+    }
+  }
 
   @override
   void dispose() {
-    _subjectCtrl.dispose();
+    _nameCtrl.dispose();
     _descCtrl.dispose();
+    _currCtrl.dispose();
+    _videoCtrl.dispose();
+    _materialCtrl.dispose();
     _synopsisCtrl.dispose();
     _coreConceptsCtrl.dispose();
     super.dispose();
   }
 
-  Widget _buildTextField(String label, String hint, TextEditingController ctrl, {int maxLines = 1}) {
+  void _onNext() {
+    if (_canNext) setState(() => _step = 2);
+  }
+
+  void _onCreate() {
+    if (!_canCreate) return;
+    setState(() => _step = 3);
+  }
+
+  void _onDone() {
+    final concepts = _coreConceptsCtrl.text
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+    Navigator.pop(context, {
+      'subject': _nameCtrl.text.trim(),
+      'description': _descCtrl.text.trim(),
+      'room_type': _roomType,
+      'synopsis': _synopsisCtrl.text.trim().isNotEmpty
+          ? _synopsisCtrl.text.trim()
+          : _currCtrl.text.trim(),
+      'core_concepts': concepts.join('|'),
+      'youtube_url': _videoCtrl.text.trim(),
+      'material_url': _materialCtrl.text.trim(),
+    });
+  }
+
+  InputDecoration _inputDeco(String hint, {bool hasValue = false}) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(color: _textMute, fontSize: 13),
+      filled: true,
+      fillColor: _surf,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(color: hasValue ? _lime : _border),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide:
+            BorderSide(color: hasValue ? _lime.withValues(alpha: 0.5) : _border),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: _lime, width: 1.5),
+      ),
+    );
+  }
+
+  Widget _buildTextField(
+    String label,
+    String hint,
+    TextEditingController ctrl, {
+    int maxLines = 1,
+    bool required = false,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: _C.textSec, fontSize: 12)),
+        Row(
+          children: [
+            Text(label, style: const TextStyle(color: _textSec, fontSize: 12)),
+            if (required)
+              const Text(' *',
+                  style: TextStyle(color: _lime, fontSize: 12, fontWeight: FontWeight.w700)),
+          ],
+        ),
         const SizedBox(height: 8),
         TextField(
           controller: ctrl,
           maxLines: maxLines,
-          style: const TextStyle(color: _C.textPri),
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: const TextStyle(color: _C.textMute),
-            filled: true,
-            fillColor: _C.surface2,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: _C.border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: _C.border),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: _C.lime),
-            ),
-          ),
+          style: const TextStyle(color: _textPri, fontSize: 14),
+          decoration: _inputDeco(hint, hasValue: ctrl.text.isNotEmpty),
         ),
       ],
     );
@@ -1110,117 +1193,538 @@ class _CreateRoomDialogState extends State<_CreateRoomDialog> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      backgroundColor: _C.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Container(
-        width: 500,
-        padding: const EdgeInsets.all(24),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('강의 방 만들기',
-                  style: TextStyle(
-                      color: _C.textPri,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800)),
-              const SizedBox(height: 20),
-  
-              Row(
-                children: [
-                  const Text('강의 유형', style: TextStyle(color: _C.textSec, fontSize: 12)),
-                  const SizedBox(width: 16),
-                  Radio<String>(
-                    value: 'offline',
-                    groupValue: _roomType,
-                    activeColor: _C.lime,
-                    onChanged: (val) => setState(() => _roomType = val!),
-                  ),
-                  const Text('오프라인', style: TextStyle(color: _C.textPri, fontSize: 13)),
-                  const SizedBox(width: 16),
-                  Radio<String>(
-                    value: 'online',
-                    groupValue: _roomType,
-                    activeColor: _C.lime,
-                    onChanged: (val) => setState(() => _roomType = val!),
-                  ),
-                  const Text('온라인', style: TextStyle(color: _C.textPri, fontSize: 13)),
-                ],
-              ),
-              const SizedBox(height: 16),
-              
-              _buildTextField('과목명', '예: 파이썬 프로그래밍 기초', _subjectCtrl),
-              const SizedBox(height: 16),
-              _buildTextField('간단 설명 (선택)', '강의의 간략한 설명을 입력하세요', _descCtrl),
-              const SizedBox(height: 16),
-              _buildTextField('강의 줄거리 / 목표', '예: 데이터 사이언스를 위한 파이썬 문법과 라이브러리 활용', _synopsisCtrl, maxLines: 3),
-              const SizedBox(height: 16),
-              _buildTextField('핵심 개념 (쉼표로 구분)', '예: 변수, 반복문, 함수, 클래스', _coreConceptsCtrl),
-              
-              const SizedBox(height: 24),
-  
-              Row(children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Container(
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: _C.surface2,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: _C.border),
-                      ),
-                      child: const Center(
-                        child: Text('취소',
-                            style: TextStyle(
-                                color: _C.textSec,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600)),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () {
-                      if (_subjectCtrl.text.trim().isNotEmpty) {
-                        final concepts = _coreConceptsCtrl.text
-                            .split(',')
-                            .map((e) => e.trim())
-                            .where((e) => e.isNotEmpty)
-                            .toList();
-                        Navigator.pop(context, {
-                          'subject': _subjectCtrl.text.trim(),
-                          'description': _descCtrl.text.trim(),
-                          'room_type': _roomType,
-                          'synopsis': _synopsisCtrl.text.trim(),
-                          'core_concepts': concepts.join('|'), // 나중에 리스트로 처리
-                        });
-                      }
-                    },
-                  child: Container(
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: _C.lime,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Center(
-                      child: Text('만들기',
-                          style: TextStyle(
-                              color: _C.limeDark,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700)),
-                    ),
-                  ),
-                ),
-              ),
-            ]),
+      backgroundColor: _bg,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      child: SizedBox(
+        width: 580,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildHeader(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(32, 0, 32, 0),
+              child: _step == 1
+                  ? _buildStep1()
+                  : _step == 2
+                      ? _buildStep2()
+                      : _buildDone(),
+            ),
+            const SizedBox(height: 24),
+            const Divider(color: _border, height: 1),
+            _buildFooter(),
           ],
         ),
       ),
-    ),
-  );
+    );
+  }
+
+  Widget _buildHeader() {
+    const titles = ['강의 기본 정보', '커리큘럼 & 자료', '강의 내용 확인'];
+    const subtitles = [
+      '강의 이름과 소개를 입력해주세요',
+      '학습 내용과 자료를 추가해주세요',
+      '입력하신 내용을 최종 확인해주세요',
+    ];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(32, 28, 32, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: List.generate(3, (i) {
+              final active = i + 1 == _step;
+              final done = i + 1 < _step;
+              return Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: active ? 20 : 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: done || active ? _lime : _border,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              );
+            }),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            titles[_step - 1],
+            style: const TextStyle(
+              color: _textPri,
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtitles[_step - 1],
+            style: const TextStyle(color: _textSec, fontSize: 13),
+          ),
+          const SizedBox(height: 16),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(2),
+            child: LinearProgressIndicator(
+              value: _step / 3,
+              minHeight: 2,
+              backgroundColor: _border,
+              valueColor: const AlwaysStoppedAnimation(_lime),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStep1() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Text('강의 유형', style: TextStyle(color: _textSec, fontSize: 12)),
+            const SizedBox(width: 16),
+            _TypeChip(
+              label: '오프라인',
+              selected: _roomType == 'offline',
+              onTap: () => setState(() => _roomType = 'offline'),
+            ),
+            const SizedBox(width: 8),
+            _TypeChip(
+              label: '온라인',
+              selected: _roomType == 'online',
+              onTap: () => setState(() => _roomType = 'online'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        _buildTextField('강의명', '예: 파이썬 프로그래밍 기초', _nameCtrl, required: true),
+        const SizedBox(height: 20),
+        _buildTextField('한 줄 소개', '강의를 한 줄로 소개해주세요', _descCtrl),
+      ],
+    );
+  }
+
+  Widget _buildStep2() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildTextField(
+          '커리큘럼',
+          '파트별 학습 내용을 입력해주세요\n예) 파트1: 기초 개념 / 파트2: 실습',
+          _currCtrl,
+          maxLines: 5,
+          required: true,
+        ),
+        const SizedBox(height: 20),
+        _buildTextField(
+          '강의 줄거리 / 목표',
+          '예: 데이터 사이언스를 위한 파이썬 문법과 라이브러리 활용',
+          _synopsisCtrl,
+          maxLines: 3,
+        ),
+        const SizedBox(height: 20),
+        _buildTextField(
+          '핵심 개념 (쉼표로 구분)',
+          '예: 변수, 반복문, 함수, 클래스',
+          _coreConceptsCtrl,
+        ),
+        const SizedBox(height: 20),
+        Row(
+          children: [
+            Expanded(
+              child: _AttachCard(
+                icon: Icons.play_circle_outline_rounded,
+                label: '영상 자료',
+                hint: '영상 URL 입력',
+                ctrl: _videoCtrl,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _AttachCard(
+                icon: Icons.description_outlined,
+                label: '교안 자료',
+                hint: '교안 URL 입력',
+                ctrl: _materialCtrl,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDone() {
+    final hasVideo = _videoCtrl.text.trim().isNotEmpty;
+    final hasMaterial = _materialCtrl.text.trim().isNotEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SummarySection(
+          icon: Icons.menu_book_rounded,
+          title: '강의명',
+          child: Text(
+            _nameCtrl.text.trim(),
+            style: const TextStyle(
+              color: _textPri,
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        if (_descCtrl.text.trim().isNotEmpty) ...[
+          const SizedBox(height: 10),
+          _SummarySection(
+            icon: Icons.short_text_rounded,
+            title: '한 줄 소개',
+            child: Text(
+              _descCtrl.text.trim(),
+              style: const TextStyle(color: _textSec, fontSize: 13, height: 1.5),
+            ),
+          ),
+        ],
+        const SizedBox(height: 10),
+        _SummarySection(
+          icon: Icons.list_alt_rounded,
+          title: '커리큘럼',
+          child: Text(
+            _currCtrl.text.trim(),
+            style: const TextStyle(color: _textSec, fontSize: 13, height: 1.6),
+          ),
+        ),
+        if (_synopsisCtrl.text.trim().isNotEmpty) ...[
+          const SizedBox(height: 10),
+          _SummarySection(
+            icon: Icons.flag_outlined,
+            title: '강의 줄거리 / 목표',
+            child: Text(
+              _synopsisCtrl.text.trim(),
+              style: const TextStyle(color: _textSec, fontSize: 13, height: 1.6),
+            ),
+          ),
+        ],
+        if (_coreConceptsCtrl.text.trim().isNotEmpty) ...[
+          const SizedBox(height: 10),
+          _SummarySection(
+            icon: Icons.hub_outlined,
+            title: '핵심 개념',
+            child: Text(
+              _coreConceptsCtrl.text.trim(),
+              style: const TextStyle(color: _textSec, fontSize: 13, height: 1.6),
+            ),
+          ),
+        ],
+        if (hasVideo || hasMaterial) ...[
+          const SizedBox(height: 10),
+          _SummarySection(
+            icon: Icons.attach_file_rounded,
+            title: '첨부 자료',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (hasVideo)
+                  _SummaryLink(
+                    icon: Icons.play_circle_outline_rounded,
+                    label: '영상',
+                    url: _videoCtrl.text.trim(),
+                  ),
+                if (hasVideo && hasMaterial) const SizedBox(height: 6),
+                if (hasMaterial)
+                  _SummaryLink(
+                    icon: Icons.description_outlined,
+                    label: '교안',
+                    url: _materialCtrl.text.trim(),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildFooter() {
+    String leftLabel;
+    VoidCallback leftAction;
+    String rightLabel;
+    VoidCallback? rightAction;
+    bool rightEnabled;
+
+    if (_step == 1) {
+      leftLabel = '취소';
+      leftAction = () => Navigator.pop(context);
+      rightLabel = '다음';
+      rightAction = _onNext;
+      rightEnabled = _canNext;
+    } else if (_step == 2) {
+      leftLabel = '이전';
+      leftAction = () => setState(() => _step = 1);
+      rightLabel = '확인';
+      rightAction = _onCreate;
+      rightEnabled = _canCreate;
+    } else {
+      leftLabel = '이전';
+      leftAction = () => setState(() => _step = 2);
+      rightLabel = '강의방 만들기';
+      rightAction = _onDone;
+      rightEnabled = true;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
+      child: Row(
+        children: [
+          Expanded(
+            child: _FooterButton(
+              label: leftLabel,
+              onTap: leftAction,
+              background: _btnGhost,
+              foreground: _textSec,
+              border: _border,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _FooterButton(
+              label: rightLabel,
+              onTap: rightEnabled ? rightAction : null,
+              background: rightEnabled ? _lime : _surf,
+              foreground: rightEnabled ? _limeDark : _textMute,
+              border: rightEnabled ? _lime : _border,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TypeChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _TypeChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? _CreateRoomDialogState._limeDark : _CreateRoomDialogState._surf,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: selected ? _CreateRoomDialogState._lime : _CreateRoomDialogState._border,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? _CreateRoomDialogState._lime : _CreateRoomDialogState._textSec,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AttachCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String hint;
+  final TextEditingController ctrl;
+  const _AttachCard({
+    required this.icon,
+    required this.label,
+    required this.hint,
+    required this.ctrl,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _CreateRoomDialogState._surf,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _CreateRoomDialogState._border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: _CreateRoomDialogState._lime, size: 18),
+              const SizedBox(width: 8),
+              Text(label,
+                  style: const TextStyle(
+                    color: _CreateRoomDialogState._textPri,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  )),
+            ],
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: ctrl,
+            style: const TextStyle(color: _CreateRoomDialogState._textPri, fontSize: 13),
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: const TextStyle(color: _CreateRoomDialogState._textMute, fontSize: 12),
+              filled: true,
+              fillColor: _CreateRoomDialogState._bg,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: _CreateRoomDialogState._border),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: _CreateRoomDialogState._border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: _CreateRoomDialogState._lime),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummarySection extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final Widget child;
+  const _SummarySection({
+    required this.icon,
+    required this.title,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _CreateRoomDialogState._surf,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _CreateRoomDialogState._border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: _CreateRoomDialogState._lime, size: 16),
+              const SizedBox(width: 8),
+              Text(title,
+                  style: const TextStyle(
+                    color: _CreateRoomDialogState._textPri,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  )),
+            ],
+          ),
+          const SizedBox(height: 10),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _SummaryLink extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String url;
+  const _SummaryLink({
+    required this.icon,
+    required this.label,
+    required this.url,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, color: _CreateRoomDialogState._textSec, size: 14),
+        const SizedBox(width: 8),
+        Text(
+          '$label: ',
+          style: const TextStyle(
+            color: _CreateRoomDialogState._textSec,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        Expanded(
+          child: Text(
+            url,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: _CreateRoomDialogState._textPri,
+              fontSize: 12,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _FooterButton extends StatelessWidget {
+  final String label;
+  final VoidCallback? onTap;
+  final Color background;
+  final Color foreground;
+  final Color border;
+  const _FooterButton({
+    required this.label,
+    required this.onTap,
+    required this.background,
+    required this.foreground,
+    required this.border,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        height: 48,
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: border),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: foreground,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

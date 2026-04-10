@@ -48,15 +48,15 @@ def _calc_reliability(answers: list[dict]) -> dict:
             return 0.5
         return 0.0
 
-    p1 = match_score(3, 18)
-    p2 = match_score(7, 22)
-    p3 = match_score(11, 24)
+    p1 = match_score(8, 16)
+    p2 = match_score(9, 17)
+    p3 = match_score(11, 18)
     overall = (p1 + p2 + p3) / 3
 
     return {
-        "pair_q3_q18": round(p1, 3),
-        "pair_q7_q22": round(p2, 3),
-        "pair_q11_q24": round(p3, 3),
+        "pair_s8_s16": round(p1, 3),
+        "pair_s9_s17": round(p2, 3),
+        "pair_s11_s18": round(p3, 3),
         "overall": round(overall, 3),
     }
 
@@ -158,9 +158,9 @@ class RAGAnalyzer:
         # 신뢰도 텍스트
         reliability_pct = int(reliability["overall"] * 100)
         reliability_text = (
-            f"Q3↔Q18(시각): {int(reliability['pair_q3_q18']*100)}% 일치\n"
-            f"Q7↔Q22(실습): {int(reliability['pair_q7_q22']*100)}% 일치\n"
-            f"Q11↔Q24(순차): {int(reliability['pair_q11_q24']*100)}% 일치\n"
+            f"S8↔S16(분석·집중): {int(reliability['pair_s8_s16']*100)}% 일치\n"
+            f"S9↔S17(직관·진행): {int(reliability['pair_s9_s17']*100)}% 일치\n"
+            f"S11↔S18(순차·시각보조): {int(reliability['pair_s11_s18']*100)}% 일치\n"
             f"전체 신뢰도: {reliability_pct}%"
         )
 
@@ -236,9 +236,9 @@ class RAGAnalyzer:
   ],
   "paper_citations": {json.dumps(citations, ensure_ascii=False)},
   "reliability": {{
-    "pair_q3_q18": {reliability['pair_q3_q18']},
-    "pair_q7_q22": {reliability['pair_q7_q22']},
-    "pair_q11_q24": {reliability['pair_q11_q24']},
+    "pair_s8_s16": {reliability['pair_s8_s16']},
+    "pair_s9_s17": {reliability['pair_s9_s17']},
+    "pair_s11_s18": {reliability['pair_s11_s18']},
     "overall": {reliability['overall']}
   }}
 }}

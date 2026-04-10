@@ -17,9 +17,9 @@ class DiagnosisRequest(BaseModel):
 
 
 class ReliabilityCheck(BaseModel):
-    pair_q3_q18: float = 1.0    # VARK 시각형 교차 검증
-    pair_q7_q22: float = 1.0    # 실습/경험형 교차 검증
-    pair_q11_q24: float = 1.0   # 순차/반성형 교차 검증
+    pair_s8_s16: float = 1.0    # 분석/집중 패턴 교차 검증
+    pair_s9_s17: float = 1.0    # 전체그림/학습 진행 방식 교차 검증
+    pair_s11_s18: float = 1.0   # 순차/시각 보조 선호 교차 검증
     overall: float = 1.0         # 전체 신뢰도 (0.0~1.0)
 
 

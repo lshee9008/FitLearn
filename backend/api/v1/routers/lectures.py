@@ -234,7 +234,12 @@ async def get_reforged(room_id: str, lecture_id: str, user_id: str, test_style: 
         except Exception as e:
             logger.error(f"[reforged] 재가공 실패: {e}", exc_info=True)
             raise HTTPException(status_code=502, detail=f"교안 재가공 실패: {e}")
-        return {"lecture_id": lecture_id, "primary_style": test_style, "styles": styles}
+        return {
+            "lecture_id": lecture_id,
+            "primary_style": test_style,
+            "subject_level": profile.get("subject_level", ""),
+            "styles": styles,
+        }
 
     # ── 정상 모드 ─────────────────────────────────────────────────
     cached = await firebase.get_reforged_all(room_id, lecture_id, user_id)
@@ -274,12 +279,14 @@ async def get_reforged(room_id: str, lecture_id: str, user_id: str, test_style: 
 
     await firebase.save_reforged_all(
         room_id, lecture_id, user_id, styles,
-        profile.get("learning_style", "읽기형")
+        profile.get("learning_style", "읽기형"),
+        profile.get("subject_level", ""),
     )
     logger.info(f"[reforged] 완료 user={user_id}")
 
     return {
         "lecture_id": lecture_id,
         "primary_style": profile.get("learning_style", "읽기형"),
+        "subject_level": profile.get("subject_level", ""),
         "styles": styles,
     }

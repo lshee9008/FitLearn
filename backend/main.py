@@ -84,6 +84,8 @@ ALLOW_ORIGINS = [
     "http://localhost:8080",
 ]
 
+ALLOW_ORIGIN_REGEX = r"https://.*\.vercel\.app"
+
 CORS_HEADERS = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
@@ -122,7 +124,10 @@ async def global_exception_handler(request: Request, exc: Exception):
         + traceback.format_exc()
     )
     origin = request.headers.get("origin", "*")
-    allow_origin = origin if origin in ALLOW_ORIGINS else ALLOW_ORIGINS[0]
+    allow_origin = origin if (
+        origin in ALLOW_ORIGINS or
+        (origin and origin.endswith(".vercel.app"))
+    ) else ALLOW_ORIGINS[0]
     return JSONResponse(
         status_code=500,
         content={"detail": f"서버 내부 오류: {type(exc).__name__}"},
@@ -152,6 +157,7 @@ if demo:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOW_ORIGINS,
+    allow_origin_regex=ALLOW_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -26,15 +26,15 @@ class DimensionScores {
 }
 
 class ReliabilityInfo {
-  final double pairQ3Q18;
-  final double pairQ7Q22;
-  final double pairQ11Q24;
+  final double pairS8S16;
+  final double pairS9S17;
+  final double pairS11S18;
   final double overall;
 
   const ReliabilityInfo({
-    this.pairQ3Q18 = 0.75,
-    this.pairQ7Q22 = 0.75,
-    this.pairQ11Q24 = 0.75,
+    this.pairS8S16 = 0.75,
+    this.pairS9S17 = 0.75,
+    this.pairS11S18 = 0.75,
     this.overall = 0.75,
   });
 
@@ -45,6 +45,10 @@ class ReliabilityInfo {
     if (overall >= 0.6) return '중간 일관성 — 상황에 따라 유연한 성향입니다';
     return '변동성 있음 — 성향이 맥락에 따라 달라집니다';
   }
+
+  double get pairQ3Q18 => pairS8S16;
+  double get pairQ7Q22 => pairS9S17;
+  double get pairQ11Q24 => pairS11S18;
 }
 
 class DiagnosisProfile {
@@ -83,6 +87,24 @@ class DiagnosisProfile {
     this.confidenceScore = 70,
     this.paperCitations = const [],
   });
+
+  String get primaryStyle => learningStyle;
+
+  String get secondaryStyle {
+    final pairs = <String, num>{
+      '시각형': (vark['visual'] as num?) ?? 0,
+      '청각형': (vark['aural'] as num?) ?? 0,
+      '읽기형': (vark['read_write'] as num?) ?? 0,
+      '실습형': (vark['kinesthetic'] as num?) ?? 0,
+    }.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    if (pairs.length < 2) return learningStyle;
+    return pairs.first.key == learningStyle ? pairs[1].key : pairs.first.key;
+  }
+
+  String get socialType => interaction;
+  String get cognitiveType => cognitiveStyle;
+  String get personalitySummary => analysis.isNotEmpty ? analysis : writingInsight;
 }
 
 class DiagnosisResult {
@@ -97,6 +119,9 @@ class DiagnosisResult {
     required this.weaknesses,
     required this.strategies,
   });
+
+  List<String> get recommendations => strategies;
+  String get aiAnalysis => profile.analysis;
 }
 
 @riverpod
@@ -162,9 +187,9 @@ class DiagnosisNotifier extends _$DiagnosisNotifier {
         analysis: p['analysis'] as String? ?? '',
         writingInsight: p['writing_insight'] as String? ?? '',
         reliability: ReliabilityInfo(
-          pairQ3Q18: (rel['pair_q3_q18'] as num?)?.toDouble() ?? 0.75,
-          pairQ7Q22: (rel['pair_q7_q22'] as num?)?.toDouble() ?? 0.75,
-          pairQ11Q24: (rel['pair_q11_q24'] as num?)?.toDouble() ?? 0.75,
+          pairS8S16: ((rel['pair_s8_s16'] ?? rel['pair_q3_q18']) as num?)?.toDouble() ?? 0.75,
+          pairS9S17: ((rel['pair_s9_s17'] ?? rel['pair_q7_q22']) as num?)?.toDouble() ?? 0.75,
+          pairS11S18: ((rel['pair_s11_s18'] ?? rel['pair_q11_q24']) as num?)?.toDouble() ?? 0.75,
           overall: (rel['overall'] as num?)?.toDouble() ?? 0.75,
         ),
         vark: vark,
