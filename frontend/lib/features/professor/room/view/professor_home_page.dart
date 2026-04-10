@@ -54,50 +54,95 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
     setState(() => _loading = true);
     try {
       final rooms = await ApiService().getProfessorRooms(user.userId);
-      setState(() { _rooms = rooms; _loading = false; });
+      // 백엔드가 created_at DESC 정렬 반환. 없을 경우 역순 fallback
+      final sorted = (rooms.isNotEmpty &&
+              (rooms.first as Map)['created_at'] != null)
+          ? rooms
+          : rooms.reversed.toList();
+      setState(() { _rooms = sorted; _loading = false; });
     } catch (_) {
       setState(() => _loading = false);
     }
   }
  
   Future<void> _createRoom() async {
-    final user = ref.read(authNotifierProvider);
-    if (user == null) return;
-    final messenger = ScaffoldMessenger.of(context);
-    final result = await showDialog<Map<String, String>>(
-      context: context,
-      builder: (_) => const _CreateRoomDialog(),
+  final user = ref.read(authNotifierProvider);
+  if (user == null) return;
+  final messenger = ScaffoldMessenger.of(context);
+  final result = await showDialog<Map<String, String>>(
+    context: context,
+    builder: (_) => const _CreateRoomDialog(),
+  );
+  if (result == null) return;
+  try {
+    final coreConcepts = (result['core_concepts'] ?? '')
+        .split('\n')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+    final roomData = await ApiService().createRoom(
+      professorUid: user.userId,
+      subject: result['subject']!,
+      description: result['description'] ?? '',
+      roomType: result['room_type'] ?? 'offline',
+      synopsis: result['synopsis'] ?? '',
+      coreConcepts: coreConcepts,
+      youtubeUrl: result['youtube_url'] ?? '',
     );
-    if (result == null) return;
-    try {
-      final coreConcepts = (result['core_concepts'] ?? '')
-          .split('\n')
-          .map((s) => s.trim())
-          .where((s) => s.isNotEmpty)
-          .toList();
-      final roomData = await ApiService().createRoom(
-        professorUid: user.userId,
-        subject: result['subject']!,
-        description: result['description'] ?? '',
-        roomType: result['room_type'] ?? 'offline',
-        synopsis: result['synopsis'] ?? '',
-        coreConcepts: coreConcepts,
-        youtubeUrl: result['youtube_url'] ?? '',
-      );
-      _loadRooms();
-      if (mounted) {
-        final inviteCode = roomData['room_code'] as String? ?? '';
-        if (inviteCode.isNotEmpty) {
-          _showInviteCodeDialog(
-            code: inviteCode,
-            subject: result['subject'] ?? '',
-          );
-        }
+
+    // ✅ _loadRooms() 제거 — 즉시 삽입 후 loading 없이 유지
+    setState(() => _rooms = [roomData, ..._rooms]);
+
+    if (mounted) {
+      final inviteCode = roomData['room_code'] as String? ?? '';
+      if (inviteCode.isNotEmpty) {
+        _showInviteCodeDialog(
+          code: inviteCode,
+          subject: result['subject'] ?? '',
+        );
       }
-    } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(content: Text('방 생성 오류: $e'), duration: const Duration(seconds: 6)),
-      );
+    }
+  } catch (e) {
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text('방 생성 오류: $e'),
+        duration: const Duration(seconds: 6),
+      ),
+    );
+  }
+}
+
+  Future<void> _deleteRoom(Map<String, dynamic> room) async {
+    final roomId = room['room_id'] as String? ?? '';
+    final subject = room['subject'] as String? ?? '이 강의 방';
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('강의 방 삭제', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+        content: Text('"$subject"을 삭제할까요?\n삭제 후 복구가 불가능합니다.',
+            style: const TextStyle(color: Color(0xFF888888), fontSize: 13, height: 1.5)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소', style: TextStyle(color: Color(0xFF888888))),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('삭제', style: TextStyle(color: Color(0xFFFF6B5B), fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    // 즉시 목록에서 제거
+    setState(() => _rooms.removeWhere((r) => (r as Map)['room_id'] == roomId));
+    try {
+      await ApiService().deleteRoom(roomId);
+    } catch (_) {
+      // 실패 시 다시 로드
+      _loadRooms();
     }
   }
 
@@ -184,7 +229,7 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
                             padding: const EdgeInsets.only(bottom: 12),
                             child: _RoomCard(
                               room: _rooms[i] as Map<String, dynamic>,
-                              onDelete: _loadRooms,
+                              onDelete: () => _deleteRoom(_rooms[i] as Map<String, dynamic>),
                             ),
                           ),
                           childCount: _rooms.length,
@@ -648,10 +693,19 @@ class _RoomCard extends StatefulWidget {
 class _RoomCardState extends State<_RoomCard> {
   bool _hovered = false;
  
+  String _formatDate(String? iso) {
+    if (iso == null) return '';
+    try {
+      final dt = DateTime.parse(iso).toLocal();
+      return '${dt.month}/${dt.day} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    } catch (_) { return ''; }
+  }
+
   @override
   Widget build(BuildContext context) {
     final studentCount = widget.room['student_count'] as int? ?? 0;
     final desc = widget.room['description'] as String? ?? '';
+    final dateStr = _formatDate(widget.room['created_at'] as String?);
  
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -731,6 +785,11 @@ class _RoomCardState extends State<_RoomCard> {
                             color: _C.textSec, fontSize: 12)),
                   ]),
                 ),
+                if (dateStr.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  Text(dateStr,
+                      style: const TextStyle(color: _C.textMute, fontSize: 11)),
+                ],
                 const SizedBox(width: 8),
                 // AI 인사이트 배지 (있을 때만)
                 if (studentCount > 0)
@@ -753,6 +812,29 @@ class _RoomCardState extends State<_RoomCard> {
                     ]),
                   ),
                 const Spacer(),
+                // 삭제 버튼
+                GestureDetector(
+                  onTap: () {
+                    widget.onDelete();
+                  },
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: _C.salmonDark,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: _C.salmon.withValues(alpha: 0.3)),
+                      ),
+                      child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.delete_outline_rounded, color: _C.salmon, size: 13),
+                        SizedBox(width: 4),
+                        Text('삭제', style: TextStyle(color: _C.salmon, fontSize: 11, fontWeight: FontWeight.w600)),
+                      ]),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
                 const Icon(Icons.arrow_forward_ios_rounded,
                     color: _C.textSec, size: 13),
               ]),
@@ -763,7 +845,7 @@ class _RoomCardState extends State<_RoomCard> {
     );
   }
 }
- 
+
 // ════════════════════════════════════════════════════════════
 // 빈 방 상태
 // ════════════════════════════════════════════════════════════

@@ -25,6 +25,7 @@ class Room(BaseModel):
     youtube_url: str = ""
     student_count: int = 0
     has_quiz: bool = False                  # 수준판단 퀴즈 생성 여부
+    created_at: Optional[str] = None        # ISO 8601 문자열로 직렬화
 
 
 class JoinRoomRequest(BaseModel):
