@@ -15,7 +15,10 @@
       "Bash(python3 -c ':*)",
       "Bash(python3:*)",
       "Bash(git commit:*)",
-      "Bash(git fetch:*)"
+      "Bash(git fetch:*)",
+      "Bash(python scripts/seed_firestore.py --env development)",
+      "Bash(pip3 install:*)",
+      "Bash(PYENV_VERSION=3.10.12 python3:*)"
     ]
   }
 }

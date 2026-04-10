@@ -85,7 +85,17 @@ _ProfileData _deriveProfile(Map<int, String> selected) {
 // ── 페이지 ────────────────────────────────────────────────────────────────────
 
 class ReforgeTestPage extends StatefulWidget {
-  const ReforgeTestPage({super.key});
+  /// 강의실·교안 ID를 넘기면 서버에서 Firebase 교안을 자동으로 사용
+  final String? roomId;
+  final String? lectureId;
+  final String? lectureTitle;
+
+  const ReforgeTestPage({
+    super.key,
+    this.roomId,
+    this.lectureId,
+    this.lectureTitle,
+  });
 
   @override
   State<ReforgeTestPage> createState() => _ReforgeTestPageState();
@@ -128,14 +138,27 @@ class _ReforgeTestPageState extends State<ReforgeTestPage>
     super.dispose();
   }
 
+  bool get _hasLinkedLecture =>
+      widget.roomId != null && widget.lectureId != null;
+
   String get _learningType =>
       _selected.values.where((v) => v.isNotEmpty).join('+');
 
   bool get _canRun {
+    // 1. 성향 선택 여부 (최소 하나)
+    if (_selected.isEmpty) return false;
+
+    // 2. 실행 중 인지 확인
+    if (_running) return false;
+
+    // 3. 입력물 확인 (연결된 강의가 있거나, 직접 입력이 있거나)
+    if (_hasLinkedLecture) return true;
+
     final hasInput = _inputTab == 0
         ? _textCtrl.text.trim().isNotEmpty
         : _file != null;
-    return hasInput && _selected.isNotEmpty && !_running;
+
+    return hasInput;
   }
 
   Future<void> _pickFile() async {
@@ -153,6 +176,23 @@ class _ReforgeTestPageState extends State<ReforgeTestPage>
   }
 
   Future<void> _run() async {
+    // 상세 validation
+    if (_selected.isEmpty) {
+      setState(() => _error = '왼쪽 패널에서 학습 성향을 하나 이상 선택해주세요.');
+      return;
+    }
+
+    if (!_hasLinkedLecture) {
+      if (_inputTab == 0 && _textCtrl.text.trim().isEmpty) {
+        setState(() => _error = '교안의 텍스트를 입력해주세요.');
+        return;
+      }
+      if (_inputTab == 1 && _file == null) {
+        setState(() => _error = '분석할 파일을 업로드해주세요.');
+        return;
+      }
+    }
+
     setState(() {
       _running = true;
       _reforged = '';
@@ -165,8 +205,13 @@ class _ReforgeTestPageState extends State<ReforgeTestPage>
     try {
       final formData = FormData.fromMap({
         'learning_type': _learningType,
-        if (_inputTab == 0) 'content': _textCtrl.text.trim(),
-        if (_inputTab == 1 && _file?.bytes != null)
+        // lecture_id 연결 시 서버에서 Firebase 교안 자동 사용
+        if (_hasLinkedLecture) 'room_id': widget.roomId!,
+        if (_hasLinkedLecture) 'lecture_id': widget.lectureId!,
+        // lecture 미연결 시 직접 입력/파일 사용
+        if (!_hasLinkedLecture && _inputTab == 0)
+          'content': _textCtrl.text.trim(),
+        if (!_hasLinkedLecture && _inputTab == 1 && _file?.bytes != null)
           'file': MultipartFile.fromBytes(_file!.bytes!, filename: _file!.name),
       });
 
@@ -218,8 +263,21 @@ class _ReforgeTestPageState extends State<ReforgeTestPage>
         }
       }
     } on DioException catch (e) {
+      String msg = e.message ?? '요청 실패';
+      // 서버 400/5xx detail 추출
+      try {
+        final data = e.response?.data;
+        if (data is Map && data['detail'] != null) {
+          msg = data['detail'].toString();
+        } else if (data is String && data.isNotEmpty) {
+          msg = data;
+        }
+      } catch (_) {}
+      if (e.response?.statusCode == 400 && !msg.startsWith('[')) {
+        msg = '입력값을 다시 확인해주세요. $msg';
+      }
       setState(() {
-        _error = e.message ?? '요청 실패';
+        _error = '[${e.response?.statusCode ?? 'ERR'}] $msg';
         _running = false;
       });
     } catch (e) {
@@ -277,6 +335,29 @@ class _ReforgeTestPageState extends State<ReforgeTestPage>
                   fontSize: 17)),
         ]),
         actions: [
+          if (_hasLinkedLecture)
+            Container(
+              margin: const EdgeInsets.only(right: 8, top: 10, bottom: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.primary.withValues(alpha: 0.5)),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.link_rounded, color: AppColors.primary, size: 13),
+                const SizedBox(width: 4),
+                Text(
+                  widget.lectureTitle ?? '교안 연결됨',
+                  style: const TextStyle(
+                      color: AppColors.primaryLight,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ]),
+            ),
           Container(
             margin: const EdgeInsets.only(right: 16, top: 10, bottom: 10),
             padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -555,18 +636,32 @@ class _ReforgeTestPageState extends State<ReforgeTestPage>
         ),
 
         if (_error != null) ...[
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
-              color: AppColors.rose.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-              border:
-                  Border.all(color: AppColors.rose.withValues(alpha: 0.3)),
+              color: AppColors.rose.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.rose.withValues(alpha: 0.3)),
             ),
-            child: Text(_error!,
-                style:
-                    const TextStyle(color: AppColors.rose, fontSize: 12)),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.error_outline_rounded, color: AppColors.rose, size: 16),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _error!,
+                    style: const TextStyle(
+                      color: AppColors.rose,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      height: 1.5,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ]),

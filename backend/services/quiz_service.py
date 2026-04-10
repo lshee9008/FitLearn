@@ -82,30 +82,34 @@ class QuizService:
 ]"""
 
         try:
-            response = await asyncio.wait_for(
-                asyncio.to_thread(self._model().generate_content, prompt),
-                timeout=40.0,
-            )
-            questions = _extract_json(response.text)
-            if not isinstance(questions, list):
-                raise ValueError("JSON 배열이 아님")
-            # 필드 검증
-            validated = []
-            for i, q in enumerate(questions[:7]):
-                validated.append({
-                    "id": i + 1,
-                    "question": q.get("question", ""),
-                    "options": q.get("options", [])[:4],
-                    "correct_index": int(q.get("correct_index", 0)),
-                    "explanation": q.get("explanation", ""),
-                })
-            logger.info(f"[QuizService] 퀴즈 {len(validated)}문제 생성 완료")
-            return validated
-        except asyncio.TimeoutError:
-            logger.error("[QuizService] 퀴즈 생성 타임아웃")
-            return _fallback_quiz(subject)
-        except Exception as e:
-            logger.error(f"[QuizService] 퀴즈 생성 실패: {e}")
+            try:
+                response = await asyncio.wait_for(
+                    asyncio.to_thread(self._model().generate_content, prompt),
+                    timeout=40.0,
+                )
+                questions = _extract_json(response.text)
+                if not isinstance(questions, list):
+                    raise ValueError("JSON 배열이 아님")
+                # 필드 검증
+                validated = []
+                for i, q in enumerate(questions[:7]):
+                    validated.append({
+                        "id": i + 1,
+                        "question": q.get("question", ""),
+                        "options": q.get("options", [])[:4],
+                        "correct_index": int(q.get("correct_index", 0)),
+                        "explanation": q.get("explanation", ""),
+                    })
+                logger.info(f"[QuizService] 퀴즈 {len(validated)}문제 생성 완료")
+                return validated
+            except asyncio.TimeoutError:
+                logger.error("[QuizService] 퀴즈 생성 타임아웃 → Fallback 전환")
+                return _fallback_quiz(subject)
+            except Exception as e:
+                logger.error(f"[QuizService] 퀴즈 생성 중 예외: {e} → Fallback 전환")
+                return _fallback_quiz(subject)
+        except Exception as critical_e:
+            logger.critical(f"[QuizService] 심각한 오류: {critical_e}")
             return _fallback_quiz(subject)
 
     def grade_quiz(self, questions: list[dict], answers: list[int]) -> dict:
@@ -139,13 +143,49 @@ class QuizService:
 
 
 def _fallback_quiz(subject: str) -> list[dict]:
-    """AI 호출 실패 시 기본 퀴즈"""
+    """AI 호출 실패 시에도 동작 가능한 기본 6문항 퀴즈"""
+    subject_name = subject.strip() or "이 과목"
     return [
         {
             "id": 1,
-            "question": f"{subject} 과목을 수강한 경험이 있나요?",
-            "options": ["전혀 없음", "약간 있음", "어느 정도 있음", "많이 있음"],
-            "correct_index": -1,  # -1 = 자가진단형 (채점 제외)
-            "explanation": "자가 신고 문항입니다.",
-        }
+            "question": f"{subject_name}의 핵심 개념을 처음 들었을 때 가장 가까운 상태는 무엇인가요?",
+            "options": ["처음 듣는다", "이름만 안다", "대략 설명할 수 있다", "다른 사람에게 설명할 수 있다"],
+            "correct_index": 2,
+            "explanation": "기초 개념을 설명할 수 있는 수준을 중간 기준으로 봅니다.",
+        },
+        {
+            "id": 2,
+            "question": f"{subject_name} 관련 문제를 만났을 때 가장 먼저 할 수 있는 행동은 무엇인가요?",
+            "options": ["관련 용어를 찾는다", "예시를 보고 따라 한다", "핵심 원리를 떠올린다", "스스로 풀이 전략을 세운다"],
+            "correct_index": 2,
+            "explanation": "원리를 떠올리는 단계는 기본 이해가 형성된 상태입니다.",
+        },
+        {
+            "id": 3,
+            "question": f"{subject_name}를 배울 때 가장 어려운 지점은 무엇인가요?",
+            "options": ["용어 자체가 낯설다", "예시는 이해되나 응용이 어렵다", "응용은 되지만 속도가 느리다", "대부분 익숙하다"],
+            "correct_index": 1,
+            "explanation": "예시 이해 후 응용이 어려운 단계는 입문을 지난 중간 단계로 볼 수 있습니다.",
+        },
+        {
+            "id": 4,
+            "question": f"{subject_name} 개념을 실제 과제나 문제에 적용해본 경험은 어느 정도인가요?",
+            "options": ["없다", "한두 번 있다", "여러 번 있다", "익숙하게 반복 적용한다"],
+            "correct_index": 2,
+            "explanation": "여러 번 적용해본 경험은 중급 이상 판단의 근거가 됩니다.",
+        },
+        {
+            "id": 5,
+            "question": f"{subject_name}의 기본 개념과 심화 개념의 차이를 얼마나 구분할 수 있나요?",
+            "options": ["거의 구분 못한다", "대표 개념 몇 개만 구분한다", "대부분 구분한다", "연결 구조까지 설명할 수 있다"],
+            "correct_index": 2,
+            "explanation": "대부분 구분 가능하면 학습 준비도가 충분한 편입니다.",
+        },
+        {
+            "id": 6,
+            "question": f"{subject_name} 수업을 들을 때 가장 적절한 시작 난이도는 무엇이라고 생각하나요?",
+            "options": ["아주 기초부터", "기초와 예시 중심", "기초 요약 후 바로 응용", "심화 문제부터"],
+            "correct_index": 1,
+            "explanation": "기초와 예시 중심은 다수 학습자에게 적절한 기본 시작점입니다.",
+        },
     ]
