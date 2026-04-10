@@ -1,28 +1,28 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  // Backgrounds
-  static const Color bg = Color(0xFF0F0E17);
-  static const Color bgCard = Color(0xFF1A1828);
-  static const Color bgSurface = Color(0xFF252338);
+  // Backgrounds — 다크 블랙/딥그레이
+  static const Color bg = Color(0xFF0A0A0F);
+  static const Color bgCard = Color(0xFF1A1A2E);
+  static const Color bgSurface = Color(0xFF141420);
 
-  // Brand
-  static const Color primary = Color(0xFF7C3AED);
-  static const Color primaryLight = Color(0xFF9F67FA);
-  static const Color primaryGlow = Color(0xFF6D28D9);
+  // Brand — 초록 포인트
+  static const Color primary = Color(0xFF10B981);
+  static const Color primaryLight = Color(0xFF34D399);
+  static const Color primaryGlow = Color(0xFF059669);
   static const Color secondary = Color(0xFF0EA5E9);
-  static const Color accent = Color(0xFF10B981);
+  static const Color accent = Color(0xFF34D399);
   static const Color gold = Color(0xFFF59E0B);
   static const Color rose = Color(0xFFF43F5E);
 
   // Text
-  static const Color textPrimary = Color(0xFFF1F0FF);
-  static const Color textSecondary = Color(0xFF9B8EC4);
-  static const Color textMuted = Color(0xFF6B6B8A);
+  static const Color textPrimary = Color(0xFFF8FAFC);
+  static const Color textSecondary = Color(0xFFCBD5E1);
+  static const Color textMuted = Color(0xFF64748B);
 
   // Borders
-  static const Color border = Color(0xFF2E2A4A);
-  static const Color borderLight = Color(0xFF3D3860);
+  static const Color border = Color(0xFF1E293B);
+  static const Color borderLight = Color(0xFF334155);
 
   // Learning type colors
   static const Color visual = Color(0xFF7C3AED);    // 시각형
@@ -40,7 +40,7 @@ class AppTheme {
       primary: AppColors.primary,
       secondary: AppColors.secondary,
       surface: AppColors.bgCard,
-      onPrimary: Colors.white,
+      onPrimary: Color(0xFF0A0A0F),
       onSecondary: Colors.white,
       onSurface: AppColors.textPrimary,
       error: AppColors.rose,

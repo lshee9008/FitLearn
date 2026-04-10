@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/services/api_service.dart';
@@ -368,7 +369,7 @@ class _StyleHeader extends StatelessWidget {
   }
 }
 
-// ── 마크다운 렌더러 ──────────────────────────────────────────────────────────
+// ── 마크다운 렌더러 (flutter_markdown) ───────────────────────────────────────
 
 class _MarkdownText extends StatelessWidget {
   final String content;
@@ -376,75 +377,75 @@ class _MarkdownText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final lines = content.split('\n');
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: lines.map((line) => _renderLine(line)).toList(),
-    );
-  }
-
-  Widget _renderLine(String line) {
-    if (line.startsWith('### ')) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(0, 20, 0, 6),
-        child: Text(line.substring(4), style: const TextStyle(
-          color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w800,
-        )),
-      );
-    }
-    if (line.startsWith('## ')) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(0, 24, 0, 8),
-        child: Text(line.substring(3), style: const TextStyle(
-          color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w900,
-        )),
-      );
-    }
-    if (line.startsWith('# ')) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(0, 8, 0, 16),
-        child: Text(line.substring(2), style: const TextStyle(
-          color: AppColors.primaryLight, fontSize: 20, fontWeight: FontWeight.w900,
-        )),
-      );
-    }
-    if (line.startsWith('- ') || line.startsWith('* ')) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 6, left: 4),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(0, 7, 8, 0),
-            child: CircleAvatar(radius: 3, backgroundColor: AppColors.primaryLight),
-          ),
-          Expanded(child: Text(line.substring(2), style: const TextStyle(
-            color: AppColors.textSecondary, fontSize: 14, height: 1.6,
-          ))),
-        ]),
-      );
-    }
-    if (line.startsWith('> ')) {
-      return Container(
-        margin: const EdgeInsets.symmetric(vertical: 8),
-        padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-        decoration: BoxDecoration(
-          border: Border(left: BorderSide(color: AppColors.primaryLight, width: 3)),
+    return MarkdownBody(
+      data: content,
+      softLineBreak: true,
+      styleSheet: MarkdownStyleSheet(
+        h1: const TextStyle(
+            color: AppColors.primaryLight,
+            fontSize: 22,
+            fontWeight: FontWeight.w900,
+            height: 1.3),
+        h1Padding: const EdgeInsets.only(top: 8, bottom: 14),
+        h2: const TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            height: 1.3),
+        h2Padding: const EdgeInsets.only(top: 24, bottom: 8),
+        h3: const TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            height: 1.4),
+        h3Padding: const EdgeInsets.only(top: 18, bottom: 6),
+        p: const TextStyle(
+            color: AppColors.textSecondary, fontSize: 14, height: 1.75),
+        pPadding: const EdgeInsets.only(bottom: 4),
+        listBullet: const TextStyle(color: AppColors.primary, fontSize: 14),
+        listBulletPadding: const EdgeInsets.only(right: 8),
+        listIndent: 20,
+        blockquote: const TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 13,
+            fontStyle: FontStyle.italic,
+            height: 1.5),
+        blockquoteDecoration: BoxDecoration(
+          border: const Border(
+              left: BorderSide(color: AppColors.primary, width: 4)),
           color: AppColors.primary.withValues(alpha: 0.06),
           borderRadius: const BorderRadius.only(
-            topRight: Radius.circular(8), bottomRight: Radius.circular(8),
-          ),
+              topRight: Radius.circular(8), bottomRight: Radius.circular(8)),
         ),
-        child: Text(line.substring(2), style: const TextStyle(
-          color: AppColors.textSecondary, fontSize: 13,
-          fontStyle: FontStyle.italic, height: 1.5,
-        )),
-      );
-    }
-    if (line.trim().isEmpty) return const SizedBox(height: 8);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Text(line, style: const TextStyle(
-        color: AppColors.textSecondary, fontSize: 14, height: 1.7,
-      )),
+        blockquotePadding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+        code: const TextStyle(
+            color: AppColors.primaryLight,
+            backgroundColor: Color(0xFF141420),
+            fontSize: 12,
+            fontFamily: 'monospace'),
+        codeblockDecoration: BoxDecoration(
+          color: AppColors.bgSurface,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.border),
+        ),
+        codeblockPadding: const EdgeInsets.all(14),
+        horizontalRuleDecoration: const BoxDecoration(
+          border: Border(top: BorderSide(color: AppColors.border)),
+        ),
+        strong: const TextStyle(
+            color: AppColors.textPrimary, fontWeight: FontWeight.w800),
+        em: const TextStyle(
+            color: AppColors.textSecondary, fontStyle: FontStyle.italic),
+        tableHead: const TextStyle(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w700,
+            fontSize: 13),
+        tableBody:
+            const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+        tableBorder: TableBorder.all(color: AppColors.border, width: 1),
+        tableCellsPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      ),
     );
   }
 }
