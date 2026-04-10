@@ -147,9 +147,10 @@ class FirebaseService:
         try:
             def _write():
                 room_ref = db.collection("rooms").document()
-                data = {**base, "room_id": room_ref.id,
-                        "created_at": datetime.now(timezone.utc)}
+                now = datetime.now(timezone.utc)
+                data = {**base, "room_id": room_ref.id, "created_at": now}
                 room_ref.set(data)
+                data["created_at"] = now.isoformat()
                 return data
             return await _run(_write)
         except Exception as e:
@@ -187,12 +188,19 @@ class FirebaseService:
                 docs = (
                     db.collection("rooms")
                     .where("professor_uid", "==", professor_uid)
+                    .order_by("created_at", direction="DESCENDING")
                     .stream()
                 )
                 result = []
                 for doc in docs:
                     d = doc.to_dict()
                     d["student_count"] = len(d.get("students", []))
+                    # created_at을 ISO 문자열로 직렬화
+                    ca = d.get("created_at")
+                    if ca is not None and hasattr(ca, "isoformat"):
+                        d["created_at"] = ca.isoformat()
+                    elif ca is None:
+                        d["created_at"] = None
                     result.append(d)
                 return result
             return await _run(_read)
