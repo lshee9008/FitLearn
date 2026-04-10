@@ -12,8 +12,8 @@ import time
 
 logger = logging.getLogger(__name__)
 
-# Vision OCR 동시 실행 제한 (429 방지 — 한 번에 최대 2개)
-_VISION_SEMAPHORE = asyncio.Semaphore(2)
+# Vision OCR 동시 실행 제한 (429 방지 — RPM 15 제한 대응을 위해 1로 순차 처리)
+_VISION_SEMAPHORE = asyncio.Semaphore(1)
 
 # 슬라이드당 처리할 최대 이미지 수 (너무 많으면 quota 소진)
 _MAX_IMAGES_PER_SLIDE = 3
@@ -249,9 +249,9 @@ class FileService:
 - 설명·코멘트 없이 변환 결과만 출력.
 - 한국어 설명은 유지, 코드는 원어 그대로 보존."""
 
-            # 모델 폴백 체인 + 429 지수 백오프
+            # 모델 폴백 체인 + 429 충분한 대기 (RPM 15 제한 고려)
             for model_name in _VISION_MODELS:
-                for attempt in range(3):
+                for attempt in range(5):
                     try:
                         model = genai.GenerativeModel(model_name)
                         response = await asyncio.wait_for(
@@ -270,13 +270,13 @@ class FileService:
                     except Exception as e:
                         err = str(e)
                         if "429" in err or "quota" in err.lower():
-                            wait = (2 ** attempt) * 3  # 3s, 6s, 12s
+                            wait = 15 * (attempt + 1)  # 15s, 30s, 45s, 60s, 75s
                             logger.warning(
                                 f"[FileService] Vision 429 ({model_name} attempt {attempt+1}) "
                                 f"— {wait}s 대기 후 재시도"
                             )
                             await asyncio.sleep(wait)
-                            if attempt == 2:
+                            if attempt == 4:
                                 logger.warning(f"[FileService] {model_name} 재시도 소진 → 다음 모델")
                                 break  # 다음 모델로
                         else:
