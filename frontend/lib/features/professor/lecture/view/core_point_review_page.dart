@@ -103,7 +103,7 @@ class _CorePointReviewPageState extends ConsumerState<CorePointReviewPage> {
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ));
-        context.pop();
+        context.pop(true);
       }
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('오류: $e')));

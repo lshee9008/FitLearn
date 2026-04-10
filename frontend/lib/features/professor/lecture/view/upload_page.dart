@@ -128,10 +128,15 @@ class _LectureUploadPageState extends ConsumerState<LectureUploadPage> {
         videoFileName: _videoFile?.name,
       );
       if (mounted) {
-        context.push(
+        final confirmed = await context.push<bool>(
           '/professor/lecture/${widget.roomId}/${data['lecture_id']}/review',
           extra: data,
         );
+        if (!mounted) return;
+        setState(() => _uploading = false);
+        if (confirmed == true) {
+          context.pop();
+        }
       }
     } catch (e) {
       setState(() { _error = '업로드 중 오류가 발생했습니다: $e'; _uploading = false; });
