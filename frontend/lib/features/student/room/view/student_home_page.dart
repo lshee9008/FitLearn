@@ -206,9 +206,6 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
                   onTap: (t) => setState(() => _activeTag = t),
                 ),
                 const SizedBox(height: 20),
-                // 진행바 + 오늘 할 일
-                const _CourseProgressCard(),
-                const SizedBox(height: 24),
                 // 수강 중인 강의 (가로 스크롤 카드)
                 const _SectionTitle(title: '수강 중인 강의'),
                 const SizedBox(height: 12),
@@ -276,168 +273,6 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
           childAspectRatio: 1.65,
         ),
       ),
-    );
-  }
-}
-
-// ════════════════════════════════════════════════════════════════
-// 진행바 + 오늘 할 일 카드
-// ════════════════════════════════════════════════════════════════
-class _CourseProgressCard extends StatelessWidget {
-  const _CourseProgressCard();
-
-  static const _todos = [
-    (true,  '파트3 영상 보기'),
-    (false, '파트3 질문지 제출'),
-    (false, 'Figma 실습 30분'),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    const doneCount = 1;
-    const totalCount = 3;
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: _C.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _C.border),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // 강의명 + 진행률
-        Row(children: [
-          const Icon(Icons.play_circle_outline_rounded, color: _C.lime, size: 18),
-          const SizedBox(width: 8),
-          const Text('영상편집 ', style: TextStyle(
-            color: _C.textPri, fontSize: 15, fontWeight: FontWeight.w700,
-          )),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: _C.limeDark, borderRadius: BorderRadius.circular(6),
-            ),
-            child: const Text('마스터 클래스', style: TextStyle(
-              color: _C.lime, fontSize: 12, fontWeight: FontWeight.w600,
-            )),
-          ),
-          const Spacer(),
-          const Text('37% 완료', style: TextStyle(
-            color: _C.lime, fontSize: 12, fontWeight: FontWeight.w700,
-          )),
-        ]),
-        const SizedBox(height: 12),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(6),
-          child: LinearProgressIndicator(
-            value: 0.37,
-            minHeight: 8,
-            backgroundColor: _C.surface2,
-            valueColor: const AlwaysStoppedAnimation(_C.lime),
-          ),
-        ),
-        const SizedBox(height: 20),
-
-        // ── 오늘 할 일 헤더 ──
-        Row(children: [
-          const Text('오늘 할 일', style: TextStyle(
-            color: _C.textPri, fontSize: 14, fontWeight: FontWeight.w700,
-          )),
-          const SizedBox(width: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-            decoration: BoxDecoration(
-              color: _C.limeDark, borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Text('$doneCount / $totalCount 완료', style: TextStyle(
-              color: _C.lime, fontSize: 11, fontWeight: FontWeight.w700,
-            )),
-          ),
-          const Spacer(),
-          const Text('파트 3', style: TextStyle(color: _C.textMute, fontSize: 11)),
-        ]),
-        const SizedBox(height: 8),
-        // 얇은 완료 진행바
-        ClipRRect(
-          borderRadius: BorderRadius.circular(3),
-          child: LinearProgressIndicator(
-            value: doneCount / totalCount,
-            minHeight: 3,
-            backgroundColor: _C.surface2,
-            valueColor: const AlwaysStoppedAnimation(_C.lime),
-          ),
-        ),
-        const SizedBox(height: 14),
-
-        // ── 할 일 목록 ──
-        ...List.generate(_todos.length, (i) {
-          final done = _todos[i].$1;
-          final label = _todos[i].$2;
-          return Padding(
-            padding: EdgeInsets.only(bottom: i < _todos.length - 1 ? 8 : 0),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                color: done
-                    ? Colors.transparent
-                    : _C.salmon.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(10),
-                border: Border(
-                  left: BorderSide(
-                    color: done ? _C.lime.withValues(alpha: 0.35) : _C.salmon,
-                    width: 3,
-                  ),
-                ),
-              ),
-              child: Row(children: [
-                // 체크박스 아이콘
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  width: 22, height: 22,
-                  decoration: BoxDecoration(
-                    color: done ? _C.lime : Colors.transparent,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: done ? _C.lime : _C.salmon,
-                      width: 1.5,
-                    ),
-                  ),
-                  child: done
-                      ? const Icon(Icons.check_rounded, color: _C.bg, size: 13)
-                      : null,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(label, style: TextStyle(
-                    color: done ? _C.textMute : _C.textPri,
-                    fontSize: 13,
-                    fontWeight: done ? FontWeight.w400 : FontWeight.w600,
-                    decoration: done ? TextDecoration.lineThrough : null,
-                    decorationColor: _C.textMute,
-                    decorationThickness: 1.5,
-                  )),
-                ),
-                const SizedBox(width: 10),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: done ? _C.limeDark : _C.salmonDark,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    done ? '완료' : '미완료',
-                    style: TextStyle(
-                      color: done ? _C.lime : _C.salmon,
-                      fontSize: 10, fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ]),
-            ),
-          );
-        }),
-      ]),
     );
   }
 }
@@ -1064,24 +899,36 @@ class _LectureCard extends StatelessWidget {
 // ════════════════════════════════════════════════════════════════
 // 오른쪽 패널
 // ════════════════════════════════════════════════════════════════
-class _RightPanel extends StatelessWidget {
+class _RightPanel extends StatefulWidget {
   final VoidCallback onDiagnosis;
   const _RightPanel({required this.onDiagnosis});
 
+  @override
+  State<_RightPanel> createState() => _RightPanelState();
+}
+
+class _RightPanelState extends State<_RightPanel> {
   static const _myLectures = [
     ('영상편집 마스터클래스', '파트 3 / 8', 0.37, _C.lime,     _C.limeDark,   '영상'),
     ('Figma 컴포넌트',       '파트 6 / 8', 0.75, _C.lavender, _C.lavDark,    'Fig'),
     ('포토샵 & 일러스트',    '파트 1 / 6', 0.16, _C.salmon,   _C.salmonDark, '포샵'),
   ];
 
-  static const _schedule = [
-    ('영상편집 라이브 Q&A', '7월 8일',  '오전 9시–12시',  _C.lime,     _C.limeDark),
-    ('파트 3 과제 마감',    '7월 12일', '오후 11시 59분', _C.salmon,   _C.salmonDark),
-    ('Figma 보충 세션',     '7월 17일', '오전 8시–9시',   _C.lavender, _C.lavDark),
+  final List<(bool, String)> _todos = [
+    (true,  '파트3 영상 보기'),
+    (false, '파트3 질문지 제출'),
+    (false, 'Figma 실습 30분'),
   ];
+
+  void _toggle(int i) {
+    setState(() => _todos[i] = (!_todos[i].$1, _todos[i].$2));
+  }
 
   @override
   Widget build(BuildContext context) {
+    final doneCount = _todos.where((t) => t.$1).length;
+    final totalCount = _todos.length;
+
     return Container(
       width: 220,
       decoration: const BoxDecoration(
@@ -1091,7 +938,7 @@ class _RightPanel extends StatelessWidget {
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _AiDiagCard(onDiagnosis: onDiagnosis),
+          _AiDiagCard(onDiagnosis: widget.onDiagnosis),
           const SizedBox(height: 16),
           const Text('수강 중인 강의',
               style: TextStyle(color: _C.textPri, fontSize: 13, fontWeight: FontWeight.w700)),
@@ -1104,13 +951,88 @@ class _RightPanel extends StatelessWidget {
             ),
           )),
           const Divider(color: _C.border, height: 24),
-          const Text('이번 주 일정',
-              style: TextStyle(color: _C.textPri, fontSize: 13, fontWeight: FontWeight.w700)),
+          // ── 오늘 할 일 헤더 ──
+          Row(children: [
+            const Text('오늘 할 일',
+                style: TextStyle(color: _C.textPri, fontSize: 13, fontWeight: FontWeight.w700)),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: _C.limeDark, borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text('$doneCount / $totalCount', style: const TextStyle(
+                color: _C.lime, fontSize: 10, fontWeight: FontWeight.w700,
+              )),
+            ),
+          ]),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: LinearProgressIndicator(
+              value: doneCount / totalCount,
+              minHeight: 3,
+              backgroundColor: _C.surface2,
+              valueColor: const AlwaysStoppedAnimation(_C.lime),
+            ),
+          ),
           const SizedBox(height: 10),
-          ..._schedule.map((e) => Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: _ScheduleRow(title: e.$1, date: e.$2, time: e.$3, color: e.$4, colorBg: e.$5),
-          )),
+          // ── 할 일 목록 ──
+          ...List.generate(_todos.length, (i) {
+            final done = _todos[i].$1;
+            final label = _todos[i].$2;
+            return Padding(
+              padding: EdgeInsets.only(bottom: i < _todos.length - 1 ? 8 : 0),
+              child: GestureDetector(
+                onTap: () => _toggle(i),
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: done ? Colors.transparent : _C.salmon.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border(
+                        left: BorderSide(
+                          color: done ? _C.lime.withValues(alpha: 0.35) : _C.salmon,
+                          width: 3,
+                        ),
+                      ),
+                    ),
+                    child: Row(children: [
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: 18, height: 18,
+                        decoration: BoxDecoration(
+                          color: done ? _C.lime : Colors.transparent,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: done ? _C.lime : _C.salmon,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: done
+                            ? const Icon(Icons.check_rounded, color: _C.bg, size: 11)
+                            : null,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(label, style: TextStyle(
+                          color: done ? _C.textMute : _C.textPri,
+                          fontSize: 11,
+                          fontWeight: done ? FontWeight.w400 : FontWeight.w600,
+                          decoration: done ? TextDecoration.lineThrough : null,
+                          decorationColor: _C.textMute,
+                          decorationThickness: 1.5,
+                        )),
+                      ),
+                    ]),
+                  ),
+                ),
+              ),
+            );
+          }),
           const Divider(color: _C.border, height: 24),
           Container(
             padding: const EdgeInsets.all(12),
@@ -1261,32 +1183,3 @@ class _MyLectureRow extends StatelessWidget {
   }
 }
 
-// ════════════════════════════════════════════════════════════════
-// 일정 행
-// ════════════════════════════════════════════════════════════════
-class _ScheduleRow extends StatelessWidget {
-  final String title, date, time;
-  final Color color, colorBg;
-  const _ScheduleRow({
-    required this.title, required this.date, required this.time,
-    required this.color, required this.colorBg,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Container(
-        width: 26, height: 26,
-        decoration: BoxDecoration(color: colorBg, shape: BoxShape.circle),
-        child: Center(child: Text(date.substring(3, 5),
-            style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w700))),
-      ),
-      const SizedBox(width: 10),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(title, style: const TextStyle(color: _C.textPri, fontSize: 12, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 2),
-        Text('$date · $time', style: const TextStyle(color: _C.textSec, fontSize: 10)),
-      ])),
-    ]);
-  }
-}

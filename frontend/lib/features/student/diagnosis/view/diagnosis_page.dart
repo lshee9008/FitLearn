@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../features/auth/provider/auth_provider.dart';
-import '../../../../core/theme/app_theme.dart';
 import '../provider/diagnosis_provider.dart';
 
 // ════════════════════════════════════════════════════════════
@@ -14,7 +13,6 @@ class _C {
   static const surface2  = Color(0xFF222222);
   static const border    = Color(0xFF2A2A2A);
   static const lime      = Color(0xFFC8F135);
-  static const limeDeep  = Color(0xFFA8D010);
   static const limeDark  = Color(0xFF1A2E00);
   static const salmon    = Color(0xFFFF6B5B);
   static const lavender  = Color(0xFFC5B8F8);
@@ -38,6 +36,7 @@ class _Q {
   final String emoji;
   final String? scenarioText;
   final String text;
+  final String? subtitle;
   final List<String> options;
   final _QType type;
 
@@ -50,6 +49,7 @@ class _Q {
     this.type = _QType.choice,
     this.emoji = '',
     this.scenarioText,
+    this.subtitle,
   });
 }
 
@@ -61,7 +61,8 @@ class _Q {
 const _qS1 = _Q(
   id: 'S1', phase: 'P0', dimension: '무의식 학습 패턴',
   emoji: '✍️',
-  text: '최근 뭔가를 처음 배워야 했던 순간, 어떻게 시작했나요?\n\n앱, 업무 툴, 요리, 운동 뭐든 OK',
+  text: '최근 뭔가를 처음 배워야 했던 순간, 어떻게 시작했나요?',
+  subtitle: '앱, 업무 툴, 요리, 운동 뭐든 OK',
   type: _QType.text,
 );
 
@@ -355,11 +356,8 @@ class _DiagnosisPageState extends ConsumerState<DiagnosisPage>
   _Phase _phase = _Phase.writing;
 
   // ── 질문 플로우 (동적 빌드) ─────────────────────────────
-  // S1(서술) → S2 → S3분기 → S4~S7 → S8~S12 → history → S13~S15(서술) → S16~S18
   late List<_Q> _flow;
   int _current = 0;
-
-  bool _flowBuilt = false;
 
   // ── 응답 데이터 ─────────────────────────────────────────
   final _writingCtrl = TextEditingController();    // S1
@@ -377,7 +375,7 @@ class _DiagnosisPageState extends ConsumerState<DiagnosisPage>
   late AnimationController _slideCtrl;
   late Animation<Offset> _slide;
 
-  // 총 스텝: 1(서술) + 7(S2~S7+S3분기) + 5(S8~S12) + 3(history) + 5(S13~S17) + 1(S18) = 22
+  // 총 스텝
   static const int _totalSteps = 22;
 
   int get _currentStep {
@@ -389,13 +387,12 @@ class _DiagnosisPageState extends ConsumerState<DiagnosisPage>
     }
   }
 
-  // 현재 질문
   _Q get _q => _flow[_current];
 
   @override
   void initState() {
     super.initState();
-    _buildFlow('');   // 초기 플로우 (S3 분기 전)
+    _buildFlow('');   // 초기 플로우
     _slideCtrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 280));
     _buildAnim(true);
@@ -405,19 +402,16 @@ class _DiagnosisPageState extends ConsumerState<DiagnosisPage>
     _s15Ctrl.addListener(() => setState(() {}));
   }
 
-  // ── 플로우 동적 빌드 ─────────────────────────────────────
   void _buildFlow(String s2Answer) {
     final s3 = _kS3Branch[s2Answer] ?? _qS3A;
     _flow = [
       _qS2,
       s3,
-      _qS4, _qS5, _qS6, _qS7,         // Phase 1 공통
-      _qS8, _qS9, _qS10, _qS11, _qS12, // Phase 2
-      // history 삽입 (index 11 이후)
-      _qS13, _qS14, _qS15,              // Phase 3
-      _qS16, _qS17, _qS18,              // Phase 4
+      _qS4, _qS5, _qS6, _qS7,
+      _qS8, _qS9, _qS10, _qS11, _qS12,
+      _qS13, _qS14, _qS15,
+      _qS16, _qS17, _qS18,
     ];
-    _flowBuilt = true;
   }
 
   void _buildAnim(bool fwd) {
@@ -437,7 +431,6 @@ class _DiagnosisPageState extends ConsumerState<DiagnosisPage>
     super.dispose();
   }
 
-  // ── 응답시간 기록 ────────────────────────────────────────
   void _recordTime(String qId) {
     if (_qStartTime != null) {
       _responseTimes[qId] =
@@ -462,11 +455,8 @@ class _DiagnosisPageState extends ConsumerState<DiagnosisPage>
     _slideCtrl.forward();
   }
 
-  // ── 다음 버튼 ────────────────────────────────────────────
   Future<void> _onNext() async {
     switch (_phase) {
-
-      // Phase 0: 서술 완료 → 질문 시작
       case _Phase.writing:
         if (_writingCtrl.text.trim().length < 20) return;
         _animNext();
@@ -479,28 +469,23 @@ class _DiagnosisPageState extends ConsumerState<DiagnosisPage>
       case _Phase.questions:
         final q = _q;
 
-        // 텍스트형 (S15) 검증
         if (q.type == _QType.text && q.id == 'S15') {
           if (_s15Ctrl.text.trim().length < 5) return;
         } else if (q.type != _QType.text) {
           if (_answers[q.id] == null) return;
         }
 
-        // S2 선택 후 플로우 재빌드
         if (q.id == 'S2') {
           final picked = _answers['S2'] ?? 'A';
           _buildFlow(picked);
-          // S2는 index 0, 재빌드 후 index 1(S3분기)로
         }
 
-        // Phase 2 끝나면 (S12, index 10) → history
         if (_current == 10) {
           _animNext();
           setState(() => _phase = _Phase.history);
           return;
         }
 
-        // 마지막 문항 (S18)
         if (_current == _flow.length - 1) {
           await _submit();
           return;
@@ -512,13 +497,12 @@ class _DiagnosisPageState extends ConsumerState<DiagnosisPage>
           _qStartTime = DateTime.now();
         });
 
-      // History 완료 → Phase 3 (S13)
       case _Phase.history:
         if (_historySubjectCtrl.text.trim().isEmpty) return;
         _animNext();
         setState(() {
           _phase = _Phase.questions;
-          _current = 11;   // S13 index
+          _current = 11;
           _qStartTime = DateTime.now();
         });
 
@@ -527,14 +511,12 @@ class _DiagnosisPageState extends ConsumerState<DiagnosisPage>
     }
   }
 
-  // ── 뒤로 가기 ────────────────────────────────────────────
   void _onBack() {
     switch (_phase) {
       case _Phase.writing:
         Navigator.of(context).maybePop();
 
       case _Phase.questions:
-        // S13(index 11)에서 뒤로 → history
         if (_current == 11) {
           _animPrev();
           setState(() => _phase = _Phase.history);
@@ -555,7 +537,7 @@ class _DiagnosisPageState extends ConsumerState<DiagnosisPage>
         _animPrev();
         setState(() {
           _phase = _Phase.questions;
-          _current = 10;   // S12 index
+          _current = 10;
           _qStartTime = DateTime.now();
         });
 
@@ -564,7 +546,6 @@ class _DiagnosisPageState extends ConsumerState<DiagnosisPage>
     }
   }
 
-  // ── 제출 (기존 ApiService 연결 유지) ─────────────────────
   Future<void> _submit() async {
     setState(() => _phase = _Phase.analyzing);
     final user = ref.read(authNotifierProvider);
@@ -607,9 +588,6 @@ class _DiagnosisPageState extends ConsumerState<DiagnosisPage>
     }
   }
 
-  // ════════════════════════════════════════════════════════
-  // Build
-  // ════════════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
     if (_phase == _Phase.analyzing) return const _AnalyzingScreen();
@@ -656,22 +634,44 @@ class _DiagnosisPageState extends ConsumerState<DiagnosisPage>
                 _buildNavBtn(canProceed, btnText),
               ])
             : Column(children: [
-                // 웹: 상단 얇은 진행 바만 표시
                 _buildWebTopBar(),
                 Expanded(
-                  child: SlideTransition(
-                    position: _slide,
-                    child: _buildBody(),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _QuestionLeftPanel(
+                        partColor: _kPhaseColor[_q.phase] ?? _C.lime,
+                        phaseLabel: '${_q.phase} · ${_kPhaseLabel[_q.phase] ?? ''}',
+                        phaseSteps: const [
+                          'Phase 0 · 워밍업',
+                          'Phase 1 · 시나리오',
+                          'Phase 2 · 행동 패턴',
+                          'Phase 3 · 학습 이력',
+                          'Phase 4 · 신뢰도 검증',
+                        ],
+                        currentPhaseIndex: const {
+                          'P0': 0, 'P1': 1, 'P2': 2, 'P3': 3, 'P4': 4,
+                        }[_q.phase] ?? 1,
+                        currentStep: _currentStep,
+                        totalSteps: _totalSteps,
+                      ),
+                      Expanded(
+                        child: SlideTransition(
+                          position: _slide,
+                          child: _buildCenterOnly(),
+                        ),
+                      ),
+                      _QuestionRightPanel(question: _q),
+                    ],
                   ),
                 ),
-                // 웹: 하단 버튼은 중앙 정렬
                 _buildWebNavBtn(canProceed, btnText),
               ]),
       ),
     );
   }
 
-  // ── 웹 상단 바 (얇은 진행바 + 뒤로가기) ─────────────────
+    // ── 웹 상단 바 ─────────────────────────────────────────────
   Widget _buildWebTopBar() {
     final barColor = _phase == _Phase.questions
         ? (_kPhaseColor[_q.phase] ?? _C.lime)
@@ -691,28 +691,25 @@ class _DiagnosisPageState extends ConsumerState<DiagnosisPage>
     );
   }
 
-  // ── 웹 하단 버튼 (오른쪽 패널 너비 제외하고 중앙) ─────────
+  // ── 웹 하단 네비게이션 버튼 ─────────────────────────────────
   Widget _buildWebNavBtn(bool canProceed, String btnText) {
     return Container(
       decoration: const BoxDecoration(
         border: Border(top: BorderSide(color: _C.border)),
       ),
       child: Row(children: [
-        // 왼쪽 패널 너비만큼 빈 공간
         const SizedBox(width: 220),
         Container(width: 1, color: _C.border),
         Expanded(
           child: Padding(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 48, vertical: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 16),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 GestureDetector(
                   onTap: _onBack,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                     decoration: BoxDecoration(
                       color: _C.surface2,
                       borderRadius: BorderRadius.circular(10),
@@ -729,8 +726,7 @@ class _DiagnosisPageState extends ConsumerState<DiagnosisPage>
                   onTap: canProceed ? _onNext : null,
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 40, vertical: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
                     decoration: BoxDecoration(
                       color: canProceed ? _C.lime : _C.surface2,
                       borderRadius: BorderRadius.circular(10),
@@ -753,7 +749,7 @@ class _DiagnosisPageState extends ConsumerState<DiagnosisPage>
     );
   }
 
-  // ── 헤더 + 진행 바 ───────────────────────────────────────
+  // ── 모바일용 헤더 + 진행바 ─────────────────────────────────
   Widget _buildHeader() {
     final progress = (_currentStep + 1) / _totalSteps;
 
@@ -817,7 +813,7 @@ class _DiagnosisPageState extends ConsumerState<DiagnosisPage>
     );
   }
 
-  // ── 바디 라우팅 ──────────────────────────────────────────
+  // ── writing / history용 바디 ───────────────────────────────
   Widget _buildBody() {
     if (_phase == _Phase.writing) {
       return _WritingCard(
@@ -837,43 +833,30 @@ class _DiagnosisPageState extends ConsumerState<DiagnosisPage>
             setState(() => _historyDifficulty = v),
       );
     }
+    return const SizedBox.shrink();
+  }
 
+  // ── 질문 화면 중앙 콘텐츠 (슬라이드 대상) ───────────────────
+  Widget _buildCenterOnly() {
     final q = _q;
-
-    // S15 서술형
     if (q.id == 'S15') {
-      return _WritingCard(
+      return _WritingCenter(
         key: ValueKey(q.id),
         controller: _s15Ctrl,
         question: q,
         minLength: 5,
       );
     }
-
-    // 일반 선택지 or 시나리오
-    return _QuestionCard(
+    return _QuestionCenter(
       key: ValueKey(q.id),
       question: q,
       partColor: _kPhaseColor[q.phase] ?? _C.lime,
       answered: _answers[q.id],
       onSelect: _select,
-      currentStep: _currentStep,
-      totalSteps: _totalSteps,
-      phaseLabel: '${q.phase} · ${_kPhaseLabel[q.phase] ?? ''}',
-      phaseSteps: const [
-        'Phase 0 · 워밍업',
-        'Phase 1 · 시나리오',
-        'Phase 2 · 행동 패턴',
-        'Phase 3 · 학습 이력',
-        'Phase 4 · 신뢰도 검증',
-      ],
-      currentPhaseIndex: const {
-        'P0': 0, 'P1': 1, 'P2': 2, 'P3': 3, 'P4': 4,
-      }[q.phase] ?? 1,
     );
   }
 
-  // ── 하단 버튼 ────────────────────────────────────────────
+  // ── 모바일 하단 버튼 ────────────────────────────────────────
   Widget _buildNavBtn(bool canProceed, String btnText) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
@@ -903,7 +886,7 @@ class _DiagnosisPageState extends ConsumerState<DiagnosisPage>
 }
 
 // ════════════════════════════════════════════════════════════
-// 서술형 입력 카드 (S1, S15 공용)
+// 서술형 전체 카드 (S1용)
 // ════════════════════════════════════════════════════════════
 class _WritingCard extends StatelessWidget {
   final TextEditingController controller;
@@ -921,464 +904,545 @@ class _WritingCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final len = controller.text.trim().length;
     final reached = len >= minLength;
+    final isS1 = question.id == 'S1';
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // 왼쪽 패널
+        Container(
+          width: 220,
+          padding: const EdgeInsets.fromLTRB(32, 32, 24, 32),
+          decoration: const BoxDecoration(
+              border: Border(right: BorderSide(color: _C.border))),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('현재 단계',
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _C.textMute, letterSpacing: 1)),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: _C.lavender.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: _C.lavender.withValues(alpha: 0.3))),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Container(width: 6, height: 6, decoration: const BoxDecoration(color: _C.lavender, shape: BoxShape.circle)),
+                const SizedBox(width: 6),
+                const Text('P0 · 워밍업',
+                    style: TextStyle(color: _C.lavender, fontSize: 12, fontWeight: FontWeight.w700)),
+              ])),
+            const SizedBox(height: 28),
+            const Text('AI 분석',
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _C.textMute, letterSpacing: 1)),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _C.surface, borderRadius: BorderRadius.circular(10), border: Border.all(color: _C.border)),
+              child: const Text(
+                '자유 서술 텍스트에서\n무의식적 학습 패턴을\n감지합니다.',
+                style: TextStyle(color: _C.textSec, fontSize: 11, height: 1.6))),
+          ])),
+
+        // 중앙 콘텐츠
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(48, 32, 48, 32),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: _C.lavDark,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: _C.lavender.withValues(alpha: 0.25))),
+                child: Row(children: [
+                  Text(question.emoji.isNotEmpty ? question.emoji : '✍️', style: const TextStyle(fontSize: 32)),
+                  const SizedBox(width: 14),
+                  Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('자유 서술',
+                          style: TextStyle(color: _C.textPri, fontSize: 15, fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 4),
+                      Text(
+                        isS1 ? 'AI가 글쓰기 패턴으로 학습 성향을 분석합니다' : 'FitLearn이 성공 요인을 분석합니다',
+                        style: const TextStyle(color: _C.textSec, fontSize: 12)),
+                    ])),
+                ])),
+              const SizedBox(height: 32),
+              Text(question.text,
+                  style: const TextStyle(
+                    color: _C.textPri, fontSize: 26,
+                    fontWeight: FontWeight.w700, height: 1.4, letterSpacing: -0.1)),
+              if (question.subtitle != null) ...[
+                const SizedBox(height: 8),
+                Text(question.subtitle!,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      color: _C.textSec,
+                      fontWeight: FontWeight.w400,
+                      height: 1.5,
+                    )),
+              ],
+              const SizedBox(height: 24),
+              Container(
+                decoration: BoxDecoration(
+                  color: _C.surface,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: reached ? _C.lime.withValues(alpha: 0.6) : _C.border,
+                    width: reached ? 1.5 : 1)),
+                child: TextField(
+                  controller: controller,
+                  maxLines: isS1 ? 7 : 5,
+                  style: const TextStyle(color: _C.textPri, fontSize: 15, height: 1.65),
+                  decoration: InputDecoration(
+                    hintText: isS1
+                        ? '예) 유튜브에서 튜토리얼 찾아보고, 직접 따라하면서 익혔어요...'
+                        : '예) 직접 해볼 기회가 많아서 자연스럽게 익혔던 것 같아요',
+                    hintStyle: const TextStyle(color: _C.textMute, fontSize: 14),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.all(20)))),
+              const SizedBox(height: 10),
+              Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                Text('$len자', style: TextStyle(color: reached ? _C.lime : _C.textSec, fontSize: 12)),
+                if (!reached) ...[
+                  const SizedBox(width: 4),
+                  Text('(최소 ${minLength}자)', style: const TextStyle(color: _C.textMute, fontSize: 12)),
+                ],
+              ]),
+            ]))),
+
+        // 오른쪽 패널
+        Container(
+          width: 220,
+          padding: const EdgeInsets.fromLTRB(24, 32, 32, 32),
+          decoration: const BoxDecoration(
+            border: Border(left: BorderSide(color: _C.border))),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1F1F35),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: _C.lavender.withValues(alpha: 0.2))),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(color: _C.lavDark, borderRadius: BorderRadius.circular(20)),
+                  child: const Text('분석 항목',
+                      style: TextStyle(color: _C.lavender, fontSize: 9, fontWeight: FontWeight.w700))),
+                const SizedBox(height: 10),
+                const Text('무의식 학습 패턴',
+                    style: TextStyle(color: _C.textPri, fontSize: 13, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                const _AnalysisRow('문체', '간결 vs 상세'),
+                const _AnalysisRow('단어', '시각/청각/행동'),
+                const _AnalysisRow('구조', '순차 vs 비선형'),
+                const _AnalysisRow('감정', '표현 방식'),
+              ])),
+          ])),
+      ]);
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// 서술형 중앙 콘텐츠 (S15용)
+// ════════════════════════════════════════════════════════════
+class _WritingCenter extends StatelessWidget {
+  final TextEditingController controller;
+  final _Q question;
+  final int minLength;
+
+  const _WritingCenter({
+    super.key,
+    required this.controller,
+    required this.question,
+    this.minLength = 20,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final len = controller.text.trim().length;
+    final reached = len >= minLength;
+    final isS1 = question.id == 'S1';
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 4, 24, 8),
+      padding: const EdgeInsets.fromLTRB(48, 32, 48, 32),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // 배너
         Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
             color: _C.lavDark,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-                color: _C.lavender.withValues(alpha: 0.3)),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _C.lavender.withValues(alpha: 0.25)),
           ),
           child: Row(children: [
-            Text(question.emoji.isNotEmpty ? question.emoji : '✍️',
-                style: const TextStyle(fontSize: 28)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+            Text(question.emoji.isNotEmpty ? question.emoji : '✍️', style: const TextStyle(fontSize: 32)),
+            const SizedBox(width: 14),
+            Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 const Text('자유 서술',
-                    style: TextStyle(
-                        color: _C.textPri,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700)),
-                const SizedBox(height: 3),
+                    style: TextStyle(color: _C.textPri, fontSize: 15, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 4),
                 Text(
-                  question.id == 'S1'
-                      ? 'AI가 글쓰기 패턴으로 학습 성향을 분석합니다'
-                      : 'Gemini가 성공 요인을 분석합니다',
-                  style: const TextStyle(
-                      color: _C.textSec, fontSize: 11),
-                ),
-              ]),
-            ),
-          ]),
-        ),
-        const SizedBox(height: 24),
-
-        // 질문 텍스트
+                  isS1 ? 'AI가 글쓰기 패턴으로 학습 성향을 분석합니다' : 'FitLearn이 성공 요인을 분석합니다',
+                  style: const TextStyle(color: _C.textSec, fontSize: 12)),
+              ])),
+          ])),
+        const SizedBox(height: 32),
         Text(question.text,
             style: const TextStyle(
-              color: _C.textPri,
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              height: 1.5,
-            )),
-        const SizedBox(height: 20),
-
-        // 입력창
+              color: _C.textPri, fontSize: 28,
+              fontWeight: FontWeight.w700, height: 1.4, letterSpacing: -0.3)),
+        if (question.subtitle != null) ...[
+          const SizedBox(height: 8),
+          Text(question.subtitle!,
+              style: const TextStyle(
+                fontSize: 16,
+                color: _C.textSec,
+                fontWeight: FontWeight.w400,
+                height: 1.5,
+              )),
+        ],
+        const SizedBox(height: 24),
         Container(
           decoration: BoxDecoration(
             color: _C.surface,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: reached
-                  ? _C.lime.withValues(alpha: 0.6)
-                  : _C.border,
-              width: reached ? 1.5 : 1,
-            ),
-          ),
+              color: reached ? _C.lime.withValues(alpha: 0.6) : _C.border,
+              width: reached ? 1.5 : 1)),
           child: TextField(
             controller: controller,
-            maxLines: question.id == 'S1' ? 6 : 4,
-            style: const TextStyle(
-                color: _C.textPri, fontSize: 14, height: 1.6),
+            maxLines: isS1 ? 7 : 5,
+            style: const TextStyle(color: _C.textPri, fontSize: 15, height: 1.65),
             decoration: InputDecoration(
-              hintText: question.id == 'S1'
+              hintText: isS1
                   ? '예) 유튜브에서 튜토리얼 찾아보고, 직접 따라하면서 익혔어요...'
                   : '예) 직접 해볼 기회가 많아서 자연스럽게 익혔던 것 같아요',
-              hintStyle: const TextStyle(
-                  color: _C.textMute, fontSize: 13),
+              hintStyle: const TextStyle(color: _C.textMute, fontSize: 14),
               border: InputBorder.none,
-              contentPadding: const EdgeInsets.all(16),
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
+              contentPadding: const EdgeInsets.all(20)))),
+        const SizedBox(height: 10),
         Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-          Text('$len자',
-              style: TextStyle(
-                  color: reached ? _C.lime : _C.textSec,
-                  fontSize: 11)),
+          Text('$len자', style: TextStyle(color: reached ? _C.lime : _C.textSec, fontSize: 12)),
           if (!reached) ...[
             const SizedBox(width: 4),
-            Text('(최소 ${minLength}자)',
-                style:
-                    const TextStyle(color: _C.textMute, fontSize: 11)),
+            Text('(최소 ${minLength}자)', style: const TextStyle(color: _C.textMute, fontSize: 12)),
           ],
         ]),
-      ]),
-    );
+      ]));
   }
 }
 
 // ════════════════════════════════════════════════════════════
-// 일반 / 시나리오 질문 카드 — 웹 3컬럼 레이아웃
+// 선택형 질문 중앙 콘텐츠 (_QuestionCenter)
 // ════════════════════════════════════════════════════════════
-class _QuestionCard extends StatelessWidget {
+class _QuestionCenter extends StatelessWidget {
   final _Q question;
   final Color partColor;
   final String? answered;
   final void Function(String) onSelect;
-  final int currentStep;
-  final int totalSteps;
-  final String phaseLabel;
-  final List<String> phaseSteps;
-  final int currentPhaseIndex;
 
-  const _QuestionCard({
+  const _QuestionCenter({
     super.key,
     required this.question,
     required this.partColor,
     required this.answered,
     required this.onSelect,
-    required this.currentStep,
-    required this.totalSteps,
-    required this.phaseLabel,
-    required this.phaseSteps,
-    required this.currentPhaseIndex,
   });
 
   static const _labels = ['A', 'B', 'C', 'D', 'E'];
-
-  // AI 분석 힌트 (차원별)
-  static const _hints = <String, List<String>>{
-    '진입 방식':     ['시각 탐색형', '텍스트 분석형', '실험 행동형', '사회 의존형'],
-    'VARK 시각형':   ['요약 시각형', '순차 시각형', '선택 시각형', '실습 병행형'],
-    'VARK 읽기형':   ['전체 우선형', '깊이 탐구형', '병렬 정리형', '사회 확인형'],
-    'Kolb 행동형':   ['검색 해결형', '원점 회귀형', '우회 실용형', '구조 분석형'],
-    'VARK 청각형':   ['정밀 질문형', '맥락 공유형', '즉흥 청취형', '사전 탐색형'],
-    '마감 압박 대응': ['핵심 집중형', '참조 의존형', '전략 탐색형', '사회 협력형'],
-    '오개념 처리':   ['반복 학습형', '실험 탐구형', '독립 탐색형', '실용 진행형'],
-    '피드백 수용':   ['기준 분석형', '비교 학습형', '직접 소통형', '자기 수용형'],
-    '협업 스타일':   ['독립 완수형', '협력 지향형', '범위 조정형', '사례 참조형'],
-    'VARK 유형':     ['시각형', '청각형', '행동형', '읽기형'],
-    '집중 패턴':     ['분산 집중형', '장기 몰입형', '유동 집중형', '틈새 학습형'],
-    '복습 방식':     ['요약 정리형', '반복 시청형', '실습 검증형', '설명 학습형'],
-    '난이도 대응':   ['기초 보완형', '지속 노출형', '선택 질문형', '단계 분리형'],
-    '동기 유형':     ['결과 지향형', '이해 추구형', '인정 반응형', '진척 동기형'],
-    '이탈 위험 인자':['난이도 이탈', '목적 이탈', '루틴 이탈', '고립 이탈', '흥미 이탈'],
-    '성공 패턴':     ['논리 기반형', '언어 기반형', '감각 기반형', '실무 기반형', '중립형'],
-    'VARK 교차검증 (↔S8)': ['시각형', '청각형', '행동형', '읽기형'],
-    '집중 패턴 교차검증 (↔S9)': ['단기 분산형', '장기 몰입형', '유동형', '틈새형'],
-    '난이도 대응 교차검증 (↔S11)': ['텍스트 복귀형', '영상 탐색형', '직관 실험형', '사회 확인형'],
-  };
 
   @override
   Widget build(BuildContext context) {
     final opts = question.options.where((o) => o.isNotEmpty).toList();
     final isScenario = question.type == _QType.scenario;
-    final hints = _hints[question.dimension] ?? [];
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // ── 왼쪽 패널: 진행 상황 ──────────────────────────────
-        Container(
-          width: 220,
-          padding: const EdgeInsets.fromLTRB(32, 32, 24, 32),
-          decoration: const BoxDecoration(
-            border: Border(right: BorderSide(color: _C.border)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 현재 단계 뱃지
-              const Text('현재 단계',
-                  style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: _C.textMute,
-                      letterSpacing: 1)),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: partColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                      color: partColor.withValues(alpha: 0.3)),
-                ),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Container(
-                    width: 6, height: 6,
-                    decoration: BoxDecoration(
-                        color: partColor, shape: BoxShape.circle),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(phaseLabel,
-                      style: TextStyle(
-                          color: partColor,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700)),
-                ]),
-              ),
-              const SizedBox(height: 28),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(48, 32, 48, 80),   // 아래 여백 크게 추가 (오류 방지)
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: partColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: partColor.withValues(alpha: 0.2))),
+            child: Text(question.dimension,
+                style: TextStyle(color: partColor, fontSize: 11, fontWeight: FontWeight.w700))),
+          const SizedBox(height: 14),
 
-              // 단계 목록
-              ...List.generate(phaseSteps.length, (i) {
-                final isDone = i < currentPhaseIndex;
-                final isCurrent = i == currentPhaseIndex;
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Row(children: [
-                    Container(
-                      width: 8, height: 8,
-                      decoration: BoxDecoration(
-                        color: isDone || isCurrent
-                            ? partColor
-                            : _C.border,
-                        shape: BoxShape.circle,
-                        boxShadow: isCurrent
-                            ? [BoxShadow(
-                                color: partColor.withValues(alpha: 0.4),
-                                blurRadius: 6,
-                                spreadRadius: 1)]
-                            : null,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Text(phaseSteps[i],
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: isCurrent
-                              ? partColor
-                              : isDone
-                                  ? _C.textSec
-                                  : _C.textMute,
-                          fontWeight: isCurrent
-                              ? FontWeight.w700
-                              : FontWeight.w400,
-                        )),
-                  ]),
-                );
-              }),
+          if (isScenario && question.scenarioText != null) ...[
+            _ScenarioBanner(
+              emoji: question.emoji,
+              text: question.scenarioText!,
+              color: partColor),
+            const SizedBox(height: 20),
+          ],
 
-              const Spacer(),
+          Text(question.text,
+              style: const TextStyle(
+                color: _C.textPri,
+                fontSize: 28,
+                fontWeight: FontWeight.w700,
+                height: 1.3,
+                letterSpacing: -0.5)),
+          const SizedBox(height: 36),
 
-              // 전체 진행률
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('전체 진행률',
-                        style: TextStyle(
-                            fontSize: 10,
-                            color: _C.textMute,
-                            fontWeight: FontWeight.w600)),
-                    Text('$currentStep / $totalSteps',
-                        style: TextStyle(
-                            fontSize: 10,
-                            color: partColor,
-                            fontWeight: FontWeight.w700)),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(2),
-                  child: LinearProgressIndicator(
-                    value: currentStep / totalSteps,
-                    minHeight: 3,
-                    backgroundColor: _C.border,
-                    valueColor: AlwaysStoppedAnimation(partColor),
-                  ),
-                ),
-              ]),
-            ],
-          ),
-        ),
-
-        // ── 중앙: 질문 + 선택지 ──────────────────────────────
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(48, 32, 48, 32),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 시나리오 배너
-                if (isScenario && question.scenarioText != null) ...[
-                  _ScenarioBanner(
-                    emoji: question.emoji,
-                    text: question.scenarioText!,
-                    color: partColor,
-                  ),
-                  const SizedBox(height: 28),
-                ],
-
-                // 측정 차원 뱃지
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: partColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                        color: partColor.withValues(alpha: 0.2)),
-                  ),
-                  child: Text(question.dimension,
-                      style: TextStyle(
-                          color: partColor,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700)),
-                ),
-                const SizedBox(height: 14),
-
-                // 질문 텍스트 (크게)
-                Text(question.text,
-                    style: const TextStyle(
-                      color: _C.textPri,
-                      fontSize: 32,
-                      fontWeight: FontWeight.w700,
-                      height: 1.3,
-                      letterSpacing: -0.5,
-                    )),
-                const SizedBox(height: 36),
-
-                // 선택지
-                ...List.generate(opts.length, (i) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _ChoiceCard(
-                    label: _labels[i],
-                    text: opts[i],
-                    selected: answered == _labels[i],
-                    partColor: partColor,
-                    onTap: () => onSelect(_labels[i]),
-                  ),
-                )),
-              ],
+          // 선택지 카드들
+          ...List.generate(opts.length, (i) => Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _ChoiceCard(
+              key: ValueKey('${question.id}_$i'),
+              label: _labels[i],
+              text: opts[i],
+              selected: answered == _labels[i],
+              partColor: partColor,
+              onTap: () => onSelect(_labels[i]),
             ),
-          ),
-        ),
+          )),
 
-        // ── 오른쪽 패널: AI 분석 힌트 ────────────────────────
-        Container(
-          width: 220,
-          padding: const EdgeInsets.fromLTRB(24, 32, 32, 32),
-          decoration: const BoxDecoration(
-            border: Border(left: BorderSide(color: _C.border)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // AI 분석 힌트 카드
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: _C.surface,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: _C.border),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: _C.limeDark,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Text('AI 분석 포인트',
-                          style: TextStyle(
-                              color: _C.lime,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w700)),
-                    ),
-                    const SizedBox(height: 12),
-                    if (hints.isNotEmpty)
-                      ...List.generate(
-                        hints.length > opts.length
-                            ? opts.length
-                            : hints.length,
-                        (i) => Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                width: 20, height: 20,
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  color: _C.surface2,
-                                  borderRadius: BorderRadius.circular(5),
-                                ),
-                                child: Text(_labels[i],
-                                    style: const TextStyle(
-                                        color: _C.textMute,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w700)),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(hints[i],
-                                    style: const TextStyle(
-                                        color: _C.textSec,
-                                        fontSize: 11,
-                                        height: 1.4)),
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
-                    else
-                      const Text('응답을 선택해주세요',
-                          style: TextStyle(
-                              color: _C.textMute, fontSize: 12)),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              // 응답 방식 설명
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: _C.surface,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: _C.border),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('측정 항목',
-                        style: TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                            color: _C.textMute,
-                            letterSpacing: 1)),
-                    const SizedBox(height: 8),
-                    Text(question.dimension,
-                        style: TextStyle(
-                            color: partColor,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 4),
-                    const Text(
-                      '선택 내용과 응답 시간이\n함께 분석됩니다.',
-                      style: TextStyle(
-                          color: _C.textMute,
-                          fontSize: 11,
-                          height: 1.5),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
+          const SizedBox(height: 100), // 안전 여백
+        ],
+      ),
     );
   }
 }
 
 // ════════════════════════════════════════════════════════════
-// 시나리오 배너 (웹 스타일)
+// 왼쪽 패널
+// ════════════════════════════════════════════════════════════
+class _QuestionLeftPanel extends StatelessWidget {
+  final Color partColor;
+  final String phaseLabel;
+  final List<String> phaseSteps;
+  final int currentPhaseIndex;
+  final int currentStep;
+  final int totalSteps;
+
+  const _QuestionLeftPanel({
+    required this.partColor,
+    required this.phaseLabel,
+    required this.phaseSteps,
+    required this.currentPhaseIndex,
+    required this.currentStep,
+    required this.totalSteps,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 220,
+      padding: const EdgeInsets.fromLTRB(32, 32, 24, 32),
+      decoration: const BoxDecoration(
+        border: Border(right: BorderSide(color: _C.border))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('현재 단계',
+            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _C.textMute, letterSpacing: 1)),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: partColor.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: partColor.withValues(alpha: 0.3))),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Container(width: 6, height: 6,
+                decoration: BoxDecoration(color: partColor, shape: BoxShape.circle)),
+            const SizedBox(width: 6),
+            Text(phaseLabel,
+                style: TextStyle(color: partColor, fontSize: 12, fontWeight: FontWeight.w700)),
+          ])),
+        const SizedBox(height: 28),
+        ...List.generate(phaseSteps.length, (i) {
+          final isDone = i < currentPhaseIndex;
+          final isCurrent = i == currentPhaseIndex;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Row(children: [
+              Container(
+                width: 8, height: 8,
+                decoration: BoxDecoration(
+                  color: isDone || isCurrent ? partColor : _C.border,
+                  shape: BoxShape.circle,
+                  boxShadow: isCurrent
+                      ? [BoxShadow(color: partColor.withValues(alpha: 0.4), blurRadius: 6, spreadRadius: 1)]
+                      : null)),
+              const SizedBox(width: 10),
+              Text(phaseSteps[i], style: TextStyle(
+                fontSize: 12,
+                color: isCurrent ? partColor : isDone ? _C.textSec : _C.textMute,
+                fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w400)),
+            ]));
+        }),
+        const SizedBox(height: 32),
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          const Text('전체 진행률',
+              style: TextStyle(fontSize: 10, color: _C.textMute, fontWeight: FontWeight.w600)),
+          Text('$currentStep / $totalSteps',
+              style: TextStyle(fontSize: 10, color: partColor, fontWeight: FontWeight.w700)),
+        ]),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(2),
+          child: LinearProgressIndicator(
+            value: currentStep / totalSteps,
+            minHeight: 3,
+            backgroundColor: _C.border,
+            valueColor: AlwaysStoppedAnimation(partColor))),
+      ]));
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// 오른쪽 패널
+// ════════════════════════════════════════════════════════════
+class _QuestionRightPanel extends StatelessWidget {
+  final _Q question;
+
+  const _QuestionRightPanel({required this.question});
+
+  static const _hints = <String, List<String>>{
+    '진입 방식': ['시각 탐색형', '텍스트 분석형', '실험 행동형', '사회 의존형'],
+    'VARK 시각형': ['요약 시각형', '순차 시각형', '선택 시각형', '실습 병행형'],
+    'VARK 읽기형': ['전체 우선형', '깊이 탐구형', '병렬 정리형', '사회 확인형'],
+    'Kolb 행동형': ['검색 해결형', '원점 회귀형', '우회 실용형', '구조 분석형'],
+    'VARK 청각형': ['정밀 질문형', '맥락 공유형', '즉흥 청취형', '사전 탐색형'],
+    '마감 압박 대응': ['핵심 집중형', '참조 의존형', '전략 탐색형', '사회 협력형'],
+    '오개념 처리': ['반복 학습형', '실험 탐구형', '독립 탐색형', '실용 진행형'],
+    '메타인지': ['기준 분석형', '비교 학습형', '직접 소통형', '자기 수용형'],
+    '협업 스타일': ['독립 완수형', '협력 지향형', '범위 조정형', '사례 참조형'],
+    'VARK 유형': ['시각형', '청각형', '행동형', '읽기형'],
+    '집중 패턴': ['분산 집중형', '장기 몰입형', '유동 집중형', '틈새 학습형'],
+    '복습 방식': ['요약 정리형', '반복 시청형', '실습 검증형', '설명 학습형'],
+    '난이도 대응': ['기초 보완형', '지속 노출형', '선택 질문형', '단계 분리형'],
+    '동기 유형': ['결과 지향형', '이해 추구형', '인정 반응형', '진척 동기형'],
+    '이탈 위험 인자': ['난이도 이탈', '목적 이탈', '루틴 이탈', '고립 이탈', '흥미 이탈'],
+    '성공 패턴': ['논리 기반형', '언어 기반형', '감각 기반형', '실무 기반형', '중립형'],
+    'VARK 교차검증': ['시각형', '청각형', '행동형', '읽기형'],
+    '집중 패턴 교차검증': ['단기 분산형', '장기 몰입형', '유동형', '틈새형'],
+    '난이도 대응 교차검증': ['텍스트 복귀형', '영상 탐색형', '직관 실험형', '사회 확인형'],
+    '성공 요인 분석': [],
+  };
+
+  static const _labels = ['A', 'B', 'C', 'D', 'E'];
+
+  @override
+  Widget build(BuildContext context) {
+    final hints = _hints[question.dimension] ?? [];
+    final opts = question.options.where((o) => o.isNotEmpty).toList();
+    final partColor = _kPhaseColor[question.phase] ?? _C.lime;
+
+    if (question.type == _QType.text) {
+      return Container(
+        width: 220,
+        padding: const EdgeInsets.fromLTRB(24, 32, 32, 32),
+        decoration: const BoxDecoration(border: Border(left: BorderSide(color: _C.border))),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1F1F35),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: _C.lavender.withValues(alpha: 0.2))),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(color: _C.lavDark, borderRadius: BorderRadius.circular(20)),
+                child: const Text('분석 항목',
+                    style: TextStyle(color: _C.lavender, fontSize: 9, fontWeight: FontWeight.w700))),
+              const SizedBox(height: 10),
+              const Text('성공 요인 분석',
+                  style: TextStyle(color: _C.textPri, fontSize: 13, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 8),
+              const _AnalysisRow('흥미', '재미 vs 의무'),
+              const _AnalysisRow('방법', '학습 방식'),
+              const _AnalysisRow('환경', '외부 요인'),
+              const _AnalysisRow('특성', '분야 성향'),
+            ])),
+        ]));
+    }
+
+    return Container(
+      width: 220,
+      padding: const EdgeInsets.fromLTRB(24, 32, 32, 32),
+      decoration: const BoxDecoration(border: Border(left: BorderSide(color: _C.border))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: _C.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: _C.border)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(color: _C.limeDark, borderRadius: BorderRadius.circular(20)),
+              child: const Text('AI 분석 포인트',
+                  style: TextStyle(color: _C.lime, fontSize: 9, fontWeight: FontWeight.w700))),
+            const SizedBox(height: 12),
+            if (hints.isNotEmpty)
+              ...List.generate(
+                hints.length > opts.length ? opts.length : hints.length,
+                (i) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Container(
+                      width: 20, height: 20, alignment: Alignment.center,
+                      decoration: BoxDecoration(color: _C.surface2, borderRadius: BorderRadius.circular(5)),
+                      child: Text(_labels[i],
+                          style: const TextStyle(color: _C.textMute, fontSize: 10, fontWeight: FontWeight.w700))),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(hints[i],
+                        style: const TextStyle(color: _C.textSec, fontSize: 11, height: 1.4))),
+                  ])))
+            else
+              const Text('응답을 선택해주세요',
+                  style: TextStyle(color: _C.textMute, fontSize: 12)),
+          ])),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: _C.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: _C.border)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('측정 항목',
+                style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: _C.textMute, letterSpacing: 1)),
+            const SizedBox(height: 8),
+            Text(question.dimension,
+                style: TextStyle(color: partColor, fontSize: 13, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 4),
+            const Text('선택 내용과 응답 시간이\n함께 분석됩니다.',
+                style: TextStyle(color: _C.textMute, fontSize: 11, height: 1.5)),
+          ])),
+      ]));
+  }
+}
+
+class _AnalysisRow extends StatelessWidget {
+  final String label;
+  final String value;
+  const _AnalysisRow(this.label, this.value);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(children: [
+        SizedBox(width: 36, child: Text(label, style: const TextStyle(color: _C.textMute, fontSize: 10))),
+        Expanded(child: Text(value, style: const TextStyle(color: _C.textSec, fontSize: 10))),
+      ]));
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// 시나리오 배너
 // ════════════════════════════════════════════════════════════
 class _ScenarioBanner extends StatelessWidget {
   final String emoji;
@@ -1408,13 +1472,11 @@ class _ScenarioBanner extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 9, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                      color: color.withValues(alpha: 0.2)),
+                  border: Border.all(color: color.withValues(alpha: 0.2)),
                 ),
                 child: Text('상황',
                     style: TextStyle(
@@ -1437,15 +1499,16 @@ class _ScenarioBanner extends StatelessWidget {
 }
 
 // ════════════════════════════════════════════════════════════
-// 선택지 카드 (웹 스타일)
+// 선택지 카드 - 세로 중앙 정렬 버전
 // ════════════════════════════════════════════════════════════
-class _ChoiceCard extends StatefulWidget {
+class _ChoiceCard extends StatelessWidget {
   final String label, text;
   final bool selected;
   final Color partColor;
   final VoidCallback onTap;
 
   const _ChoiceCard({
+    super.key,
     required this.label,
     required this.text,
     required this.selected,
@@ -1454,105 +1517,78 @@ class _ChoiceCard extends StatefulWidget {
   });
 
   @override
-  State<_ChoiceCard> createState() => _ChoiceCardState();
-}
-
-class _ChoiceCardState extends State<_ChoiceCard> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          padding: const EdgeInsets.symmetric(
-              horizontal: 22, vertical: 20),
-          decoration: BoxDecoration(
-            color: widget.selected
-                ? widget.partColor.withValues(alpha: 0.06)
-                : _hovered
-                    ? _C.surface2
-                    : const Color(0xFF141414),
-            borderRadius: BorderRadius.circular(16),
-            border: Border(
-              top: BorderSide(
-                  color: widget.selected
-                      ? widget.partColor.withValues(alpha: 0.3)
-                      : _hovered
-                          ? _C.border
-                          : const Color(0xFF222222)),
-              right: BorderSide(
-                  color: widget.selected
-                      ? widget.partColor.withValues(alpha: 0.3)
-                      : _hovered
-                          ? _C.border
-                          : const Color(0xFF222222)),
-              bottom: BorderSide(
-                  color: widget.selected
-                      ? widget.partColor.withValues(alpha: 0.3)
-                      : _hovered
-                          ? _C.border
-                          : const Color(0xFF222222)),
-              left: BorderSide(
-                color: widget.selected
-                    ? widget.partColor
-                    : Colors.transparent,
-                width: 3,
-              ),
-            ),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20), // vertical padding 증가
+        decoration: BoxDecoration(
+          color: selected 
+              ? partColor.withValues(alpha: 0.12) 
+              : const Color(0xFF1A1A1A),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: selected ? partColor : _C.border,
+            width: selected ? 2.5 : 1.5,
           ),
-          child: Row(children: [
-            // 레이블 박스
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,   // ← 여기서 중앙 정렬
+          children: [
+            // 레이블
             Container(
-              width: 36, height: 36,
+              width: 38,
+              height: 38,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: widget.selected
-                    ? widget.partColor
-                    : _C.surface2,
-                borderRadius: BorderRadius.circular(10),
+                color: selected ? partColor : _C.surface2,
+                shape: BoxShape.circle,
               ),
-              child: Text(widget.label,
-                  style: TextStyle(
-                      color: widget.selected ? _C.bg : _C.textSec,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800)),
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: selected ? _C.bg : _C.textSec,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 18),
+
+            // 텍스트 - 중앙 정렬
             Expanded(
-              child: Text(widget.text,
-                  style: TextStyle(
-                    color: widget.selected ? _C.textPri : _C.textSec,
-                    fontSize: 16,
-                    fontWeight: widget.selected
-                        ? FontWeight.w600
-                        : FontWeight.w400,
-                    height: 1.45,
-                  )),
-            ),
-            const SizedBox(width: 12),
-            AnimatedOpacity(
-              opacity: widget.selected ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 160),
-              child: Container(
-                width: 22, height: 22,
-                decoration: BoxDecoration(
-                  color: widget.partColor,
-                  shape: BoxShape.circle,
+              child: Text(
+                text,
+                style: TextStyle(
+                  color: selected ? _C.textPri : const Color.fromARGB(255, 218, 218, 218),
+                  fontSize: 16,
+                  height: 1.5,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                 ),
-                child: const Icon(
-                  Icons.check_rounded,
-                  color: _C.bg,
-                  size: 14,
-                ),
+                softWrap: true,
               ),
             ),
-          ]),
+
+            // 체크 아이콘
+            if (selected)
+              Padding(
+                padding: const EdgeInsets.only(left: 12),
+                child: Container(
+                  width: 26,
+                  height: 26,
+                  decoration: BoxDecoration(
+                    color: partColor,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.check_rounded,
+                    color: _C.bg,
+                    size: 18,
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -1560,7 +1596,7 @@ class _ChoiceCardState extends State<_ChoiceCard> {
 }
 
 // ════════════════════════════════════════════════════════════
-// 학습 이력 카드 (기존 구조 유지)
+// 학습 이력 카드
 // ════════════════════════════════════════════════════════════
 class _HistoryCard extends StatefulWidget {
   final TextEditingController subjectCtrl;
@@ -1612,14 +1648,12 @@ class _HistoryCardState extends State<_HistoryCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 배너
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: _C.yellowDark,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                  color: _C.yellow.withValues(alpha: 0.25)),
+              border: Border.all(color: _C.yellow.withValues(alpha: 0.25)),
             ),
             child: const Row(children: [
               Text('📚', style: TextStyle(fontSize: 26)),
@@ -1641,7 +1675,6 @@ class _HistoryCardState extends State<_HistoryCard> {
           ),
           const SizedBox(height: 28),
 
-          // LH1
           const Text('가장 잘 이해됐던 과목이나 분야는?',
               style: TextStyle(
                   color: _C.textPri,
@@ -1653,20 +1686,16 @@ class _HistoryCardState extends State<_HistoryCard> {
               color: _C.surface,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: hasSubject
-                    ? _C.yellow.withValues(alpha: 0.6)
-                    : _C.border,
+                color: hasSubject ? _C.yellow.withValues(alpha: 0.6) : _C.border,
                 width: hasSubject ? 1.5 : 1,
               ),
             ),
             child: TextField(
               controller: widget.subjectCtrl,
-              style: const TextStyle(
-                  color: _C.textPri, fontSize: 14),
+              style: const TextStyle(color: _C.textPri, fontSize: 14),
               decoration: const InputDecoration(
                 hintText: '예) 수학, 생물, 프로그래밍, 디자인...',
-                hintStyle: TextStyle(
-                    color: _C.textMute, fontSize: 13),
+                hintStyle: TextStyle(color: _C.textMute, fontSize: 13),
                 border: InputBorder.none,
                 contentPadding: EdgeInsets.all(14),
               ),
@@ -1674,7 +1703,6 @@ class _HistoryCardState extends State<_HistoryCard> {
           ),
           const SizedBox(height: 24),
 
-          // LH2
           const Text('잘 이해됐던 이유는?',
               style: TextStyle(
                   color: _C.textPri,
@@ -1693,7 +1721,6 @@ class _HistoryCardState extends State<_HistoryCard> {
           )),
           const SizedBox(height: 24),
 
-          // LH3
           const Text('가장 힘들었던 학습 방식은?',
               style: TextStyle(
                   color: _C.textPri,
@@ -1707,8 +1734,7 @@ class _HistoryCardState extends State<_HistoryCard> {
               text: _difficulties[i],
               selected: widget.difficulty == _difficulties[i],
               partColor: _C.yellow,
-              onTap: () =>
-                  widget.onDifficultyChanged(_difficulties[i]),
+              onTap: () => widget.onDifficultyChanged(_difficulties[i]),
             ),
           )),
         ],
@@ -1746,9 +1772,7 @@ class _AnalyzingScreenState extends State<_AnalyzingScreen>
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 800))
-      ..repeat();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 800))..repeat();
     Future.doWhile(() async {
       await Future.delayed(const Duration(seconds: 2));
       if (!mounted) return false;
@@ -1778,8 +1802,7 @@ class _AnalyzingScreenState extends State<_AnalyzingScreen>
               decoration: BoxDecoration(
                 color: _C.limeDark,
                 borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                    color: _C.lime.withValues(alpha: 0.3)),
+                border: Border.all(color: _C.lime.withValues(alpha: 0.3)),
               ),
               child: const Center(
                 child: Text('🧠', style: TextStyle(fontSize: 38)),
@@ -1800,23 +1823,20 @@ class _AnalyzingScreenState extends State<_AnalyzingScreen>
               child: Text(_msgs[_msgIdx],
                   key: ValueKey(_msgIdx),
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                      color: _C.lime, fontSize: 13)),
+                  style: const TextStyle(color: _C.lime, fontSize: 13)),
             ),
             const SizedBox(height: 32),
             SizedBox(
               width: 200,
               child: LinearProgressIndicator(
                 backgroundColor: _C.surface2,
-                valueColor:
-                    const AlwaysStoppedAnimation(_C.lime),
+                valueColor: const AlwaysStoppedAnimation(_C.lime),
                 minHeight: 3,
               ),
             ),
             const SizedBox(height: 14),
             const Text('최대 30초 소요될 수 있어요',
-                style: TextStyle(
-                    color: _C.textMute, fontSize: 11)),
+                style: TextStyle(color: _C.textMute, fontSize: 11)),
           ]),
         ),
       ),

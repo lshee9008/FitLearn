@@ -77,7 +77,7 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
       _loadRooms();
     } catch (e) {
       messenger.showSnackBar(
-        const SnackBar(content: Text('방 생성 중 오류가 발생했습니다.')),
+        SnackBar(content: Text('방 생성 오류: $e'), duration: const Duration(seconds: 6)),
       );
     }
   }
@@ -1050,157 +1050,498 @@ class _ScheduleRow extends StatelessWidget {
 // ════════════════════════════════════════════════════════════
 class _CreateRoomDialog extends StatefulWidget {
   const _CreateRoomDialog();
- 
+
   @override
   State<_CreateRoomDialog> createState() => _CreateRoomDialogState();
 }
- 
+
 class _CreateRoomDialogState extends State<_CreateRoomDialog> {
-  final _subjectCtrl = TextEditingController();
-  final _descCtrl = TextEditingController();
- 
+  final _nameCtrl     = TextEditingController();
+  final _descCtrl     = TextEditingController();
+  final _currCtrl     = TextEditingController();
+  final _videoCtrl    = TextEditingController();
+  final _materialCtrl = TextEditingController();
+
+  int _step = 1;
+
+  bool get _canNext   => _nameCtrl.text.trim().isNotEmpty;
+  bool get _canCreate => _currCtrl.text.trim().isNotEmpty;
+
+  static const _bg       = Color(0xFF141414);
+  static const _surf     = Color(0xFF1A1A1A);
+  static const _lime     = Color(0xFFC8F135);
+  static const _limeDark = Color(0xFF1A2E00);
+  static const _border   = Color(0xFF2A2A2A);
+  static const _textPri  = Color(0xFFFFFFFF);
+  static const _textSec  = Color(0xFF888888);
+  static const _textMute = Color(0xFF555555);
+  static const _btnGhost = Color(0xFF1E1E1E);
+
+  @override
+  void initState() {
+    super.initState();
+    for (final c in [_nameCtrl, _descCtrl, _currCtrl, _videoCtrl, _materialCtrl]) {
+      c.addListener(() => setState(() {}));
+    }
+  }
+
   @override
   void dispose() {
-    _subjectCtrl.dispose();
+    _nameCtrl.dispose();
     _descCtrl.dispose();
+    _currCtrl.dispose();
+    _videoCtrl.dispose();
+    _materialCtrl.dispose();
     super.dispose();
   }
- 
+
+  void _onNext() {
+    if (_canNext) setState(() => _step = 2);
+  }
+
+  void _onCreate() {
+    if (!_canCreate) return;
+    setState(() => _step = 3);
+  }
+
+  void _onDone() {
+    Navigator.pop(context, {
+      'subject': _nameCtrl.text.trim(),
+      'description': _currCtrl.text.trim(),
+    });
+  }
+
+  InputDecoration _inputDeco(String hint, {bool hasValue = false}) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(color: _textMute, fontSize: 13),
+      filled: true,
+      fillColor: _surf,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(color: hasValue ? _lime : _border),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(color: hasValue ? _lime.withValues(alpha: 0.5) : _border),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: _lime, width: 1.5),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      backgroundColor: _C.surface,
-      shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20)),
-      child: Padding(
-        padding: const EdgeInsets.all(24),
+      backgroundColor: _bg,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      child: SizedBox(
+        width: 580,
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('강의 방 만들기',
-                style: TextStyle(
-                    color: _C.textPri,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800)),
-            const SizedBox(height: 20),
- 
-            const Text('과목명',
-                style:
-                    TextStyle(color: _C.textSec, fontSize: 12)),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _subjectCtrl,
-              style: const TextStyle(color: _C.textPri),
-              decoration: InputDecoration(
-                hintText: '예: 파이썬 프로그래밍 기초',
-                hintStyle:
-                    const TextStyle(color: _C.textMute),
-                filled: true,
-                fillColor: _C.surface2,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide:
-                      const BorderSide(color: _C.border),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide:
-                      const BorderSide(color: _C.border),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide:
-                      const BorderSide(color: _C.lime),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
- 
-            const Text('설명 (선택)',
-                style:
-                    TextStyle(color: _C.textSec, fontSize: 12)),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _descCtrl,
-              style: const TextStyle(color: _C.textPri),
-              decoration: InputDecoration(
-                hintText: '강의 설명을 입력하세요',
-                hintStyle:
-                    const TextStyle(color: _C.textMute),
-                filled: true,
-                fillColor: _C.surface2,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide:
-                      const BorderSide(color: _C.border),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide:
-                      const BorderSide(color: _C.border),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide:
-                      const BorderSide(color: _C.lime),
-                ),
-              ),
+            _buildHeader(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(32, 0, 32, 0),
+              child: _step == 1 ? _buildStep1()
+                   : _step == 2 ? _buildStep2()
+                   : _buildDone(),
             ),
             const SizedBox(height: 24),
- 
-            Row(children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: Container(
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: _C.surface2,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: _C.border),
-                    ),
-                    child: const Center(
-                      child: Text('취소',
-                          style: TextStyle(
-                              color: _C.textSec,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600)),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () {
-                    if (_subjectCtrl.text.trim().isNotEmpty) {
-                      Navigator.pop(context, {
-                        'subject': _subjectCtrl.text.trim(),
-                        'description': _descCtrl.text.trim(),
-                      });
-                    }
-                  },
-                  child: Container(
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: _C.lime,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Center(
-                      child: Text('만들기',
-                          style: TextStyle(
-                              color: _C.limeDark,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700)),
-                    ),
-                  ),
-                ),
-              ),
-            ]),
+            const Divider(color: _border, height: 1),
+            _buildFooter(),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildHeader() {
+    const titles    = ['강의 기본 정보', '커리큘럼 & 자료', '강의 내용 확인'];
+    const subtitles = ['강의 이름과 소개를 입력해주세요', '학습 내용과 자료를 추가해주세요', '입력하신 내용을 최종 확인해주세요'];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(32, 28, 32, 24),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: List.generate(3, (i) {
+          final active = i + 1 == _step;
+          final done   = i + 1 < _step;
+          return Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: active ? 20 : 8, height: 8,
+              decoration: BoxDecoration(
+                color: done || active ? _lime : _border,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          );
+        })),
+        const SizedBox(height: 16),
+        Text(titles[_step - 1],
+            style: const TextStyle(color: _textPri, fontSize: 20, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 4),
+        Text(subtitles[_step - 1],
+            style: const TextStyle(color: _textSec, fontSize: 13)),
+        const SizedBox(height: 16),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(2),
+          child: LinearProgressIndicator(
+            value: _step / 3,
+            minHeight: 2,
+            backgroundColor: _border,
+            valueColor: const AlwaysStoppedAnimation(_lime),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  Widget _buildStep1() {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _label('강의명', required: true),
+      const SizedBox(height: 8),
+      TextField(
+        controller: _nameCtrl,
+        style: const TextStyle(color: _textPri, fontSize: 14),
+        decoration: _inputDeco('예: 파이썬 프로그래밍 기초', hasValue: _nameCtrl.text.isNotEmpty),
+      ),
+      const SizedBox(height: 20),
+      _label('한 줄 소개 (선택)', required: false),
+      const SizedBox(height: 8),
+      TextField(
+        controller: _descCtrl,
+        style: const TextStyle(color: _textPri, fontSize: 14),
+        decoration: _inputDeco('강의를 한 줄로 소개해주세요', hasValue: _descCtrl.text.isNotEmpty),
+      ),
+    ]);
+  }
+
+  Widget _buildStep2() {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _label('커리큘럼', required: true),
+      const SizedBox(height: 8),
+      TextField(
+        controller: _currCtrl,
+        maxLines: 5,
+        style: const TextStyle(color: _textPri, fontSize: 14, height: 1.6),
+        decoration: _inputDeco(
+          '파트별 학습 내용을 입력해주세요\n예) 파트1: 기초 개념 / 파트2: 실습',
+          hasValue: _currCtrl.text.isNotEmpty,
+        ),
+      ),
+      const SizedBox(height: 20),
+      _label('자료 첨부', required: false),
+      const SizedBox(height: 8),
+      Row(children: [
+        Expanded(child: _AttachCard(
+          icon: Icons.play_circle_outline_rounded,
+          label: '영상 자료',
+          hint: '영상 URL 입력',
+          ctrl: _videoCtrl,
+        )),
+        const SizedBox(width: 12),
+        Expanded(child: _AttachCard(
+          icon: Icons.description_outlined,
+          label: '교안 자료',
+          hint: '교안 URL 입력',
+          ctrl: _materialCtrl,
+        )),
+      ]),
+    ]);
+  }
+
+  Widget _buildDone() {
+    final hasVideo    = _videoCtrl.text.trim().isNotEmpty;
+    final hasMaterial = _materialCtrl.text.trim().isNotEmpty;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      // 강의명 + 소개
+      _SummarySection(
+        icon: Icons.menu_book_rounded,
+        title: '강의명',
+        child: Text(_nameCtrl.text.trim(),
+            style: const TextStyle(color: _textPri, fontSize: 15, fontWeight: FontWeight.w700)),
+      ),
+      if (_descCtrl.text.trim().isNotEmpty) ...[
+        const SizedBox(height: 10),
+        _SummarySection(
+          icon: Icons.short_text_rounded,
+          title: '한 줄 소개',
+          child: Text(_descCtrl.text.trim(),
+              style: const TextStyle(color: _textSec, fontSize: 13, height: 1.5)),
+        ),
+      ],
+      const SizedBox(height: 10),
+      // 커리큘럼
+      _SummarySection(
+        icon: Icons.list_alt_rounded,
+        title: '커리큘럼',
+        child: Text(_currCtrl.text.trim(),
+            style: const TextStyle(color: _textSec, fontSize: 13, height: 1.6)),
+      ),
+      // 첨부 자료
+      if (hasVideo || hasMaterial) ...[
+        const SizedBox(height: 10),
+        _SummarySection(
+          icon: Icons.attach_file_rounded,
+          title: '첨부 자료',
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            if (hasVideo)
+              _SummaryLink(
+                icon: Icons.play_circle_outline_rounded,
+                label: '영상',
+                url: _videoCtrl.text.trim(),
+              ),
+            if (hasVideo && hasMaterial) const SizedBox(height: 6),
+            if (hasMaterial)
+              _SummaryLink(
+                icon: Icons.description_outlined,
+                label: '교안',
+                url: _materialCtrl.text.trim(),
+              ),
+          ]),
+        ),
+      ],
+    ]);
+  }
+
+  Widget _buildFooter() {
+    String leftLabel;
+    VoidCallback leftAction;
+    String rightLabel;
+    VoidCallback? rightAction;
+    bool rightEnabled;
+
+    if (_step == 1) {
+      leftLabel   = '취소';
+      leftAction  = () => Navigator.pop(context);
+      rightLabel  = '다음 →';
+      rightAction = _canNext ? _onNext : null;
+      rightEnabled = _canNext;
+    } else if (_step == 2) {
+      leftLabel   = '← 이전';
+      leftAction  = () => setState(() => _step = 1);
+      rightLabel  = '검토하기 →';
+      rightAction = _canCreate ? _onCreate : null;
+      rightEnabled = _canCreate;
+    } else {
+      leftLabel   = '← 수정하기';
+      leftAction  = () => setState(() => _step = 2);
+      rightLabel  = '강의 방 만들기';
+      rightAction = _onDone;
+      rightEnabled = true;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(32, 16, 32, 24),
+      child: Row(children: [
+        GestureDetector(
+          onTap: leftAction,
+          child: Container(
+            height: 44,
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            decoration: BoxDecoration(
+              color: _btnGhost,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _border),
+            ),
+            child: Center(
+              child: Text(leftLabel,
+                  style: const TextStyle(
+                    color: Color(0xFF666666), fontSize: 14, fontWeight: FontWeight.w600,
+                  )),
+            ),
+          ),
+        ),
+        const Spacer(),
+        GestureDetector(
+          onTap: rightAction,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            height: 44,
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            decoration: BoxDecoration(
+              color: rightEnabled ? _lime : _btnGhost,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Center(
+              child: Text(rightLabel,
+                  style: TextStyle(
+                    color: rightEnabled ? _limeDark : const Color(0xFF333333),
+                    fontSize: 14, fontWeight: FontWeight.w700,
+                  )),
+            ),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  Widget _label(String text, {required bool required}) {
+    return Row(children: [
+      Text(text, style: const TextStyle(color: _textSec, fontSize: 12, fontWeight: FontWeight.w600)),
+      if (required) ...[
+        const SizedBox(width: 4),
+        const Text('*', style: TextStyle(color: Color(0xFFC8F135), fontSize: 12)),
+      ],
+    ]);
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// 요약 섹션 (step 3)
+// ════════════════════════════════════════════════════════════════
+class _SummarySection extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final Widget child;
+  const _SummarySection({required this.icon, required this.title, required this.child});
+
+  static const _surf   = Color(0xFF1A1A1A);
+  static const _lime   = Color(0xFFC8F135);
+  static const _border = Color(0xFF2A2A2A);
+  static const _textMute = Color(0xFF555555);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _surf,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _border),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(icon, color: _lime, size: 14),
+          const SizedBox(width: 6),
+          Text(title, style: const TextStyle(
+            color: _textMute, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5,
+          )),
+        ]),
+        const SizedBox(height: 10),
+        child,
+      ]),
+    );
+  }
+}
+
+class _SummaryLink extends StatelessWidget {
+  final IconData icon;
+  final String label, url;
+  const _SummaryLink({required this.icon, required this.label, required this.url});
+
+  static const _lime    = Color(0xFFC8F135);
+  static const _limeDark = Color(0xFF1A2E00);
+  static const _textSec  = Color(0xFF888888);
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(children: [
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(color: _limeDark, borderRadius: BorderRadius.circular(6)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, color: _lime, size: 11),
+          const SizedBox(width: 4),
+          Text(label, style: const TextStyle(color: _lime, fontSize: 10, fontWeight: FontWeight.w700)),
+        ]),
+      ),
+      const SizedBox(width: 8),
+      Expanded(
+        child: Text(url,
+            maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: _textSec, fontSize: 11)),
+      ),
+    ]);
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// 첨부 카드 (다이얼로그 내부용)
+// ════════════════════════════════════════════════════════════════
+class _AttachCard extends StatefulWidget {
+  final IconData icon;
+  final String label, hint;
+  final TextEditingController ctrl;
+
+  const _AttachCard({
+    required this.icon,
+    required this.label,
+    required this.hint,
+    required this.ctrl,
+  });
+
+  @override
+  State<_AttachCard> createState() => _AttachCardState();
+}
+
+class _AttachCardState extends State<_AttachCard> {
+  static const _surf    = Color(0xFF1A1A1A);
+  static const _lime    = Color(0xFFC8F135);
+  static const _border  = Color(0xFF2A2A2A);
+  static const _textPri  = Color(0xFFFFFFFF);
+  static const _textMute = Color(0xFF555555);
+
+  @override
+  void initState() {
+    super.initState();
+    widget.ctrl.addListener(() => setState(() {}));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasValue = widget.ctrl.text.trim().isNotEmpty;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _surf,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: hasValue ? _lime.withValues(alpha: 0.6) : _border,
+          width: hasValue ? 1.5 : 1,
+        ),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(widget.icon, color: hasValue ? _lime : _textMute, size: 16),
+          const SizedBox(width: 6),
+          Text(widget.label, style: TextStyle(
+            color: hasValue ? _lime : _textMute,
+            fontSize: 11, fontWeight: FontWeight.w700,
+          )),
+        ]),
+        const SizedBox(height: 10),
+        TextField(
+          controller: widget.ctrl,
+          style: const TextStyle(color: _textPri, fontSize: 12),
+          decoration: InputDecoration(
+            hintText: widget.hint,
+            hintStyle: const TextStyle(color: _textMute, fontSize: 12),
+            isDense: true,
+            filled: true,
+            fillColor: const Color(0xFF141414),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: _border),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: _border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: _lime),
+            ),
+          ),
+        ),
+      ]),
     );
   }
 }
