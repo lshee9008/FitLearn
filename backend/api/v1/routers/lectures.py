@@ -1,4 +1,5 @@
 import logging
+import re
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from models.lecture import LectureUploadResponse, CorePoint, CorePointConfirmRequest
@@ -61,6 +62,34 @@ _DEMO_CORE_POINTS = [
 ]
 
 
+def _resolve_video_meta(video_url: str, has_video_file: bool, title: str) -> dict:
+    clean_url = (video_url or "").strip()
+    if has_video_file:
+        return {
+            "video_type": "upload",
+            "video_url": clean_url,
+            "video_title": title,
+            "video_status": "processing",
+            "video_source": "uploaded_file",
+        }
+    if clean_url:
+        is_youtube = bool(re.search(r"(youtube\.com|youtu\.be)", clean_url, re.IGNORECASE))
+        return {
+            "video_type": "youtube" if is_youtube else "external",
+            "video_url": clean_url,
+            "video_title": title,
+            "video_status": "ready",
+            "video_source": "youtube" if is_youtube else "external_url",
+        }
+    return {
+        "video_type": "none",
+        "video_url": "",
+        "video_title": "",
+        "video_status": "none",
+        "video_source": "none",
+    }
+
+
 @router.post("/lectures/upload", response_model=LectureUploadResponse)
 async def upload_lecture(
     room_id: str = Form(...),
@@ -95,6 +124,8 @@ async def upload_lecture(
             detail=f"파일에서 텍스트를 추출할 수 없습니다. ({file.filename})"
         )
 
+    video_meta = _resolve_video_meta(video_url, video_file is not None, resolved_title)
+
     try:
         result = await pipeline.run(text)
     except Exception as e:
@@ -109,7 +140,11 @@ async def upload_lecture(
         week_number=week_number,
         lecture_id=lecture_id,
         order_index=order_index,
-        video_url=video_url,
+        video_url=video_meta["video_url"],
+        video_type=video_meta["video_type"],
+        video_title=video_meta["video_title"],
+        video_status=video_meta["video_status"],
+        video_source=video_meta["video_source"],
         material_url=material_url,
     )
     
@@ -134,6 +169,11 @@ async def upload_lecture(
                     video_file.content_type or "application/octet-stream",
                     "video",
                 )
+                await firebase.update_lecture_meta(room_id, lecture_id, {
+                    "video_status": "ready",
+                    "video_type": "upload",
+                    "video_source": "uploaded_file",
+                })
         except Exception as e:
             logger.warning(f"[upload] 영상 파일 Storage 업로드 실패: {e}")
 

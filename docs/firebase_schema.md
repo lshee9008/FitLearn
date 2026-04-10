@@ -97,6 +97,9 @@
 - `video_type`: `youtube | upload | none`
 - `video_url`: string
 - `video_title`: string
+- `video_source`: `youtube | uploaded_file | external_url | none`
+- `video_status`: `none | processing | ready | failed`
+- `video_asset_url`: string
 - `video_duration`: number
 - `chapters`: array
 - `summary_status`: `idle | processing | ready | failed`

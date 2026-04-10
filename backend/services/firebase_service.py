@@ -636,6 +636,10 @@ class FirebaseService:
         lecture_id: str = "",
         order_index: int = 0,
         video_url: str = "",
+        video_type: str = "none",
+        video_title: str = "",
+        video_status: str = "none",
+        video_source: str = "none",
         material_url: str = "",
     ) -> str:
         db = self._safe_db()
@@ -660,6 +664,15 @@ class FirebaseService:
                     "core_points": core_points,
                     "confirmed": False,
                     "video_url": video_url,
+                    "video_type": video_type,
+                    "video_title": video_title,
+                    "video_status": video_status,
+                    "video_source": video_source,
+                    "video_asset_url": "",
+                    "video_duration": 0,
+                    "chapters": [],
+                    "summary_status": "idle",
+                    "summary_cache": {},
                     "material_url": material_url,
                     "is_placeholder": False,
                     "created_at": datetime.now(timezone.utc),
@@ -692,6 +705,15 @@ class FirebaseService:
                         "week_number": 0,
                         "order_index": lecture.get("order", index),
                         "video_url": lecture.get("video_url", ""),
+                        "video_type": lecture.get("video_type") or ("youtube" if lecture.get("video_url") else "none"),
+                        "video_title": lecture.get("video_title", ""),
+                        "video_status": "ready" if lecture.get("video_url") else "none",
+                        "video_source": "youtube" if lecture.get("video_url") else "none",
+                        "video_asset_url": "",
+                        "video_duration": 0,
+                        "chapters": [],
+                        "summary_status": "idle",
+                        "summary_cache": {},
                         "material_url": lecture.get("material_url", ""),
                         "original_text": "",
                         "core_points": [],
@@ -721,7 +743,7 @@ class FirebaseService:
                     .collection("lectures").document(lecture_id)
                     .get()
                 )
-                return doc.to_dict() if doc.exists else None
+                return _normalize_firestore_value(doc.to_dict()) if doc.exists else None
             return await _run(_read)
         except Exception as e:
             logger.warning(f"[Firebase] get_lecture 실패: {e}")
@@ -1144,16 +1166,24 @@ class FirebaseService:
 
             url = await _run(_upload)
 
-            field_name = "video_url" if kind == "video" else "material_url"
+            field_name = "video_asset_url" if kind == "video" else "material_url"
 
             def _write():
+                payload = {
+                    field_name: url,
+                    f"{kind}_filename": filename,
+                    "updated_at": datetime.now(timezone.utc),
+                }
+                if kind == "video":
+                    payload.update({
+                        "video_url": url,
+                        "video_type": "upload",
+                        "video_source": "uploaded_file",
+                        "video_status": "ready",
+                    })
                 db.collection("rooms").document(room_id) \
                     .collection("lectures").document(lecture_id) \
-                    .set({
-                        field_name: url,
-                        f"{kind}_filename": filename,
-                        "updated_at": datetime.now(timezone.utc),
-                    }, merge=True)
+                    .set(payload, merge=True)
 
             await _run(_write)
             await self._cache_delete_prefix(f"room_lectures:{room_id}")

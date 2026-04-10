@@ -47,6 +47,7 @@ class LectureViewPage extends ConsumerStatefulWidget {
 
 class _LectureViewPageState extends ConsumerState<LectureViewPage> {
   Map<String, String>? _styleContents;
+  Map<String, dynamic>? _lectureMeta;
   String? _primaryStyle;
   String? _subjectLevel;
   String _selectedStyle = '읽기형';
@@ -62,13 +63,19 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
     try {
-      final data = await ApiService().getReforgedLecture(
-        roomId: widget.roomId,
-        lectureId: widget.lectureId,
-        userId: widget.userId,
-      );
+      final results = await Future.wait([
+        ApiService().getLecture(widget.roomId, widget.lectureId),
+        ApiService().getReforgedLecture(
+          roomId: widget.roomId,
+          lectureId: widget.lectureId,
+          userId: widget.userId,
+        ),
+      ]);
+      final lecture = results[0];
+      final data = results[1];
       final rawStyles = data['styles'] as Map<String, dynamic>? ?? {};
       setState(() {
+        _lectureMeta = lecture;
         _styleContents = rawStyles.map((k, v) => MapEntry(k, v as String));
         _primaryStyle = data['primary_style'] as String? ?? '읽기형';
         _subjectLevel = data['subject_level'] as String?;
@@ -252,6 +259,11 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 100),
       child: Column(children: [
+        _LearningWorkspaceHeader(
+          lecture: _lectureMeta,
+          onDownloadOriginal: _downloadOriginal,
+        ),
+        const SizedBox(height: 16),
         _StyleHeader(style: _selectedStyle),
         const SizedBox(height: 16),
         _MarkdownText(content),
@@ -314,6 +326,184 @@ class _StyleHeader extends StatelessWidget {
               style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
         ]),
       ]),
+    );
+  }
+}
+
+class _LearningWorkspaceHeader extends StatelessWidget {
+  final Map<String, dynamic>? lecture;
+  final VoidCallback onDownloadOriginal;
+
+  const _LearningWorkspaceHeader({
+    required this.lecture,
+    required this.onDownloadOriginal,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final videoUrl = lecture?['video_url'] as String? ?? '';
+    final videoType = lecture?['video_type'] as String? ?? 'none';
+    final videoStatus = lecture?['video_status'] as String? ?? 'none';
+    final materialUrl = lecture?['material_url'] as String? ?? '';
+    final hasOriginal = (lecture?['original_file_url'] as String? ?? '').isNotEmpty;
+    final hasVideo = videoUrl.trim().isNotEmpty;
+
+    return AppCard(
+      borderColor: AppColors.primaryLight.withValues(alpha: 0.22),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(Icons.view_in_ar_rounded, color: AppColors.primaryLight),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '학습 워크스페이스',
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      '영상, 원본 자료, AI 재해석 교안을 함께 보며 수업 흐름을 따라갑니다.',
+                      style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _WorkspaceAction(
+                icon: hasVideo ? Icons.ondemand_video_rounded : Icons.videocam_off_rounded,
+                title: hasVideo ? _videoLabel(videoType) : '영상 없음',
+                subtitle: hasVideo ? _videoStatusLabel(videoStatus) : '교수가 영상 자료를 연결하면 표시됩니다.',
+                color: hasVideo ? AppColors.secondary : AppColors.textMuted,
+                onTap: hasVideo ? () => html.window.open(videoUrl, '_blank') : null,
+              ),
+              _WorkspaceAction(
+                icon: hasOriginal ? Icons.file_download_outlined : Icons.insert_drive_file_outlined,
+                title: hasOriginal ? '원본 자료' : '원본 준비 중',
+                subtitle: hasOriginal ? '교수 업로드 원본을 새 탭에서 확인합니다.' : '원본 파일 URL이 아직 없습니다.',
+                color: hasOriginal ? AppColors.accent : AppColors.textMuted,
+                onTap: hasOriginal ? onDownloadOriginal : null,
+              ),
+              _WorkspaceAction(
+                icon: materialUrl.isNotEmpty ? Icons.link_rounded : Icons.link_off_rounded,
+                title: materialUrl.isNotEmpty ? '보조 자료' : '보조 자료 없음',
+                subtitle: materialUrl.isNotEmpty ? '실습 링크나 외부 자료를 엽니다.' : '추가 링크가 연결되면 표시됩니다.',
+                color: materialUrl.isNotEmpty ? AppColors.primaryLight : AppColors.textMuted,
+                onTap: materialUrl.isNotEmpty ? () => html.window.open(materialUrl, '_blank') : null,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _videoLabel(String type) {
+    switch (type) {
+      case 'youtube':
+        return 'YouTube 영상';
+      case 'upload':
+        return '업로드 영상';
+      case 'external':
+        return '외부 영상';
+      default:
+        return '영상 자료';
+    }
+  }
+
+  static String _videoStatusLabel(String status) {
+    switch (status) {
+      case 'ready':
+        return '재생 가능한 상태입니다. 새 탭에서 열립니다.';
+      case 'processing':
+        return '업로드 처리 중입니다. 잠시 후 다시 확인하세요.';
+      default:
+        return '영상 링크를 확인할 수 있습니다.';
+    }
+  }
+}
+
+class _WorkspaceAction extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color color;
+  final VoidCallback? onTap;
+
+  const _WorkspaceAction({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        width: 280,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: color,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

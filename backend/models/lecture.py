@@ -16,6 +16,8 @@ class LectureShellCreate(BaseModel):
     title: str
     order: int = 0
     video_url: str = ""
+    video_type: str = "none"
+    video_title: str = ""
     material_url: str = ""
 
 
@@ -28,6 +30,10 @@ class LectureMetaUpdate(BaseModel):
     order_index: Optional[int] = None
     week_number: Optional[int] = None
     video_url: Optional[str] = None
+    video_type: Optional[str] = None
+    video_title: Optional[str] = None
+    video_status: Optional[str] = None
+    video_asset_url: Optional[str] = None
     material_url: Optional[str] = None
 
 
