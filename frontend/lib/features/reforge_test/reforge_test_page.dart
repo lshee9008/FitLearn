@@ -111,7 +111,7 @@ class _ReforgeTestPageState extends State<ReforgeTestPage>
   final _dio = Dio(BaseOptions(
     baseUrl: ApiConstants.baseUrl,
     connectTimeout: const Duration(seconds: 60),
-    receiveTimeout: const Duration(seconds: 180),
+    receiveTimeout: const Duration(minutes: 5),
   ));
 
   @override

@@ -1,3 +1,6 @@
+import asyncio
+import logging
+
 from fastapi import APIRouter, HTTPException
 
 from services.firebase_service import FirebaseService
@@ -6,6 +9,7 @@ from services.gemini_service import GeminiService
 router = APIRouter(tags=["dashboard"])
 firebase = FirebaseService()
 gemini = GeminiService()
+logger = logging.getLogger(__name__)
 
 
 @router.get("/dashboard/{room_id}")
@@ -30,7 +34,17 @@ async def get_dashboard(room_id: str):
             cognitive_dist[s["cognitive_type"]] = cognitive_dist.get(s["cognitive_type"], 0) + 1
 
     diagnosed = [s for s in students if s.get("primary_style")]
-    ai_insight = await gemini.analyze_student_patterns(diagnosed)
+    try:
+        ai_insight = await asyncio.wait_for(
+            gemini.analyze_student_patterns(diagnosed),
+            timeout=20.0,
+        )
+    except asyncio.TimeoutError:
+        logger.warning("[dashboard] AI insight timeout room=%s", room_id)
+        ai_insight = "AI 인사이트 생성이 지연되어 기본 대시보드만 먼저 표시합니다."
+    except Exception as e:
+        logger.warning("[dashboard] AI insight failed room=%s error=%s", room_id, e)
+        ai_insight = "AI 인사이트를 불러오지 못했지만 학생 분포 데이터는 정상 표시됩니다."
 
     return {
         "room": room,
