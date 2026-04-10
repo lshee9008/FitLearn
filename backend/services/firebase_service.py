@@ -233,22 +233,22 @@ class FirebaseService:
         try:
             def _read():
                 try:
-                    docs = (
+                    docs = list((
                         db.collection("rooms")
                         .where("professor_uid", "==", professor_uid)
                         .order_by("created_at", direction="DESCENDING")
                         .stream()
-                    )
+                    ))
                     ordered = True
                 except Exception as e:
                     if "requires an index" not in str(e).lower():
                         raise
                     logger.warning("[Firebase] professor rooms 인덱스 없음 — 메모리 정렬로 폴백")
-                    docs = (
+                    docs = list((
                         db.collection("rooms")
                         .where("professor_uid", "==", professor_uid)
                         .stream()
-                    )
+                    ))
                     ordered = False
                 result = []
                 for doc in docs:
