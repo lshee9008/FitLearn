@@ -68,6 +68,11 @@ async def upload_lecture(
     file: UploadFile = File(...),
     week_number: int = Form(0),
     lecture_title: str = Form(""),
+    lecture_id: str = Form(""),
+    order_index: int = Form(0),
+    video_url: str = Form(""),
+    material_url: str = Form(""),
+    video_file: UploadFile | None = File(None),
 ):
     """
     파일 업로드 → 8단계 AI 파이프라인
@@ -102,6 +107,10 @@ async def upload_lecture(
         original_text=text,
         core_points=result["core_points"],
         week_number=week_number,
+        lecture_id=lecture_id,
+        order_index=order_index,
+        video_url=video_url,
+        material_url=material_url,
     )
     
     # Storage 원본 파일 업로드 (백그라운드 또는 비동기 대기. MVP이므로 대기)
@@ -112,6 +121,21 @@ async def upload_lecture(
         )
     except Exception as e:
         logger.warning(f"[upload] 원본 파일 Storage 업로드 실패: {e}")
+
+    if video_file is not None:
+        try:
+            video_content = await video_file.read()
+            if video_content:
+                await firebase.upload_lecture_asset(
+                    room_id,
+                    lecture_id,
+                    video_content,
+                    video_file.filename or "video.bin",
+                    video_file.content_type or "application/octet-stream",
+                    "video",
+                )
+        except Exception as e:
+            logger.warning(f"[upload] 영상 파일 Storage 업로드 실패: {e}")
 
     logger.info(f"[upload] 완료 lecture_id={lecture_id} points={len(result['core_points'])}")
 

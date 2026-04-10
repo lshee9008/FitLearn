@@ -399,6 +399,10 @@ class FirebaseService:
     async def save_lecture(
         self, room_id: str, title: str, original_text: str, core_points: list,
         week_number: int = 0,
+        lecture_id: str = "",
+        order_index: int = 0,
+        video_url: str = "",
+        material_url: str = "",
     ) -> str:
         db = self._safe_db()
         if db is None:
@@ -407,18 +411,27 @@ class FirebaseService:
             def _write():
                 ref = (
                     db.collection("rooms").document(room_id)
+                    .collection("lectures").document(lecture_id)
+                    if lecture_id
+                    else db.collection("rooms").document(room_id)
                     .collection("lectures").document()
                 )
-                ref.set({
+                payload = {
                     "lecture_id": ref.id,
                     "room_id": room_id,
                     "title": title,
                     "week_number": week_number,
+                    "order_index": order_index,
                     "original_text": original_text,
                     "core_points": core_points,
                     "confirmed": False,
+                    "video_url": video_url,
+                    "material_url": material_url,
+                    "is_placeholder": False,
                     "created_at": datetime.now(timezone.utc),
-                })
+                    "updated_at": datetime.now(timezone.utc),
+                }
+                ref.set(payload, merge=True)
                 return ref.id
             lecture_id = await _run(_write)
             await self._cache_delete_prefix(f"room_lectures:{room_id}")
@@ -426,6 +439,42 @@ class FirebaseService:
         except Exception as e:
             logger.error(f"[Firebase] save_lecture 실패: {e}")
             return "offline-lecture"
+
+    async def create_lecture_shells(self, room_id: str, lectures: list[dict]) -> list[dict]:
+        db = self._safe_db()
+        if db is None:
+            return []
+        try:
+            def _write():
+                room_ref = db.collection("rooms").document(room_id).collection("lectures")
+                created = []
+                now = datetime.now(timezone.utc)
+                for index, lecture in enumerate(lectures, start=1):
+                    ref = room_ref.document()
+                    data = {
+                        "lecture_id": ref.id,
+                        "room_id": room_id,
+                        "title": lecture.get("title", "").strip() or f"강의 {index}",
+                        "week_number": 0,
+                        "order_index": lecture.get("order", index),
+                        "video_url": lecture.get("video_url", ""),
+                        "material_url": lecture.get("material_url", ""),
+                        "original_text": "",
+                        "core_points": [],
+                        "confirmed": False,
+                        "is_placeholder": True,
+                        "created_at": now,
+                        "updated_at": now,
+                    }
+                    ref.set(data)
+                    created.append({**data, "created_at": now.isoformat(), "updated_at": now.isoformat()})
+                return created
+            result = await _run(_write)
+            await self._cache_delete_prefix(f"room_lectures:{room_id}")
+            return result
+        except Exception as e:
+            logger.warning(f"[Firebase] create_lecture_shells 실패: {e}")
+            return []
 
     async def get_lecture(self, room_id: str, lecture_id: str) -> Optional[dict]:
         db = self._safe_db()
@@ -473,9 +522,18 @@ class FirebaseService:
                 docs = (
                     db.collection("rooms").document(room_id)
                     .collection("lectures")
+                    .order_by("order_index")
                     .stream()
                 )
-                return [doc.to_dict() for doc in docs]
+                result = []
+                for doc in docs:
+                    data = doc.to_dict()
+                    for key in ("created_at", "updated_at"):
+                        value = data.get(key)
+                        if value is not None and hasattr(value, "isoformat"):
+                            data[key] = value.isoformat()
+                    result.append(data)
+                return result
             result = await _run(_read)
             await self._cache_set(cache_key, result)
             return result
@@ -759,4 +817,53 @@ class FirebaseService:
             return url
         except Exception as e:
             logger.warning(f"[Firebase] upload_original_file 실패: {e}")
+            return None
+
+    async def upload_lecture_asset(
+        self,
+        room_id: str,
+        lecture_id: str,
+        file_bytes: bytes,
+        filename: str,
+        content_type: str,
+        kind: str,
+    ) -> Optional[str]:
+        db = self._safe_db()
+        bucket_name = os.getenv("FIREBASE_STORAGE_BUCKET")
+        if db is None or not bucket_name:
+            return None
+
+        try:
+            from firebase_admin import storage
+            import uuid
+
+            def _upload():
+                bucket = storage.bucket()
+                unique_name = (
+                    f"rooms/{room_id}/lectures/{lecture_id}/{kind}/"
+                    f"{uuid.uuid4().hex}_{filename}"
+                )
+                blob = bucket.blob(unique_name)
+                blob.upload_from_string(file_bytes, content_type=content_type)
+                blob.make_public()
+                return blob.public_url
+
+            url = await _run(_upload)
+
+            field_name = "video_url" if kind == "video" else "material_url"
+
+            def _write():
+                db.collection("rooms").document(room_id) \
+                    .collection("lectures").document(lecture_id) \
+                    .set({
+                        field_name: url,
+                        f"{kind}_filename": filename,
+                        "updated_at": datetime.now(timezone.utc),
+                    }, merge=True)
+
+            await _run(_write)
+            await self._cache_delete_prefix(f"room_lectures:{room_id}")
+            return url
+        except Exception as e:
+            logger.warning(f"[Firebase] upload_lecture_asset 실패 ({kind}): {e}")
             return None

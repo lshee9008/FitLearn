@@ -12,6 +12,17 @@ class CorePoint(BaseModel):
     review_question: str = ""   # 교수 검토용 AI 생성 질문
 
 
+class LectureShellCreate(BaseModel):
+    title: str
+    order: int = 0
+    video_url: str = ""
+    material_url: str = ""
+
+
+class LectureShellBatchRequest(BaseModel):
+    lectures: list[LectureShellCreate]
+
+
 class LectureUploadResponse(BaseModel):
     lecture_id: str
     title: str

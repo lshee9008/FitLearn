@@ -5,6 +5,7 @@ from pydantic import BaseModel
 logger = logging.getLogger(__name__)
 
 from models.room import RoomCreate, Room, JoinRoomRequest, RoomStudent, RoomMetaUpdate
+from models.lecture import LectureShellBatchRequest
 from models.subject_quiz import QuizSubmitRequest, SubjectQuizResult
 from services.firebase_service import FirebaseService
 from services.quiz_service import QuizService
@@ -157,6 +158,15 @@ async def get_students(room_id: str):
 async def get_lectures(room_id: str):
     lectures = await firebase.get_lectures_in_room(room_id)
     return lectures
+
+
+@router.post("/rooms/{room_id}/lectures/shells")
+async def create_lecture_shells(room_id: str, body: LectureShellBatchRequest):
+    created = await firebase.create_lecture_shells(
+        room_id,
+        [lecture.model_dump() for lecture in body.lectures],
+    )
+    return {"status": "created", "count": len(created), "lectures": created}
 
 
 # ── 수준판단 퀴즈 ──────────────────────────────────────────────────────────────

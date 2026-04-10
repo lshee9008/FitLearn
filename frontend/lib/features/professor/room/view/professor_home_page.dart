@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../features/auth/provider/auth_provider.dart';
 import '../../../../shared/services/api_service.dart';
-import '../../../../core/theme/app_theme.dart';
  
 // ─── 컬러 ────────────────────────────────────────────────────
 class _C {
@@ -115,19 +114,21 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
         youtubeUrl: result['youtube_url'] as String? ?? '',
       );
 
-      // 강의 목록 등록 (API 준비되면 주석 해제)
-      // final roomId = roomData['room_id'] as String? ?? '';
-      // for (final lec in lectures) {
-      //   if (lec.title.trim().isEmpty) continue;
-      //   await ApiService().createLecture(
-      //     roomId: roomId,
-      //     title: lec.title,
-      //     videoUrl: lec.videoUrl,
-      //     materialUrl: lec.materialUrl,
-      //   );
-      // }
-      // ignore: unused_local_variable
-      final ignoredLectures = lectures; // API 준비 후 제거
+      final roomId = roomData['room_id'] as String? ?? '';
+      final lectureSeeds = <Map<String, dynamic>>[];
+      for (var i = 0; i < lectures.length; i++) {
+        final lec = lectures[i];
+        if (lec.title.trim().isEmpty) continue;
+        lectureSeeds.add({
+          'title': lec.title.trim(),
+          'order': i + 1,
+          'video_url': lec.videoUrl.trim(),
+          'material_url': lec.materialUrl.trim(),
+        });
+      }
+      if (roomId.isNotEmpty && lectureSeeds.isNotEmpty) {
+        await ApiService().createLectureShells(roomId, lectureSeeds);
+      }
 
       // 2. 임시 데이터를 실제 데이터로 교체
       setState(() {
@@ -1321,12 +1322,17 @@ class _CreateRoomDialogState extends State<_CreateRoomDialog> {
       'room_type':     _roomType,
       'synopsis':      _synopsisCtrl.text.trim(),
       'core_concepts': _currCtrl.text.trim(),
-      'youtube_url':   '',
+      'youtube_url':   _roomType == 'online'
+          ? _lectures.firstWhere(
+              (lecture) => lecture.videoUrl.trim().isNotEmpty,
+              orElse: () => LectureItem(),
+            ).videoUrl.trim()
+          : '',
       'lectures':      _lectures,
     });
   }
 
-  InputDecoration _inputDeco(String hint, {bool hasValue = false, int? maxLines}) {
+  InputDecoration _inputDeco(String hint, {bool hasValue = false}) {
     return InputDecoration(
       hintText: hint,
       hintStyle: const TextStyle(color: _textMute, fontSize: 13),
@@ -1381,7 +1387,7 @@ class _CreateRoomDialogState extends State<_CreateRoomDialog> {
 
   Widget _buildHeader() {
     const titles    = ['강의 기본 정보', '강의 자료 등록'];
-    const subtitles = ['강의 이름과 커리큘럼을 입력해주세요', '강의별 영상과 교안을 등록해주세요'];
+    const subtitles = ['강의의 정체성과 학습 기준을 먼저 설계합니다', '강의 항목별 영상·자료 연결 구조를 미리 잡습니다'];
     return Padding(
       padding: const EdgeInsets.fromLTRB(32, 28, 32, 24),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1441,6 +1447,21 @@ class _CreateRoomDialogState extends State<_CreateRoomDialog> {
             hasValue: _descCtrl.text.isNotEmpty),
       ),
       const SizedBox(height: 20),
+      _label('강의 줄거리', required: false),
+      const SizedBox(height: 4),
+      const Text('학생 수준판단 퀴즈와 AI 재해석 기준에 함께 사용됩니다.',
+          style: TextStyle(color: Color(0xFF555555), fontSize: 11)),
+      const SizedBox(height: 8),
+      TextField(
+        controller: _synopsisCtrl,
+        maxLines: 4,
+        style: const TextStyle(color: _textPri, fontSize: 14, height: 1.6),
+        decoration: _inputDeco(
+          '예) 파이썬의 기본 문법부터 함수, 자료구조, 파일 처리, 간단한 프로젝트까지 단계적으로 다룹니다.',
+          hasValue: _synopsisCtrl.text.isNotEmpty,
+        ),
+      ),
+      const SizedBox(height: 20),
       _label('커리큘럼 (필수)', required: true),
       const SizedBox(height: 4),
       const Text('각 줄이 하나의 핵심 개념이 됩니다. AI가 분석하여 교안 재해석에 반영합니다.',
@@ -1473,6 +1494,21 @@ class _CreateRoomDialogState extends State<_CreateRoomDialog> {
           onTap: () => setState(() => _roomType = 'online'),
         ),
       ]),
+      const SizedBox(height: 12),
+      Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: _surf,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _border),
+        ),
+        child: Text(
+          _roomType == 'online'
+              ? '온라인 강의는 각 강의 항목에 유튜브 링크 또는 영상 파일을 연결할 수 있습니다.'
+              : '오프라인 강의는 교안, 실습 코드, 공지 중심으로 관리됩니다.',
+          style: const TextStyle(color: _textSec, fontSize: 12, height: 1.5),
+        ),
+      ),
       const SizedBox(height: 4),
     ]);
   }
@@ -1507,6 +1543,11 @@ class _CreateRoomDialogState extends State<_CreateRoomDialog> {
         ),
       ]),
       const SizedBox(height: 12),
+      const Text(
+        '이 목록은 업로드 화면에서 그대로 선택되어 교안과 영상이 정확히 매칭됩니다.',
+        style: TextStyle(color: _textMute, fontSize: 11),
+      ),
+      const SizedBox(height: 12),
       // 강의 목록
       ListView.builder(
         shrinkWrap: true,
@@ -1528,7 +1569,7 @@ class _CreateRoomDialogState extends State<_CreateRoomDialog> {
                 children: [
                   // 헤더 행
                   Row(children: [
-                    Text('강의 ${i + 1}',
+                    Text('${i + 1}강',
                         style: const TextStyle(
                             color: _textSec,
                             fontSize: 12,
@@ -1554,7 +1595,7 @@ class _CreateRoomDialogState extends State<_CreateRoomDialog> {
                   TextField(
                     style: const TextStyle(color: _textPri, fontSize: 13),
                     decoration: _inputDeco(
-                        '유튜브 URL 또는 영상 파일 mp4',
+                        '유튜브 URL 또는 공개 영상 링크',
                         hasValue: lec.videoUrl.isNotEmpty),
                     onChanged: (v) => setState(() => lec.videoUrl = v),
                   ),

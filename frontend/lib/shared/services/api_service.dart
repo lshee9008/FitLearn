@@ -153,6 +153,12 @@ class ApiService {
     required String fileName,
     int weekNumber = 0,
     String lectureTitle = '',
+    String lectureId = '',
+    int orderIndex = 0,
+    String videoUrl = '',
+    String materialUrl = '',
+    List<int>? videoFileBytes,
+    String? videoFileName,
   }) async {
     final formData = FormData.fromMap({
       'room_id': roomId,
@@ -160,6 +166,15 @@ class ApiService {
       'file': MultipartFile.fromBytes(fileBytes, filename: fileName),
       'week_number': weekNumber,
       'lecture_title': lectureTitle,
+      'lecture_id': lectureId,
+      'order_index': orderIndex,
+      'video_url': videoUrl,
+      'material_url': materialUrl,
+      if (videoFileBytes != null)
+        'video_file': MultipartFile.fromBytes(
+          videoFileBytes,
+          filename: videoFileName ?? 'video.mp4',
+        ),
     });
     final res = await _dio.post(ApiConstants.uploadLecture, data: formData);
     return res.data as Map<String, dynamic>;
@@ -167,6 +182,17 @@ class ApiService {
 
   Future<Map<String, dynamic>> getLecture(String roomId, String lectureId) async {
     final res = await _dio.get(ApiConstants.lecture(roomId, lectureId));
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> createLectureShells(
+    String roomId,
+    List<Map<String, dynamic>> lectures,
+  ) async {
+    final res = await _dio.post(
+      '/api/v1/rooms/$roomId/lectures/shells',
+      data: {'lectures': lectures},
+    );
     return res.data as Map<String, dynamic>;
   }
 
