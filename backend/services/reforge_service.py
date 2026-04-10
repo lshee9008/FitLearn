@@ -1,10 +1,12 @@
 """
 교안 재가공 오케스트레이터
-논문 기반 학습법 + asyncio.gather() 6스타일 병렬 생성
+5차원 성향(VARK × 집중패턴 × 난이도대응 × 이탈위험 × 신뢰도) 완전 반영
+asyncio.gather() 6스타일 병렬 생성
 """
 import asyncio
 import logging
 import os
+import re
 
 import google.generativeai as genai
 
@@ -14,6 +16,53 @@ from .gemini_service import STYLE_GUIDES
 logger = logging.getLogger(__name__)
 
 MODEL = "models/gemma-4-31b-it"
+
+
+# ── 마크다운 후처리 ───────────────────────────────────────────────────────────
+def _clean_markdown(text: str) -> str:
+    """
+    AI 출력의 마크다운 오염 요소 정리:
+    - LaTeX 수식 ($...$) → 일반 텍스트 변환
+    - ■, □, ▶ 등 특수 문자 → 마크다운 대체
+    - 연속 빈줄 3개 이상 → 2개로 압축
+    """
+    # LaTeX 블록 수식 ($$...$$) → 코드블록으로
+    text = re.sub(r'\$\$(.*?)\$\$', lambda m: f'```\n{m.group(1).strip()}\n```', text, flags=re.DOTALL)
+    # LaTeX 인라인 수식 ($...$) → 백틱 인라인 코드
+    text = re.sub(r'\$([^$\n]+?)\$', lambda m: f'`{m.group(1).strip()}`', text)
+    # LaTeX 명령어 잔재 (\blacksquare, \rightarrow 등)
+    latex_map = {
+        r'\blacksquare': '■',
+        r'\square': '□',
+        r'\rightarrow': '→',
+        r'\leftarrow': '←',
+        r'\Rightarrow': '⇒',
+        r'\Leftrightarrow': '⟺',
+        r'\times': '×',
+        r'\cdot': '·',
+        r'\leq': '≤',
+        r'\geq': '≥',
+        r'\neq': '≠',
+        r'\approx': '≈',
+        r'\alpha': 'α',
+        r'\beta': 'β',
+        r'\gamma': 'γ',
+        r'\delta': 'δ',
+        r'\theta': 'θ',
+        r'\lambda': 'λ',
+        r'\mu': 'μ',
+        r'\sigma': 'σ',
+        r'\pi': 'π',
+    }
+    for latex, replacement in latex_map.items():
+        text = text.replace(latex, replacement)
+    # ■·□·▶ 등 특수 블릿 → 마크다운 리스트
+    text = re.sub(r'^[■□▶▷◆◇●○•]\s+', '- ', text, flags=re.MULTILINE)
+    # 연속 빈줄 압축
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    # 잘못된 굵은글씨 (** 안에 공백만 있을 때)
+    text = re.sub(r'\*\*\s+\*\*', '', text)
+    return text.strip()
 
 
 def _fallback_content(style: str, core_text: str) -> str:
@@ -50,7 +99,73 @@ def _fallback_content(style: str, core_text: str) -> str:
 """
 
 
-# 재가공 스타일별 논문 기반 지침 보강
+# ── 5차원 성향 → 프롬프트 지침 변환 ──────────────────────────────────────────
+def _build_profile_instruction(style: str, profile: dict) -> str:
+    """
+    VARK + 집중패턴 + 난이도대응 + 이탈위험 + 신뢰도 5차원을
+    구체적인 재가공 지침 문장으로 변환
+    """
+    vark = profile.get("learning_style") or profile.get("vark_type") or style
+    focus = profile.get("focus_pattern", "")
+    difficulty_response = profile.get("difficulty_response") or profile.get("pace", "")
+    dropout_risk = profile.get("dropout_risk") or profile.get("isolation_risk", "")
+    confidence = profile.get("confidence_score", 0)
+
+    instructions = []
+
+    # VARK 지침
+    vark_map = {
+        "시각형": "모든 개념을 표·흐름도·ASCII 다이어그램으로 시각화하세요. 텍스트보다 구조가 먼저 오도록 배치하세요.",
+        "청각형": "대화체 어조로 작성하세요. '이렇게 생각해보세요', '예를 들면 이런 상황입니다' 등 스토리텔링 형식을 활용하세요.",
+        "읽기형": "정의 → 원리 → 예시 → 정리 순서로 체계적 텍스트를 작성하세요. 용어 목록과 개조식 정리가 효과적입니다.",
+        "행동형": "실제 실습 단계를 코드·예제와 함께 제공하세요. '직접 해보기' 섹션을 중심으로 구성하세요.",
+        "실습형": "실제 실습 단계를 코드·예제와 함께 제공하세요. '직접 해보기' 섹션을 중심으로 구성하세요.",
+    }
+    instructions.append(f"[VARK 채널 — {vark}] {vark_map.get(vark, '학습자 채널에 맞게 작성하세요.')}")
+
+    # 집중 패턴 지침
+    focus_map = {
+        "단기집중형": "각 섹션을 짧게 (300자 이하) 나누고, 섹션 사이에 '✅ 체크포인트' 박스를 삽입하세요. 한 번에 한 개념씩만 다루세요.",
+        "장기몰입형": "섹션을 길게 구성하고 개념 간 심층 연결을 설명하세요. 배경 이론과 심화 내용을 풍부하게 포함하세요.",
+        "분산형": "각 섹션에 짧은 요약 박스를 포함하고, 다른 파트로 넘어갈 때 이전 내용을 한 줄로 복습하세요.",
+    }
+    if focus in focus_map:
+        instructions.append(f"[집중 패턴 — {focus}] {focus_map[focus]}")
+
+    # 난이도 대응 지침
+    diff_map = {
+        "직진형": "개념이 어려워도 바로 본론으로 진입하세요. 사전 설명 없이 핵심 내용부터 제시해도 됩니다.",
+        "우회형": "어려운 개념 전에 반드시 쉬운 유사 사례나 비유를 먼저 제시한 후 본 개념으로 유도하세요.",
+        "지원요청형": "각 단계마다 '이 부분이 어렵다면 → 이렇게 생각해보세요' 힌트를 추가하세요. 실수 가능 포인트를 미리 짚어주세요.",
+        "숙고형": "개념 제시 후 '잠깐 생각해보기' 질문을 삽입하여 스스로 이해를 확인하도록 유도하세요.",
+        "속도형": "불필요한 전제 설명 없이 핵심만 빠르게 전달하세요.",
+    }
+    if difficulty_response in diff_map:
+        instructions.append(f"[난이도 대응 — {difficulty_response}] {diff_map[difficulty_response]}")
+
+    # 이탈 위험 인자 지침
+    dropout_map = {
+        "난이도": "개념이 등장할 때마다 '왜 이게 중요한가'를 먼저 설명하여 동기를 유지하세요. 너무 어려운 표현은 쉬운 말로 바꾸세요.",
+        "동기": "실생활 적용 사례나 흥미로운 예시를 자주 삽입하여 흥미를 유지하세요.",
+        "고립": "혼자 공부하는 상황을 고려해 '확인 질문'을 자주 달아 자기 점검을 돕고, 응원 메시지를 포함하세요.",
+        "루틴": "학습 순서를 명확히 번호로 제시하고, 오늘 학습 목표를 첫 부분에 배치하세요.",
+    }
+    if dropout_risk in dropout_map:
+        instructions.append(f"[이탈 위험 대응 — {dropout_risk}] {dropout_map[dropout_risk]}")
+
+    # 신뢰도 반영
+    if isinstance(confidence, (int, float)) and confidence > 0:
+        if confidence >= 85:
+            instructions.append(f"[신뢰도 {confidence}%] 진단 결과의 신뢰도가 높습니다. 위의 성향 지침을 강하게 적용하세요.")
+        elif confidence >= 65:
+            instructions.append(f"[신뢰도 {confidence}%] 성향이 복합적입니다. 핵심 성향 위주로 적용하되 유연하게 구성하세요.")
+        else:
+            instructions.append(f"[신뢰도 {confidence}%] 진단 신뢰도가 낮습니다. 읽기형 기본 체계를 유지하며 다양한 형식을 혼합하세요.")
+
+    return "\n".join(instructions)
+
+
+# ── 논문 기반 전략 ────────────────────────────────────────────────────────────
 PAPER_STRATEGY = {
     "시각형": "Fleming(1992) VARK: 시각적 표현 중심. 도식, 흐름도, 색상 구분 적극 활용.",
     "청각형": "Fleming(1992) VARK: 청각형 학습자. 대화체 스토리텔링, 리듬감 있는 설명.",
@@ -62,7 +177,6 @@ PAPER_STRATEGY = {
 
 
 async def _get_paper_context_for_style(style: str) -> str:
-    """스타일에 맞는 논문 컨텍스트 추출 (지식베이스에서 직접)"""
     relevant = []
     keywords = {
         "시각형": ["vark_02", "synthesis_01"],
@@ -72,11 +186,9 @@ async def _get_paper_context_for_style(style: str) -> str:
         "요약형": ["clt_03", "clt_04"],
         "상세형": ["fs_02", "fs_03", "clt_02"],
     }.get(style, [])
-
     for chunk in PAPER_CHUNKS:
         if chunk["id"] in keywords:
             relevant.append(f"[{chunk['paper']}] {chunk['content']}")
-
     return "\n\n".join(relevant) if relevant else ""
 
 
@@ -91,13 +203,9 @@ class ReforgeService:
         6스타일 교안 재가공 — RAG 논문 컨텍스트 + asyncio.gather() 병렬 처리
         """
         styles = ["시각형", "청각형", "읽기형", "실습형", "요약형", "상세형"]
-
-        # 논문 컨텍스트 병렬 조회
         paper_contexts = await asyncio.gather(
             *[_get_paper_context_for_style(s) for s in styles]
         )
-
-        # 6스타일 병렬 재가공
         tasks = [
             self._reforge_one_with_context(
                 style=styles[i],
@@ -117,15 +225,11 @@ class ReforgeService:
         core_points: list[dict],
         profile: dict,
     ) -> str:
-        """
-        단일 학생 프로파일 맞춤형 교안 재가공
-        """
-        style = profile.get("learning_style", "시각형")
+        """단일 학생 프로파일 맞춤형 교안 재가공"""
+        style = profile.get("learning_style", "읽기형")
         if style not in PAPER_STRATEGY:
-            style = "상세형" # 기본값 폴백
-
+            style = "읽기형"
         paper_context = await _get_paper_context_for_style(style)
-
         return await self._reforge_one_with_context(
             style=style,
             original_content=original_content,
@@ -142,62 +246,59 @@ class ReforgeService:
         profile: dict,
         paper_context: str,
     ) -> str:
-        """단일 스타일 재가공 — 논문 근거 포함 프롬프트"""
-        import google.generativeai as genai
-        import os
+        """단일 스타일 재가공 — 5차원 성향 완전 반영 프롬프트"""
 
         core_text = "\n".join(
-            f"{p.get('priority', 1)}점 | {p['content']}"
+            f"[중요도 {p.get('priority', 1)}/5] {p['content']}"
             for p in sorted(core_points, key=lambda x: x.get("priority", 0), reverse=True)
         )
         paper_strategy = PAPER_STRATEGY.get(style, "")
-        style_guide = STYLE_GUIDES.get(style, "")
+        profile_instruction = _build_profile_instruction(style, profile)
 
-        prompt = f"""당신은 최고 수준의 교육공학 전문가입니다. 제공된 교육심리학 이론과 논문 근거를 바탕으로 '{style}' 학습자 맞춤형 교안을 "즉시 학습 가능한 본문 형태"로 재가공하세요.
-절대로 당신의 역할, 목표, 프로파일, 프롬프트 내용을 다시 설명하거나 복창(Echo)하지 마세요. 오직 재가공된 '한국어' 본문만 출력해야 합니다.
+        prompt = f"""당신은 최고 수준의 교육공학 전문가입니다.
+아래의 원본 교안을 '{style}' 학습자 프로파일에 맞게 완전히 재해석하여, 학생이 바로 읽고 이해할 수 있는 한국어 교안 본문을 작성하세요.
 
-[필수 논문 근거 (이 이론을 내용 전개 방식에 반드시 반영)]
+절대 규칙:
+- 출력은 순수 마크다운 본문만. 인사말·역할설명·프롬프트 복창 절대 금지.
+- 단순 요약 금지. 원본 내용을 '{style}' 방식으로 완전히 재해석하는 것이 목적입니다.
+- 코드 예제, 실습 단계, 수식은 반드시 원형 그대로 보존하고 코드블록(```)으로 감싸세요.
+- LaTeX 수식($...$)은 반드시 백틱 인라인 코드로 변환하세요. ■·□ 등 특수문자는 마크다운 리스트(-)로 변환하세요.
+- 교수가 확정한 핵심 포인트는 모두 빠짐없이 포함해야 합니다.
+- 마크다운 형식: # 제목, ## 소제목, **굵게**, `인라인코드`, ```코드블록```, > 인용
+
+[논문 기반 학습 이론 — {style}]
+{paper_strategy}
 {paper_context}
 
-[교육심리학 전략 — {style}]
-{paper_strategy}
+[5차원 성향 기반 재가공 지침]
+{profile_instruction}
 
-[학생 학습 프로파일]
-- 학습유형: {profile.get('learning_style')} / 인지스타일: {profile.get('cognitive_style')}
-- 집중패턴: {profile.get('focus_pattern')} / 페이스: {profile.get('pace')}
-- 선호형식: {profile.get('preferred_format')} / Kolb유형: {profile.get('kolb_type', '동화형')}
-
-[교수 확정 핵심 포인트 (중요도 순)]
+[교수 확정 핵심 포인트 (중요도 순, 모두 포함 필수)]
 {core_text}
 
 [원본 교안]
-{original_content[:3000]}
+{original_content[:4000]}
 
-[재가공 절대 규칙]
-1. 단순 요약이 아닙니다. '{style}' 학습자의 주의를 끌고 인지 부하를 최적화할 수 있도록 문체, 구조, 예시를 완전히 한국어로 재구성하세요.
-2. 위에서 정의된 [교육심리학 전략]에 명시된 표현 방식(예: 도식 활용, 대화체, 핵심 압축 등)을 극단적으로 강조하여 반영하세요.
-3. 교수가 확정한 핵심 포인트는 무조건 빠짐없이 포함되어야 합니다.
-4. 마크다운(Markdown) 포맷으로 가독성 있게 작성하되, 인사말 없이 바로 교안 내용부터 출력하세요.
-5. 절대로 프롬프트에 주어진 조건들(Role, Goal, Profile, Input Material 등)을 출력 결과에 포함하거나 번역해서 나열하지 마세요. 곧바로 '학생이 읽게 될 실제 본문'만 출력하세요.
-6. 원본 교안 텍스트가 비어 있거나 파일명만 있더라도, [교수 확정 핵심 포인트]를 기반으로 살을 붙여서 완벽한 교안을 생성하세요.
+위 원본 교안과 핵심 포인트를 바탕으로, '{style}' 학습자가 강의 중 바로 활용할 수 있는 맞춤형 교안을 지금 작성하세요.
 """
 
         genai.configure(api_key=os.environ["GEMINI_API_KEY"], transport="rest")
         model = genai.GenerativeModel(
             model_name=MODEL,
             generation_config=genai.GenerationConfig(
-                temperature=0.4,
-                max_output_tokens=1200,  # 토큰 줄여 응답 속도 개선
+                temperature=0.45,
+                max_output_tokens=2500,  # 코드/실습 보존을 위해 충분히 확보
             ),
         )
         try:
             response = await asyncio.wait_for(
                 asyncio.to_thread(model.generate_content, prompt),
-                timeout=25.0,  # Render 30초 제한 대비 여유
+                timeout=35.0,
             )
-            return response.text
+            raw = response.text
+            return _clean_markdown(raw)
         except asyncio.TimeoutError:
-            logger.error(f"[reforge] {style} 타임아웃 (25s 초과)")
+            logger.error(f"[reforge] {style} 타임아웃 (35s 초과)")
             return _fallback_content(style, core_text)
         except Exception as e:
             err = str(e)
