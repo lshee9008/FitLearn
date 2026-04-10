@@ -7,8 +7,6 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/services/api_service.dart';
 import '../../../../shared/widgets/app_card.dart';
 
-const _styles = ['시각형', '청각형', '읽기형', '실습형', '요약형', '상세형'];
-
 const _styleEmojis = {
   '시각형': '👁️',
   '청각형': '👂',
@@ -48,9 +46,9 @@ class LectureViewPage extends ConsumerStatefulWidget {
 class _LectureViewPageState extends ConsumerState<LectureViewPage> {
   Map<String, String>? _styleContents;
   Map<String, dynamic>? _lectureMeta;
+  Map<String, dynamic>? _profileSummary;
   String? _primaryStyle;
   String? _subjectLevel;
-  String _selectedStyle = '읽기형';
   bool _loading = false;
   String? _error;
 
@@ -77,9 +75,9 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
       setState(() {
         _lectureMeta = lecture;
         _styleContents = rawStyles.map((k, v) => MapEntry(k, v as String));
+        _profileSummary = data['profile'] as Map<String, dynamic>?;
         _primaryStyle = data['primary_style'] as String? ?? '읽기형';
         _subjectLevel = data['subject_level'] as String?;
-        _selectedStyle = _primaryStyle!;
         _loading = false;
       });
     } on DioException catch (e) {
@@ -109,7 +107,6 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
           else if (_styleContents == null)
             Expanded(child: _EmptyView(onRetry: _load))
           else ...[
-            _buildStyleTabs(),
             Expanded(child: _buildContent()),
           ],
         ]),
@@ -197,63 +194,13 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
     }
   }
 
-  Widget _buildStyleTabs() {
-    return SizedBox(
-      height: 48,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        itemCount: _styles.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (_, i) {
-          final s = _styles[i];
-          final isSelected = _selectedStyle == s;
-          final hasContent = _styleContents?.containsKey(s) == true;
-          final color = _styleColors[s] ?? AppColors.primary;
-          final isPrimary = s == _primaryStyle;
-          return GestureDetector(
-            onTap: hasContent ? () => setState(() => _selectedStyle = s) : null,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? color.withValues(alpha: 0.15)
-                    : AppColors.bgSurface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: isSelected ? color : AppColors.border,
-                  width: isSelected ? 2 : 1,
-                ),
-              ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Text(_styleEmojis[s] ?? '📄',
-                    style: TextStyle(fontSize: 14, color: hasContent ? null : AppColors.textMuted.withValues(alpha: 0.4))),
-                const SizedBox(width: 6),
-                Text(s, style: TextStyle(
-                  color: isSelected ? color : (hasContent ? AppColors.textMuted : AppColors.textMuted.withValues(alpha: 0.4)),
-                  fontSize: 12,
-                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
-                )),
-                if (isPrimary) ...[
-                  const SizedBox(width: 4),
-                  Container(
-                    width: 6, height: 6,
-                    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-                  ),
-                ],
-              ]),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
   Widget _buildContent() {
-    final content = _styleContents?[_selectedStyle];
+    final activeStyle = _primaryStyle ?? '읽기형';
+    final content = _styleContents?[activeStyle] ??
+        _styleContents?['읽기형'] ??
+        (_styleContents?.values.isNotEmpty == true ? _styleContents!.values.first : null);
     if (content == null) {
-      return const Center(child: Text('해당 스타일의 교안이 없습니다.',
+      return const Center(child: Text('맞춤 교안이 아직 없습니다.',
           style: TextStyle(color: AppColors.textMuted)));
     }
     return SingleChildScrollView(
@@ -264,7 +211,13 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
           onDownloadOriginal: _downloadOriginal,
         ),
         const SizedBox(height: 16),
-        _StyleHeader(style: _selectedStyle),
+        _PersonalizationBasisCard(
+          profile: _profileSummary,
+          primaryStyle: activeStyle,
+          subjectLevel: _subjectLevel,
+        ),
+        const SizedBox(height: 16),
+        _StyleHeader(style: activeStyle),
         const SizedBox(height: 16),
         _MarkdownText(content),
       ]),
@@ -326,6 +279,223 @@ class _StyleHeader extends StatelessWidget {
               style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
         ]),
       ]),
+    );
+  }
+}
+
+class _PersonalizationBasisCard extends StatelessWidget {
+  final Map<String, dynamic>? profile;
+  final String primaryStyle;
+  final String? subjectLevel;
+
+  const _PersonalizationBasisCard({
+    required this.profile,
+    required this.primaryStyle,
+    required this.subjectLevel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final reliability = profile?['reliability'] as Map<String, dynamic>? ?? {};
+    final confidence = profile?['confidence_score'] as int? ?? 0;
+    final dropout = profile?['dropout_risk'] as String? ?? '';
+    final difficulty = profile?['difficulty_response'] as String? ?? '숙고형';
+    final focus = profile?['focus_pattern'] as String? ?? '단기집중형';
+    final subject = profile?['subject_level'] as String? ?? subjectLevel ?? '';
+    final subjectScore = profile?['subject_score'];
+
+    return AppCard(
+      borderColor: AppColors.secondary.withValues(alpha: 0.22),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: AppColors.secondary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(Icons.psychology_alt_rounded, color: AppColors.secondary),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'AI 재해석 기준',
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      '학생이 고르는 옵션이 아니라, 진단 결과와 과목 수준으로 자동 적용됩니다.',
+                      style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _BasisChip(label: 'VARK 유형', value: _varkLabel(profile?['vark_type'] as String? ?? primaryStyle)),
+              _BasisChip(label: '집중 패턴', value: _focusLabel(focus)),
+              _BasisChip(label: '난이도 대응', value: _difficultyLabel(difficulty)),
+              _BasisChip(label: '이탈 위험', value: dropout.trim().isEmpty ? '기본 관리' : dropout),
+              _BasisChip(label: '과목 수준', value: _levelLabel(subject, subjectScore)),
+              _BasisChip(label: '신뢰도', value: confidence > 0 ? '$confidence점' : '진단 보정'),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _ReliabilityPill(
+                label: 'S8↔S16',
+                value: reliability['pair_s8_s16'],
+              ),
+              _ReliabilityPill(
+                label: 'S9↔S17',
+                value: reliability['pair_s9_s17'],
+              ),
+              _ReliabilityPill(
+                label: 'S11↔S18',
+                value: reliability['pair_s11_s18'],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _varkLabel(String value) {
+    switch (value) {
+      case '시각형':
+        return '시각';
+      case '청각형':
+        return '청각';
+      case '읽기형':
+        return '읽기';
+      case '실습형':
+      case '행동형':
+        return '행동';
+      default:
+        return value;
+    }
+  }
+
+  static String _focusLabel(String value) {
+    switch (value) {
+      case '단기집중형':
+        return '단기집중';
+      case '장기몰입형':
+        return '장기몰입';
+      default:
+        return value.isEmpty ? '분산형' : value;
+    }
+  }
+
+  static String _difficultyLabel(String value) {
+    switch (value) {
+      case '속도형':
+        return '직진형';
+      case '숙고형':
+        return '우회형';
+      default:
+        return value;
+    }
+  }
+
+  static String _levelLabel(String value, Object? score) {
+    final label = switch (value) {
+      'advanced' => '고급',
+      'intermediate' => '중급',
+      'beginner' => '입문',
+      _ => '미진단',
+    };
+    return score == null ? label : '$label · $score점';
+  }
+}
+
+class _BasisChip extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _BasisChip({
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.bgSurface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReliabilityPill extends StatelessWidget {
+  final String label;
+  final Object? value;
+
+  const _ReliabilityPill({
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final raw = value is num ? (value as num).toDouble() : 0.75;
+    final percent = raw <= 1 ? (raw * 100).round() : raw.round();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.primaryLight.withValues(alpha: 0.2)),
+      ),
+      child: Text(
+        '$label $percent%',
+        style: const TextStyle(
+          color: AppColors.primaryLight,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
     );
   }
 }

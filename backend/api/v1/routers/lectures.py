@@ -259,6 +259,43 @@ def _fallback_profile_from_user(user: dict | None) -> dict:
     }
 
 
+async def _resolve_student_profile(user_id: str, room_id: str) -> dict:
+    diagnosis = await firebase.get_diagnosis(user_id)
+    if diagnosis and diagnosis.get("profile"):
+        profile = diagnosis["profile"]
+    else:
+        user = await firebase.get_user(user_id)
+        profile = _fallback_profile_from_user(user)
+        logger.info(f"[reforged] 진단 문서 없음 — users.learning_profile/default 폴백 user={user_id}")
+
+    level_data = await firebase.get_subject_level(user_id, room_id)
+    if level_data:
+        profile["subject_level"] = level_data.get("subject_level", "")
+        profile["subject_score"] = level_data.get("score")
+        logger.info(f"[reforged] 과목 수준 주입: {profile.get('subject_level')}")
+
+    return profile
+
+
+def _public_profile_summary(profile: dict) -> dict:
+    reliability = profile.get("reliability", {}) or {}
+    return {
+        "vark_type": profile.get("learning_style", "읽기형"),
+        "focus_pattern": profile.get("focus_pattern", "단기집중형"),
+        "difficulty_response": profile.get("difficulty_response") or profile.get("pace", "숙고형"),
+        "dropout_risk": profile.get("dropout_risk") or profile.get("isolation_risk", ""),
+        "confidence_score": profile.get("confidence_score", 0),
+        "subject_level": profile.get("subject_level", ""),
+        "subject_score": profile.get("subject_score"),
+        "reliability": {
+            "pair_s8_s16": reliability.get("pair_s8_s16", 0.75),
+            "pair_s9_s17": reliability.get("pair_s9_s17", 0.75),
+            "pair_s11_s18": reliability.get("pair_s11_s18", 0.75),
+            "overall": reliability.get("overall", 0.75),
+        },
+    }
+
+
 @router.get("/lectures/demo/reforged")
 async def get_demo_reforged(test_style: str = "읽기형"):
     """Firebase 없이 내장 샘플 교안으로 재가공 테스트."""
@@ -328,13 +365,16 @@ async def get_reforged(room_id: str, lecture_id: str, user_id: str, test_style: 
             "lecture_id": lecture_id,
             "primary_style": test_style,
             "subject_level": profile.get("subject_level", ""),
+            "profile": _public_profile_summary(profile),
             "styles": styles,
         }
 
     # ── 정상 모드 ─────────────────────────────────────────────────
+    profile = await _resolve_student_profile(user_id, room_id)
     cached = await firebase.get_reforged_all(room_id, lecture_id, user_id)
     if cached:
         logger.info(f"[reforged] 캐시 히트 user={user_id} lecture={lecture_id}")
+        cached["profile"] = _public_profile_summary(profile)
         return cached
 
     lecture = await firebase.get_lecture(room_id, lecture_id)
@@ -342,20 +382,6 @@ async def get_reforged(room_id: str, lecture_id: str, user_id: str, test_style: 
         raise HTTPException(status_code=404, detail="교안을 찾을 수 없습니다.")
     if not lecture.get("confirmed"):
         raise HTTPException(status_code=400, detail="교수가 아직 핵심 포인트를 확정하지 않았습니다.")
-
-    diagnosis = await firebase.get_diagnosis(user_id)
-    if diagnosis and diagnosis.get("profile"):
-        profile = diagnosis["profile"]
-    else:
-        user = await firebase.get_user(user_id)
-        profile = _fallback_profile_from_user(user)
-        logger.info(f"[reforged] 진단 문서 없음 — users.learning_profile/default 폴백 user={user_id}")
-
-    # 과목별 수준 주입 (4요소 재해석 핵심)
-    level_data = await firebase.get_subject_level(user_id, room_id)
-    if level_data:
-        profile["subject_level"] = level_data.get("subject_level", "")
-        logger.info(f"[reforged] 과목 수준 주입: {profile.get('subject_level')}")
 
     logger.info(f"[reforged] 6스타일 병렬 생성 시작 user={user_id} style={profile.get('learning_style')}")
 
@@ -380,5 +406,6 @@ async def get_reforged(room_id: str, lecture_id: str, user_id: str, test_style: 
         "lecture_id": lecture_id,
         "primary_style": profile.get("learning_style", "읽기형"),
         "subject_level": profile.get("subject_level", ""),
+        "profile": _public_profile_summary(profile),
         "styles": styles,
     }
