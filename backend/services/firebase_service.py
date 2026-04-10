@@ -23,6 +23,19 @@ _cache = RedisService()
 _CACHE_TTL = 60 * 5
 
 
+def _normalize_firestore_value(value):
+    if isinstance(value, dict):
+        return {k: _normalize_firestore_value(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_normalize_firestore_value(v) for v in value]
+    if hasattr(value, "isoformat"):
+        try:
+            return value.isoformat()
+        except Exception:
+            return value
+    return value
+
+
 def _init_firebase() -> bool:
     global _firebase_ok
     try:
@@ -107,7 +120,7 @@ class FirebaseService:
 
     async def _cache_set(self, key: str, value, ttl: int = _CACHE_TTL):
         try:
-            await _cache.set(key, value, ttl=ttl)
+            await _cache.set(key, _normalize_firestore_value(value), ttl=ttl)
         except Exception as e:
             logger.warning(f"[Cache] set 실패 key={key}: {e}")
 
@@ -198,7 +211,7 @@ class FirebaseService:
                 )
                 result = []
                 for doc in docs:
-                    d = doc.to_dict()
+                    d = _normalize_firestore_value(doc.to_dict())
                     d["student_count"] = len(d.get("students", []))
                     result.append(d)
                 return result
@@ -219,23 +232,31 @@ class FirebaseService:
             return []
         try:
             def _read():
-                docs = (
-                    db.collection("rooms")
-                    .where("professor_uid", "==", professor_uid)
-                    .order_by("created_at", direction="DESCENDING")
-                    .stream()
-                )
+                try:
+                    docs = (
+                        db.collection("rooms")
+                        .where("professor_uid", "==", professor_uid)
+                        .order_by("created_at", direction="DESCENDING")
+                        .stream()
+                    )
+                    ordered = True
+                except Exception as e:
+                    if "requires an index" not in str(e).lower():
+                        raise
+                    logger.warning("[Firebase] professor rooms 인덱스 없음 — 메모리 정렬로 폴백")
+                    docs = (
+                        db.collection("rooms")
+                        .where("professor_uid", "==", professor_uid)
+                        .stream()
+                    )
+                    ordered = False
                 result = []
                 for doc in docs:
-                    d = doc.to_dict()
+                    d = _normalize_firestore_value(doc.to_dict())
                     d["student_count"] = len(d.get("students", []))
-                    # created_at을 ISO 문자열로 직렬화
-                    ca = d.get("created_at")
-                    if ca is not None and hasattr(ca, "isoformat"):
-                        d["created_at"] = ca.isoformat()
-                    elif ca is None:
-                        d["created_at"] = None
                     result.append(d)
+                if not ordered:
+                    result.sort(key=lambda item: item.get("created_at") or "", reverse=True)
                 return result
             result = await _run(_read)
             await self._cache_set(cache_key, result)
@@ -256,7 +277,7 @@ class FirebaseService:
                     .limit(1)
                     .stream()
                 )
-                return docs[0].to_dict() if docs else None
+                return _normalize_firestore_value(docs[0].to_dict()) if docs else None
             return await _run(_read)
         except Exception as e:
             logger.warning(f"[Firebase] get_room_by_code 실패: {e}")
@@ -275,7 +296,7 @@ class FirebaseService:
                 doc = db.collection("rooms").document(room_id).get()
                 if not doc.exists:
                     return None
-                d = doc.to_dict()
+                d = _normalize_firestore_value(doc.to_dict())
                 d["student_count"] = len(d.get("students", []))
                 return d
             result = await _run(_read)
