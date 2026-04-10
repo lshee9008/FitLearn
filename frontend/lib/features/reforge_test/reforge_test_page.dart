@@ -71,7 +71,11 @@ _ProfileData _deriveProfile(Map<int, String> selected) {
               : '단기집중';
 
   final cognitive = selected[1];
-  final difficulty = cognitive == '분석형' ? '직진형' : cognitive == '직관형' ? '우회형' : '직진형';
+  final difficulty = cognitive == '분석형'
+      ? '직진형'
+      : cognitive == '직관형'
+          ? '우회형'
+          : '직진형';
 
   return _ProfileData(
     vark: vark,
@@ -154,9 +158,8 @@ class _ReforgeTestPageState extends State<ReforgeTestPage>
     // 3. 입력물 확인 (연결된 강의가 있거나, 직접 입력이 있거나)
     if (_hasLinkedLecture) return true;
 
-    final hasInput = _inputTab == 0
-        ? _textCtrl.text.trim().isNotEmpty
-        : _file != null;
+    final hasInput =
+        _inputTab == 0 ? _textCtrl.text.trim().isNotEmpty : _file != null;
 
     return hasInput;
   }
@@ -342,10 +345,12 @@ class _ReforgeTestPageState extends State<ReforgeTestPage>
               decoration: BoxDecoration(
                 color: AppColors.primary.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.primary.withValues(alpha: 0.5)),
+                border:
+                    Border.all(color: AppColors.primary.withValues(alpha: 0.5)),
               ),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.link_rounded, color: AppColors.primary, size: 13),
+                const Icon(Icons.link_rounded,
+                    color: AppColors.primary, size: 13),
                 const SizedBox(width: 4),
                 Text(
                   widget.lectureTitle ?? '교안 연결됨',
@@ -391,9 +396,8 @@ class _ReforgeTestPageState extends State<ReforgeTestPage>
         Expanded(child: _buildOutputPanel()),
       ]);
 
-  Widget _buildNarrow() => _reforged.isEmpty && !_running
-      ? _buildInputPanel()
-      : _buildOutputPanel();
+  Widget _buildNarrow() =>
+      _reforged.isEmpty && !_running ? _buildInputPanel() : _buildOutputPanel();
 
   // ── 입력 패널 ─────────────────────────────────────────────────────────────
 
@@ -452,8 +456,7 @@ class _ReforgeTestPageState extends State<ReforgeTestPage>
                             ),
                           ),
                           child: Row(mainAxisSize: MainAxisSize.min, children: [
-                            Text(s.emoji,
-                                style: const TextStyle(fontSize: 14)),
+                            Text(s.emoji, style: const TextStyle(fontSize: 14)),
                             const SizedBox(width: 6),
                             Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -483,13 +486,12 @@ class _ReforgeTestPageState extends State<ReforgeTestPage>
         if (_selected.isNotEmpty) ...[
           Container(
             width: double.infinity,
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
               color: AppColors.primary.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                  color: AppColors.primary.withValues(alpha: 0.25)),
+              border:
+                  Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
             ),
             child: Row(children: [
               const Icon(Icons.auto_awesome_rounded,
@@ -540,14 +542,11 @@ class _ReforgeTestPageState extends State<ReforgeTestPage>
                 maxLines: 12,
                 onChanged: (_) => setState(() {}),
                 style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 13,
-                    height: 1.6),
+                    color: AppColors.textSecondary, fontSize: 13, height: 1.6),
                 decoration: const InputDecoration(
                   contentPadding: EdgeInsets.all(14),
                   border: InputBorder.none,
-                  hintText:
-                      '교안 내용을 붙여넣으세요\n(강의 노트, PDF 복사 텍스트 등)',
+                  hintText: '교안 내용을 붙여넣으세요\n(강의 노트, PDF 복사 텍스트 등)',
                   hintStyle: TextStyle(
                       color: AppColors.textMuted, fontSize: 13, height: 1.6),
                 ),
@@ -647,7 +646,8 @@ class _ReforgeTestPageState extends State<ReforgeTestPage>
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.error_outline_rounded, color: AppColors.rose, size: 16),
+                const Icon(Icons.error_outline_rounded,
+                    color: AppColors.rose, size: 16),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
@@ -673,30 +673,25 @@ class _ReforgeTestPageState extends State<ReforgeTestPage>
   Widget _buildOutputPanel() {
     if (!_running && _reforged.isEmpty && _error == null) {
       return Center(
-          child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-            Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.08),
-                shape: BoxShape.circle,
-                border: Border.all(
-                    color: AppColors.primary.withValues(alpha: 0.2)),
-              ),
-              child: const Center(
-                  child: Text('🤖', style: TextStyle(fontSize: 36))),
-            ),
-            const SizedBox(height: 16),
-            const Text('재가공 결과가 여기에 표시됩니다',
-                style:
-                    TextStyle(color: AppColors.textMuted, fontSize: 14)),
-            const SizedBox(height: 8),
-            const Text('성향을 선택하고 교안을 입력한 후 재가공을 시작하세요',
-                style:
-                    TextStyle(color: AppColors.textMuted, fontSize: 12)),
-          ]));
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Container(
+          width: 72,
+          height: 72,
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.08),
+            shape: BoxShape.circle,
+            border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+          ),
+          child:
+              const Center(child: Text('🤖', style: TextStyle(fontSize: 36))),
+        ),
+        const SizedBox(height: 16),
+        const Text('재가공 결과가 여기에 표시됩니다',
+            style: TextStyle(color: AppColors.textMuted, fontSize: 14)),
+        const SizedBox(height: 8),
+        const Text('성향을 선택하고 교안을 입력한 후 재가공을 시작하세요',
+            style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+      ]));
     }
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -705,8 +700,7 @@ class _ReforgeTestPageState extends State<ReforgeTestPage>
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
         decoration: const BoxDecoration(
           color: AppColors.bgCard,
-          border:
-              Border(bottom: BorderSide(color: AppColors.border, width: 1)),
+          border: Border(bottom: BorderSide(color: AppColors.border, width: 1)),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
@@ -739,8 +733,8 @@ class _ReforgeTestPageState extends State<ReforgeTestPage>
               GestureDetector(
                 onTap: _reset,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 5),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
                     color: AppColors.bgSurface,
                     borderRadius: BorderRadius.circular(8),
@@ -761,9 +755,7 @@ class _ReforgeTestPageState extends State<ReforgeTestPage>
             Wrap(
                 spacing: 6,
                 runSpacing: 4,
-                children: _tags
-                    .map((t) => _GreenBadge(label: t))
-                    .toList()),
+                children: _tags.map((t) => _GreenBadge(label: t)).toList()),
           ],
 
           // ── 학습 프로파일 태그 ───────────────────────────────
@@ -805,8 +797,8 @@ class _ProfileTagsRow extends StatelessWidget {
       if (profile.churnRisk.isEmpty)
         _ProfileTag(icon: '✅', label: '이탈위험', value: '없음'),
       if (profile.churnRisk.isNotEmpty)
-        ...profile.churnRisk.map(
-            (r) => _ProfileTag(icon: '⚠️', label: '이탈위험', value: r)),
+        ...profile.churnRisk
+            .map((r) => _ProfileTag(icon: '⚠️', label: '이탈위험', value: r)),
       _ProfileTag(
         icon: '🎯',
         label: '신뢰도',
@@ -898,31 +890,25 @@ class _NotionMarkdown extends StatelessWidget {
             fontSize: 22,
             fontWeight: FontWeight.w900,
             height: 1.3),
-        h1Padding:
-            const EdgeInsets.only(top: 8, bottom: 14),
+        h1Padding: const EdgeInsets.only(top: 8, bottom: 14),
         h2: const TextStyle(
             color: AppColors.textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.w800,
             height: 1.3),
-        h2Padding:
-            const EdgeInsets.only(top: 24, bottom: 8),
+        h2Padding: const EdgeInsets.only(top: 24, bottom: 8),
         h3: const TextStyle(
             color: AppColors.textPrimary,
             fontSize: 15,
             fontWeight: FontWeight.w700,
             height: 1.4),
-        h3Padding:
-            const EdgeInsets.only(top: 18, bottom: 6),
+        h3Padding: const EdgeInsets.only(top: 18, bottom: 6),
         // Body
         p: const TextStyle(
-            color: AppColors.textSecondary,
-            fontSize: 14,
-            height: 1.75),
+            color: AppColors.textSecondary, fontSize: 14, height: 1.75),
         pPadding: const EdgeInsets.only(bottom: 4),
         // Lists
-        listBullet: const TextStyle(
-            color: AppColors.primary, fontSize: 14),
+        listBullet: const TextStyle(color: AppColors.primary, fontSize: 14),
         listBulletPadding: const EdgeInsets.only(right: 8),
         listIndent: 20,
         // Blockquote
@@ -936,11 +922,9 @@ class _NotionMarkdown extends StatelessWidget {
               left: BorderSide(color: AppColors.primary, width: 4)),
           color: AppColors.primary.withValues(alpha: 0.06),
           borderRadius: const BorderRadius.only(
-              topRight: Radius.circular(8),
-              bottomRight: Radius.circular(8)),
+              topRight: Radius.circular(8), bottomRight: Radius.circular(8)),
         ),
-        blockquotePadding:
-            const EdgeInsets.fromLTRB(16, 10, 16, 10),
+        blockquotePadding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
         // Code
         code: const TextStyle(
             color: AppColors.primaryLight,
@@ -959,11 +943,9 @@ class _NotionMarkdown extends StatelessWidget {
         ),
         // Strong / Em
         strong: const TextStyle(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.w800),
+            color: AppColors.textPrimary, fontWeight: FontWeight.w800),
         em: const TextStyle(
-            color: AppColors.textSecondary,
-            fontStyle: FontStyle.italic),
+            color: AppColors.textSecondary, fontStyle: FontStyle.italic),
         // Table
         tableHead: const TextStyle(
             color: AppColors.textPrimary,
@@ -1026,8 +1008,7 @@ class _InputTab extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
           border: Border(
               bottom: BorderSide(
@@ -1037,12 +1018,9 @@ class _InputTab extends StatelessWidget {
         ),
         child: Text(label,
             style: TextStyle(
-              color: isSelected
-                  ? AppColors.primaryLight
-                  : AppColors.textMuted,
+              color: isSelected ? AppColors.primaryLight : AppColors.textMuted,
               fontSize: 13,
-              fontWeight:
-                  isSelected ? FontWeight.w700 : FontWeight.w500,
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
             )),
       ),
     );
@@ -1066,8 +1044,7 @@ class _RunningIndicator extends StatelessWidget {
             height: 16,
             child: CircularProgressIndicator(
                 strokeWidth: 2,
-                valueColor:
-                    AlwaysStoppedAnimation(AppColors.primaryLight))),
+                valueColor: AlwaysStoppedAnimation(AppColors.primaryLight))),
         const SizedBox(width: 10),
         const Text('AI 재가공 중...',
             style: TextStyle(
