@@ -189,6 +189,7 @@ class FirebaseService:
                 return data
             data = await _run(_write)
             await self._cache_delete_prefix(f"professor_rooms:{professor_uid}")
+            await self._cache_delete_prefix("room_catalog:")
             return data
         except Exception as e:
             logger.error(f"[Firebase] create_room 실패: {e}")
@@ -321,8 +322,219 @@ class FirebaseService:
             await self._cache_delete_prefix(f"room:{room_id}")
             await self._cache_delete_prefix(f"room_students:{room_id}")
             await self._cache_delete_prefix(f"student_rooms:{user_id}")
+            await self._cache_delete_prefix(f"room_catalog:{user_id}")
         except Exception as e:
             logger.warning(f"[Firebase] add_student_to_room 실패: {e}")
+
+    async def create_room_application(self, room_id: str, user_id: str, note: str = "") -> dict:
+        db = self._safe_db()
+        if db is None:
+            return {
+                "application_id": f"{room_id}_{user_id}",
+                "room_id": room_id,
+                "user_id": user_id,
+                "status": "pending",
+                "note": note,
+            }
+        try:
+            room = await self.get_room(room_id)
+            if not room:
+                raise ValueError("room_not_found")
+            if user_id in (room.get("students") or []):
+                return {
+                    "application_id": f"{room_id}_{user_id}",
+                    "room_id": room_id,
+                    "user_id": user_id,
+                    "status": "approved",
+                }
+
+            user = await self.get_user(user_id) or {}
+
+            def _write():
+                doc_id = f"{room_id}_{user_id}"
+                ref = db.collection("room_applications").document(doc_id)
+                now = datetime.now(timezone.utc)
+                current = ref.get()
+                existing = current.to_dict() if current.exists else {}
+                data = {
+                    "application_id": doc_id,
+                    "room_id": room_id,
+                    "user_id": user_id,
+                    "student_name": user.get("name", user_id),
+                    "professor_uid": room.get("professor_uid", ""),
+                    "room_subject": room.get("subject", ""),
+                    "room_type": room.get("room_type", "offline"),
+                    "status": "pending",
+                    "note": note,
+                    "review_note": "",
+                    "created_at": existing.get("created_at", now),
+                    "updated_at": now,
+                }
+                ref.set(data, merge=True)
+                data["created_at"] = _normalize_firestore_value(data["created_at"])
+                data["updated_at"] = now.isoformat()
+                return data
+
+            result = await _run(_write)
+            await self._cache_delete_prefix(f"student_hub:{user_id}")
+            await self._cache_delete_prefix(f"student_applications:{user_id}")
+            await self._cache_delete_prefix(f"room_applications:{room_id}")
+            await self._cache_delete_prefix(f"room_catalog:{user_id}")
+            return result
+        except Exception as e:
+            logger.warning(f"[Firebase] create_room_application 실패: {e}")
+            raise
+
+    async def get_student_applications(self, user_id: str) -> list[dict]:
+        cache_key = f"student_applications:{user_id}"
+        cached = await self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+        db = self._safe_db()
+        if db is None:
+            return []
+        try:
+            def _read():
+                docs = list(
+                    db.collection("room_applications")
+                    .where("user_id", "==", user_id)
+                    .stream()
+                )
+                result = []
+                for doc in docs:
+                    data = _normalize_firestore_value(doc.to_dict())
+                    result.append(data)
+                result.sort(key=lambda item: item.get("updated_at") or "", reverse=True)
+                return result
+            result = await _run(_read)
+            await self._cache_set(cache_key, result)
+            return result
+        except Exception as e:
+            logger.warning(f"[Firebase] get_student_applications 실패: {e}")
+            return []
+
+    async def get_room_applications(self, room_id: str, status: str | None = None) -> list[dict]:
+        cache_key = f"room_applications:{room_id}:{status or 'all'}"
+        cached = await self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+        db = self._safe_db()
+        if db is None:
+            return []
+        try:
+            def _read():
+                docs = list(
+                    db.collection("room_applications")
+                    .where("room_id", "==", room_id)
+                    .stream()
+                )
+                result = []
+                for doc in docs:
+                    data = _normalize_firestore_value(doc.to_dict())
+                    if status and data.get("status") != status:
+                        continue
+                    result.append(data)
+                result.sort(key=lambda item: item.get("updated_at") or "", reverse=True)
+                return result
+            result = await _run(_read)
+            await self._cache_set(cache_key, result)
+            return result
+        except Exception as e:
+            logger.warning(f"[Firebase] get_room_applications 실패: {e}")
+            return []
+
+    async def review_room_application(
+        self,
+        room_id: str,
+        user_id: str,
+        status: str,
+        note: str = "",
+    ) -> dict:
+        db = self._safe_db()
+        if db is None:
+            return {
+                "application_id": f"{room_id}_{user_id}",
+                "room_id": room_id,
+                "user_id": user_id,
+                "status": status,
+            }
+        try:
+            def _write():
+                doc_id = f"{room_id}_{user_id}"
+                ref = db.collection("room_applications").document(doc_id)
+                snap = ref.get()
+                if not snap.exists:
+                    raise ValueError("application_not_found")
+                now = datetime.now(timezone.utc)
+                ref.set(
+                    {
+                        "status": status,
+                        "review_note": note,
+                        "updated_at": now,
+                    },
+                    merge=True,
+                )
+                data = snap.to_dict() or {}
+                data.update({
+                    "status": status,
+                    "review_note": note,
+                    "updated_at": now.isoformat(),
+                })
+                data["created_at"] = _normalize_firestore_value(data.get("created_at"))
+                return data
+
+            result = await _run(_write)
+            if status == "approved":
+                await self.add_student_to_room(room_id, user_id)
+            await self._cache_delete_prefix(f"student_hub:{user_id}")
+            await self._cache_delete_prefix(f"student_applications:{user_id}")
+            await self._cache_delete_prefix(f"room_applications:{room_id}")
+            await self._cache_delete_prefix(f"room:{room_id}")
+            await self._cache_delete_prefix(f"room_catalog:{user_id}")
+            return result
+        except Exception as e:
+            logger.warning(f"[Firebase] review_room_application 실패: {e}")
+            raise
+
+    async def get_room_catalog(self, user_id: str) -> list[dict]:
+        cache_key = f"room_catalog:{user_id}"
+        cached = await self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+        db = self._safe_db()
+        if db is None:
+            return []
+        try:
+            applications = await self.get_student_applications(user_id)
+            application_map = {
+                item.get("room_id"): item.get("status")
+                for item in applications
+            }
+
+            def _read():
+                docs = list(
+                    db.collection("rooms")
+                    .order_by("created_at", direction="DESCENDING")
+                    .stream()
+                )
+                result = []
+                for doc in docs:
+                    data = _normalize_firestore_value(doc.to_dict())
+                    if user_id in (data.get("students") or []):
+                        continue
+                    result.append({
+                        **data,
+                        "student_count": len(data.get("students", [])),
+                        "application_status": application_map.get(data.get("room_id")),
+                    })
+                return result
+
+            result = await _run(_read)
+            await self._cache_set(cache_key, result)
+            return result
+        except Exception as e:
+            logger.warning(f"[Firebase] get_room_catalog 실패: {e}")
+            return []
 
     async def delete_room(self, room_id: str) -> None:
         db = self._safe_db()
@@ -334,6 +546,7 @@ class FirebaseService:
             await self._cache_delete_prefix(f"room_students:{room_id}")
             await self._cache_delete_prefix(f"room_lectures:{room_id}")
             await self._cache_delete_prefix(f"room_quiz:{room_id}")
+            await self._cache_delete_prefix("room_catalog:")
         except Exception as e:
             logger.warning(f"[Firebase] delete_room 실패: {e}")
 

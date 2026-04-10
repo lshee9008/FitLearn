@@ -68,6 +68,20 @@
 - `professor_uid`: string
 - `created_at`: timestamp
 
+### `room_applications/{roomId}_{userId}`
+- `application_id`: string
+- `room_id`: string
+- `user_id`: string
+- `student_name`: string
+- `professor_uid`: string
+- `room_subject`: string
+- `room_type`: `online | offline`
+- `status`: `pending | approved | rejected`
+- `note`: string
+- `review_note`: string
+- `created_at`: timestamp
+- `updated_at`: timestamp
+
 ### `subject_levels/{userId}_{roomId}`
 - `user_id`: string
 - `room_id`: string
@@ -93,4 +107,5 @@
 - Prefer `users.learning_profile` for room roster summaries instead of rereading `diagnosis`.
 - Cache list/read-heavy queries in Redis with short TTL.
 - Invalidate cache on room create, join, meta update, lecture upload, quiz regeneration, and subject-level submission.
+- Student portal should be driven by a single hub payload: `enrolled_rooms + discover_rooms + applications + active_room`.
 - Keep room list and student home summary behind Riverpod providers on the frontend.

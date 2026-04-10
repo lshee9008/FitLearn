@@ -4,7 +4,15 @@ from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
-from models.room import RoomCreate, Room, JoinRoomRequest, RoomStudent, RoomMetaUpdate
+from models.room import (
+    RoomCreate,
+    Room,
+    JoinRoomRequest,
+    RoomStudent,
+    RoomMetaUpdate,
+    RoomApplicationCreate,
+    RoomApplicationReview,
+)
 from models.lecture import LectureMetaUpdate, LectureReorderRequest, LectureShellBatchRequest
 from models.subject_quiz import QuizSubmitRequest, SubjectQuizResult
 from services.firebase_service import FirebaseService
@@ -88,6 +96,55 @@ async def get_student_room_summary(user_id: str):
     }
 
 
+@router.get("/rooms/student/{user_id}/hub")
+async def get_student_service_hub(user_id: str):
+    rooms = await firebase.get_rooms_by_student(user_id)
+    catalog = await firebase.get_room_catalog(user_id)
+    applications = await firebase.get_student_applications(user_id)
+
+    enrolled = []
+    room_summaries = {}
+    for room in rooms:
+        room_id = room["room_id"]
+        lectures = await firebase.get_lectures_in_room(room_id)
+        level_data = await firebase.get_subject_level(user_id, room_id)
+        confirmed_count = sum(1 for lecture in lectures if lecture.get("confirmed"))
+        next_lecture = next((lecture for lecture in lectures if lecture.get("confirmed")), None)
+        room_data = {
+            **{k: room[k] for k in Room.model_fields if k in room},
+            "lecture_count": len(lectures),
+            "confirmed_lecture_count": confirmed_count,
+            "subject_level": level_data.get("subject_level") if level_data else None,
+            "score": level_data.get("score") if level_data else None,
+            "next_lecture_id": next_lecture.get("lecture_id") if next_lecture else None,
+            "next_lecture_title": next_lecture.get("title") if next_lecture else None,
+        }
+        enrolled.append(room_data)
+        room_summaries[room_id] = {
+            "lectures": lectures,
+            "subject_level": level_data.get("subject_level") if level_data else None,
+            "score": level_data.get("score") if level_data else None,
+        }
+
+    catalog_items = []
+    for room in catalog:
+        room_id = room.get("room_id")
+        catalog_items.append({
+            **{k: room[k] for k in Room.model_fields if k in room},
+            "application_status": room.get("application_status"),
+        })
+
+    return {
+        "enrolled_rooms": enrolled,
+        "discover_rooms": catalog_items,
+        "applications": applications,
+        "active_room": enrolled[0] if enrolled else None,
+        "active_room_lectures": room_summaries.get(enrolled[0]["room_id"], {}).get("lectures", []) if enrolled else [],
+        "active_subject_level": room_summaries.get(enrolled[0]["room_id"], {}).get("subject_level") if enrolled else None,
+        "active_subject_score": room_summaries.get(enrolled[0]["room_id"], {}).get("score") if enrolled else None,
+    }
+
+
 @router.get("/rooms/professor/{professor_uid}", response_model=list[Room])
 async def list_rooms(professor_uid: str):
     rooms = await firebase.get_rooms_by_professor(professor_uid)
@@ -107,6 +164,41 @@ async def join_room(body: JoinRoomRequest):
     except Exception as e:
         logger.error(f"[join_room] 실패: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"방 참여 실패: {e}")
+
+
+@router.post("/rooms/{room_id}/apply")
+async def apply_to_room(room_id: str, body: RoomApplicationCreate):
+    room = await firebase.get_room(room_id)
+    if not room:
+        raise HTTPException(status_code=404, detail="방을 찾을 수 없습니다.")
+    application = await firebase.create_room_application(room_id, body.user_id, body.note)
+    return {"status": "submitted", "application": application}
+
+
+@router.get("/rooms/student/{user_id}/applications")
+async def get_student_applications(user_id: str):
+    return await firebase.get_student_applications(user_id)
+
+
+@router.get("/rooms/{room_id}/applications")
+async def get_room_applications(room_id: str):
+    return await firebase.get_room_applications(room_id)
+
+
+@router.post("/rooms/{room_id}/applications/{user_id}/review")
+async def review_room_application(room_id: str, user_id: str, body: RoomApplicationReview):
+    try:
+        result = await firebase.review_room_application(
+            room_id=room_id,
+            user_id=user_id,
+            status=body.status,
+            note=body.note,
+        )
+        return {"status": body.status, "application": result}
+    except ValueError as e:
+        if str(e) == "application_not_found":
+            raise HTTPException(status_code=404, detail="신청 정보를 찾을 수 없습니다.")
+        raise
 
 
 @router.get("/rooms/{room_id}", response_model=Room)

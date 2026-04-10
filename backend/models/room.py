@@ -33,6 +33,16 @@ class JoinRoomRequest(BaseModel):
     room_code: str
 
 
+class RoomApplicationCreate(BaseModel):
+    user_id: str
+    note: str = ""
+
+
+class RoomApplicationReview(BaseModel):
+    status: Literal["approved", "rejected"]
+    note: str = ""
+
+
 class RoomStudent(BaseModel):
     user_id: str
     name: str

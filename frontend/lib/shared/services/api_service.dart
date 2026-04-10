@@ -67,6 +67,11 @@ class ApiService {
     return res.data as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> getStudentServiceHub(String uid) async {
+    final res = await _dio.get('/api/v1/rooms/student/$uid/hub');
+    return res.data as Map<String, dynamic>;
+  }
+
   Future<List<dynamic>> getProfessorRooms(String uid) async {
     final res = await _dio.get(ApiConstants.professorRooms(uid));
     return res.data as List<dynamic>;
@@ -79,6 +84,41 @@ class ApiService {
     final res = await _dio.post(ApiConstants.joinRoom, data: {
       'user_id': userId,
       'room_code': roomCode,
+    });
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> applyToRoom({
+    required String roomId,
+    required String userId,
+    String note = '',
+  }) async {
+    final res = await _dio.post('/api/v1/rooms/$roomId/apply', data: {
+      'user_id': userId,
+      'note': note,
+    });
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<List<dynamic>> getStudentApplications(String userId) async {
+    final res = await _dio.get('/api/v1/rooms/student/$userId/applications');
+    return res.data as List<dynamic>;
+  }
+
+  Future<List<dynamic>> getRoomApplications(String roomId) async {
+    final res = await _dio.get('/api/v1/rooms/$roomId/applications');
+    return res.data as List<dynamic>;
+  }
+
+  Future<Map<String, dynamic>> reviewRoomApplication({
+    required String roomId,
+    required String userId,
+    required String status,
+    String note = '',
+  }) async {
+    final res = await _dio.post('/api/v1/rooms/$roomId/applications/$userId/review', data: {
+      'status': status,
+      'note': note,
     });
     return res.data as Map<String, dynamic>;
   }

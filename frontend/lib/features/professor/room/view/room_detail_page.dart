@@ -227,6 +227,22 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
     }
   }
 
+  Future<void> _reviewApplication(Map<String, dynamic> application, String status) async {
+    try {
+      await ApiService().reviewRoomApplication(
+        roomId: widget.roomId,
+        userId: application['user_id'] as String,
+        status: status,
+      );
+      ref.invalidate(professorRoomDetailProvider(widget.roomId));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('신청 처리 오류: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final summaryAsync = ref.watch(professorRoomDetailProvider(widget.roomId));
@@ -235,6 +251,7 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
     final lectures = summary?.lectures ?? const <dynamic>[];
     final students = summary?.students ?? const <dynamic>[];
     final notices = summary?.notices ?? const <dynamic>[];
+    final applications = summary?.applications ?? const <dynamic>[];
 
     return Scaffold(
       backgroundColor: AppColors.bg,
@@ -280,7 +297,7 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
               children: [
                 _buildLectures(lectures),
                 _buildNotices(room, notices),
-                _buildStudents(room, students),
+                _buildStudents(room, students, applications),
                 _buildSettings(room),
               ],
             ),
@@ -455,31 +472,144 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
     );
   }
 
-  Widget _buildStudents(Map<String, dynamic> room, List<dynamic> students) {
+  Widget _buildStudents(
+    Map<String, dynamic> room,
+    List<dynamic> students,
+    List<dynamic> applications,
+  ) {
     final code = room['room_code'] as String? ?? '';
+    final pendingApplications = applications
+        .where((item) => (item as Map<String, dynamic>)['status'] == 'pending')
+        .cast<Map<String, dynamic>>()
+        .toList();
+
       return Column(children: [
         Padding(
           padding: const EdgeInsets.all(20),
-          child: GestureDetector(
-            onTap: () {
-              Clipboard.setData(ClipboardData(text: code));
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('방 코드가 복사되었습니다')),
-              );
-            },
-            child: AppCard(
-              borderColor: AppColors.primaryLight.withValues(alpha: 0.3),
-              child: Row(children: [
-                const Text('방 코드', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
-                const Spacer(),
-                Text(code, style: const TextStyle(
-                  color: AppColors.primaryLight, fontSize: 22,
-                  fontWeight: FontWeight.w900, letterSpacing: 4,
-                )),
-                const SizedBox(width: 8),
-                const Icon(Icons.copy_rounded, color: AppColors.textMuted, size: 18),
-              ]),
-            ),
+          child: Column(
+            children: [
+              GestureDetector(
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: code));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('방 코드가 복사되었습니다')),
+                  );
+                },
+                child: AppCard(
+                  borderColor: AppColors.primaryLight.withValues(alpha: 0.3),
+                  child: Row(children: [
+                    const Text('방 코드', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                    const Spacer(),
+                    Text(code, style: const TextStyle(
+                      color: AppColors.primaryLight, fontSize: 22,
+                      fontWeight: FontWeight.w900, letterSpacing: 4,
+                    )),
+                    const SizedBox(width: 8),
+                    const Icon(Icons.copy_rounded, color: AppColors.textMuted, size: 18),
+                  ]),
+                ),
+              ),
+              if (pendingApplications.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                AppCard(
+                  borderColor: AppColors.gold.withValues(alpha: 0.24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              '수강 신청 대기',
+                              style: TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '${pendingApplications.length}명',
+                            style: const TextStyle(
+                              color: AppColors.gold,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      ...pendingApplications.map((application) => Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: AppColors.bg,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: AppColors.border),
+                              ),
+                              child: Row(
+                                children: [
+                                  CircleAvatar(
+                                    backgroundColor: AppColors.gold.withValues(alpha: 0.18),
+                                    child: Text(
+                                      ((application['student_name'] as String?) ?? '?').substring(0, 1),
+                                      style: const TextStyle(
+                                        color: AppColors.gold,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          application['student_name'] as String? ?? '',
+                                          style: const TextStyle(
+                                            color: AppColors.textPrimary,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        if ((application['note'] as String? ?? '').trim().isNotEmpty)
+                                          Padding(
+                                            padding: const EdgeInsets.only(top: 4),
+                                            child: Text(
+                                              application['note'] as String,
+                                              style: const TextStyle(
+                                                color: AppColors.textSecondary,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  TextButton(
+                                    onPressed: () => _reviewApplication(application, 'rejected'),
+                                    child: const Text(
+                                      '반려',
+                                      style: TextStyle(color: AppColors.rose),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.primary,
+                                      foregroundColor: Colors.black,
+                                    ),
+                                    onPressed: () => _reviewApplication(application, 'approved'),
+                                    child: const Text('승인'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )),
+                    ],
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
         Expanded(child: students.isEmpty
