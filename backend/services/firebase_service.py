@@ -562,6 +562,57 @@ class FirebaseService:
             logger.warning(f"[Firebase] get_lectures_in_room 실패: {e}")
             return []
 
+    async def update_lecture_meta(self, room_id: str, lecture_id: str, data: dict) -> None:
+        db = self._safe_db()
+        if db is None:
+            return
+        try:
+            payload = {
+                **data,
+                "updated_at": datetime.now(timezone.utc),
+            }
+            await _run(
+                lambda: db.collection("rooms").document(room_id)
+                .collection("lectures").document(lecture_id)
+                .set(payload, merge=True)
+            )
+            await self._cache_delete_prefix(f"room_lectures:{room_id}")
+        except Exception as e:
+            logger.warning(f"[Firebase] update_lecture_meta 실패: {e}")
+
+    async def reorder_lectures(self, room_id: str, items: list[dict]) -> None:
+        db = self._safe_db()
+        if db is None:
+            return
+        try:
+            def _write():
+                batch = db.batch()
+                now = datetime.now(timezone.utc)
+                for item in items:
+                    ref = db.collection("rooms").document(room_id).collection("lectures").document(item["lecture_id"])
+                    batch.update(ref, {
+                        "order_index": item["order_index"],
+                        "updated_at": now,
+                    })
+                batch.commit()
+            await _run(_write)
+            await self._cache_delete_prefix(f"room_lectures:{room_id}")
+        except Exception as e:
+            logger.warning(f"[Firebase] reorder_lectures 실패: {e}")
+
+    async def delete_lecture(self, room_id: str, lecture_id: str) -> None:
+        db = self._safe_db()
+        if db is None:
+            return
+        try:
+            await _run(
+                lambda: db.collection("rooms").document(room_id)
+                .collection("lectures").document(lecture_id).delete()
+            )
+            await self._cache_delete_prefix(f"room_lectures:{room_id}")
+        except Exception as e:
+            logger.warning(f"[Firebase] delete_lecture 실패: {e}")
+
     async def save_reforged_all(
         self,
         room_id: str,
@@ -743,12 +794,18 @@ class FirebaseService:
                     "created_at": datetime.now(timezone.utc),
                 })
                 return ref.id
-            return await _run(_write)
+            notice_id = await _run(_write)
+            await self._cache_delete_prefix(f"room_notices:{room_id}")
+            return notice_id
         except Exception as e:
             logger.warning(f"[Firebase] save_notice 실패: {e}")
             return "offline"
 
     async def get_notices(self, room_id: str) -> list:
+        cache_key = f"room_notices:{room_id}"
+        cached = await self._cache_get(cache_key)
+        if cached is not None:
+            return cached
         db = self._safe_db()
         if db is None:
             return []
@@ -761,8 +818,10 @@ class FirebaseService:
                     .limit(30)
                     .stream()
                 )
-                return [doc.to_dict() for doc in docs]
-            return await _run(_read)
+                return [_normalize_firestore_value(doc.to_dict()) for doc in docs]
+            result = await _run(_read)
+            await self._cache_set(cache_key, result)
+            return result
         except Exception as e:
             logger.warning(f"[Firebase] get_notices 실패: {e}")
             return []
@@ -776,6 +835,7 @@ class FirebaseService:
                 lambda: db.collection("rooms").document(room_id)
                 .collection("notices").document(notice_id).delete()
             )
+            await self._cache_delete_prefix(f"room_notices:{room_id}")
         except Exception as e:
             logger.warning(f"[Firebase] delete_notice 실패: {e}")
 

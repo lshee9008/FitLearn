@@ -22,11 +22,13 @@ class ProfessorRoomDetailSummary {
   final Map<String, dynamic> room;
   final List<dynamic> lectures;
   final List<dynamic> students;
+  final List<dynamic> notices;
 
   const ProfessorRoomDetailSummary({
     required this.room,
     required this.lectures,
     required this.students,
+    required this.notices,
   });
 }
 
@@ -68,12 +70,14 @@ final professorRoomDetailProvider =
     ApiService().getRoom(roomId),
     ApiService().getRoomLectures(roomId),
     ApiService().getRoomStudents(roomId),
+    ApiService().getNotices(roomId),
   ]);
 
   return ProfessorRoomDetailSummary(
     room: results[0] as Map<String, dynamic>,
     lectures: results[1] as List<dynamic>,
     students: results[2] as List<dynamic>,
+    notices: results[3] as List<dynamic>,
   );
 });
 

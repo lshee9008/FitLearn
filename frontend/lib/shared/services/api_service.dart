@@ -196,6 +196,29 @@ class ApiService {
     return res.data as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> updateLectureMeta(
+    String roomId,
+    String lectureId,
+    Map<String, dynamic> data,
+  ) async {
+    final res = await _dio.patch('/api/v1/rooms/$roomId/lectures/$lectureId', data: data);
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> reorderLectures(
+    String roomId,
+    List<Map<String, dynamic>> items,
+  ) async {
+    final res = await _dio.post('/api/v1/rooms/$roomId/lectures/reorder', data: {
+      'items': items,
+    });
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<void> deleteLecture(String roomId, String lectureId) async {
+    await _dio.delete('/api/v1/rooms/$roomId/lectures/$lectureId');
+  }
+
   Future<void> confirmCorePoints({
     required String roomId,
     required String lectureId,

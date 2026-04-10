@@ -5,7 +5,7 @@ from pydantic import BaseModel
 logger = logging.getLogger(__name__)
 
 from models.room import RoomCreate, Room, JoinRoomRequest, RoomStudent, RoomMetaUpdate
-from models.lecture import LectureShellBatchRequest
+from models.lecture import LectureMetaUpdate, LectureReorderRequest, LectureShellBatchRequest
 from models.subject_quiz import QuizSubmitRequest, SubjectQuizResult
 from services.firebase_service import FirebaseService
 from services.quiz_service import QuizService
@@ -167,6 +167,30 @@ async def create_lecture_shells(room_id: str, body: LectureShellBatchRequest):
         [lecture.model_dump() for lecture in body.lectures],
     )
     return {"status": "created", "count": len(created), "lectures": created}
+
+
+@router.patch("/rooms/{room_id}/lectures/{lecture_id}")
+async def update_lecture(room_id: str, lecture_id: str, body: LectureMetaUpdate):
+    update_data = body.model_dump(exclude_none=True, exclude_unset=True)
+    if not update_data:
+        raise HTTPException(status_code=400, detail="업데이트할 항목이 없습니다.")
+    await firebase.update_lecture_meta(room_id, lecture_id, update_data)
+    return {"status": "updated"}
+
+
+@router.post("/rooms/{room_id}/lectures/reorder")
+async def reorder_lectures(room_id: str, body: LectureReorderRequest):
+    await firebase.reorder_lectures(
+        room_id,
+        [item.model_dump() for item in body.items],
+    )
+    return {"status": "reordered", "count": len(body.items)}
+
+
+@router.delete("/rooms/{room_id}/lectures/{lecture_id}")
+async def delete_lecture(room_id: str, lecture_id: str):
+    await firebase.delete_lecture(room_id, lecture_id)
+    return {"status": "deleted"}
 
 
 # ── 수준판단 퀴즈 ──────────────────────────────────────────────────────────────

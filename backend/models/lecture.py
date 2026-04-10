@@ -23,6 +23,23 @@ class LectureShellBatchRequest(BaseModel):
     lectures: list[LectureShellCreate]
 
 
+class LectureMetaUpdate(BaseModel):
+    title: Optional[str] = None
+    order_index: Optional[int] = None
+    week_number: Optional[int] = None
+    video_url: Optional[str] = None
+    material_url: Optional[str] = None
+
+
+class LectureReorderItem(BaseModel):
+    lecture_id: str
+    order_index: int
+
+
+class LectureReorderRequest(BaseModel):
+    items: list[LectureReorderItem]
+
+
 class LectureUploadResponse(BaseModel):
     lecture_id: str
     title: str
