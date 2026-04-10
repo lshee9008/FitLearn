@@ -9,7 +9,7 @@ class ApiService {
   final _dio = Dio(BaseOptions(
     baseUrl: ApiConstants.baseUrl,
     connectTimeout: const Duration(seconds: 15),
-    receiveTimeout: const Duration(seconds: 30),
+    receiveTimeout: const Duration(minutes: 5), // AI 파이프라인 대기를 위해 300초로 연장
   ));
 
   // ── Auth ──────────────────────────────────────────────────────
