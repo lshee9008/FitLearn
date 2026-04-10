@@ -47,3 +47,26 @@ class RedisService:
             await client.set(key, serialized, ex=ttl)
         else:
             _memory_store[key] = serialized
+
+    async def delete(self, key: str) -> None:
+        client = await self._get_client()
+        if client:
+            await client.delete(key)
+        else:
+            _memory_store.pop(key, None)
+
+    async def delete_prefix(self, prefix: str) -> None:
+        client = await self._get_client()
+        if client:
+            cursor = 0
+            pattern = f"{prefix}*"
+            while True:
+                cursor, keys = await client.scan(cursor=cursor, match=pattern, count=100)
+                if keys:
+                    await client.delete(*keys)
+                if cursor == 0:
+                    break
+            return
+
+        for key in [k for k in _memory_store if k.startswith(prefix)]:
+            _memory_store.pop(key, None)

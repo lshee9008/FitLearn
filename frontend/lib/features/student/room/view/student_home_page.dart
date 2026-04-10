@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../features/auth/provider/auth_provider.dart';
 import '../../../../shared/services/api_service.dart';
+import '../../../../shared/providers/room_data_providers.dart';
 
 // ─── 컬러 ───────────────────────────────────────────────────────
 class _C {
@@ -88,43 +89,8 @@ class StudentHomePage extends ConsumerStatefulWidget {
 }
 
 class _StudentHomePageState extends ConsumerState<StudentHomePage> {
-  Map<String, dynamic>? _room;
-  List<dynamic> _lectures = [];
-  String? _subjectLevel;
-  int? _subjectScore;
-
   String _activeTag = '전체';
   final Map<int, bool> _liked = {};
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadMyRooms());
-  }
-
-  // 참여한 방 자동 로드
-  Future<void> _loadMyRooms() async {
-    final user = ref.read(authNotifierProvider);
-    if (user == null) return;
-    try {
-      final rooms = await ApiService().getStudentRooms(user.userId);
-      if (rooms.isNotEmpty) {
-        final room = rooms.first as Map<String, dynamic>;
-        final lectures = await ApiService().getRoomLectures(room['room_id'] as String);
-        final quizResult = await ApiService().getQuizResult(
-          room['room_id'] as String,
-          user.userId,
-        );
-        if (!mounted) return;
-        setState(() {
-          _room = room;
-          _lectures = lectures;
-          _subjectLevel = quizResult['subject_level'] as String?;
-          _subjectScore = quizResult['score'] as int?;
-        });
-      }
-    } catch (_) {}
-  }
 
   Future<void> _logout() async {
     await ref.read(authNotifierProvider.notifier).logout();
@@ -143,29 +109,23 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
     });
   }
 
-  Future<void> _goToLecture(Map<String, dynamic> lecture, String userId) async {
-    if (_room == null || userId.isEmpty) return;
+  Future<void> _goToLecture(
+    Map<String, dynamic> lecture,
+    String userId, {
+    required String roomId,
+    required String? subjectLevel,
+  }) async {
+    if (userId.isEmpty) return;
 
     try {
-      final quiz = await ApiService().getRoomQuiz(_room!['room_id'] as String);
+      final quiz = await ApiService().getRoomQuiz(roomId);
       final questions = quiz['questions'] as List<dynamic>? ?? [];
-      final needsQuiz = questions.isNotEmpty && (_subjectLevel == null || _subjectLevel!.isEmpty);
+      final needsQuiz = questions.isNotEmpty && (subjectLevel == null || subjectLevel.isEmpty);
 
       if (needsQuiz && mounted) {
-        final completed = await context.push<bool>(
-          '/student/subject_quiz/${_room!['room_id']}',
-        );
+        final completed = await context.push<bool>('/student/subject_quiz/$roomId');
         if (completed != true || !mounted) return;
-
-        final result = await ApiService().getQuizResult(
-          _room!['room_id'] as String,
-          userId,
-        );
-        if (!mounted) return;
-        setState(() {
-          _subjectLevel = result['subject_level'] as String?;
-          _subjectScore = result['score'] as int?;
-        });
+        ref.invalidate(studentHomeSummaryProvider(userId));
       }
     } catch (_) {
       // 퀴즈 조회에 실패해도 교안 입장은 막지 않는다.
@@ -173,7 +133,7 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
 
     if (!mounted) return;
     context.push('/student/lecture', extra: {
-      'room_id': _room!['room_id'],
+      'room_id': roomId,
       'lecture_id': lecture['lecture_id'],
       'user_id': userId,
       'title': lecture['title'],
@@ -183,19 +143,26 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authNotifierProvider);
+    final summaryAsync = ref.watch(currentStudentHomeSummaryProvider);
     return Scaffold(
       backgroundColor: _C.bg,
       body: Row(
         children: [
           _Sidebar(onLogout: _logout, onDiagnosis: _goToDiagnosis),
-          Expanded(child: _buildMain(user)),
+          Expanded(child: _buildMain(user, summaryAsync)),
           _RightPanel(onDiagnosis: _goToDiagnosis),
         ],
       ),
     );
   }
 
-  Widget _buildMain(UserProfile? user) {
+  Widget _buildMain(UserProfile? user, AsyncValue<StudentHomeSummary?> summaryAsync) {
+    final summary = summaryAsync.valueOrNull;
+    final room = summary?.room;
+    final lectures = summary?.lectures ?? const [];
+    final subjectLevel = summary?.subjectLevel;
+    final subjectScore = summary?.subjectScore;
+
     return CustomScrollView(
       slivers: [
         SliverPadding(
@@ -221,22 +188,16 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
                   onResume: _goToEnrolledLecture,
                 ),
                 const SizedBox(height: 24),
-                if (_room != null) ...[
+                if (room != null) ...[
                   _SubjectLevelBanner(
-                    roomName: _room!['name'] as String? ?? '강의실',
-                    subjectLevel: _subjectLevel,
-                    score: _subjectScore,
+                    roomName: room['name'] as String? ?? '강의실',
+                    subjectLevel: subjectLevel,
+                    score: subjectScore,
                     onAction: () async {
-                      final roomId = _room!['room_id'] as String;
-                      final completed =
-                          await context.push<bool>('/student/subject_quiz/$roomId');
-                      if (completed == true && mounted && user != null) {
-                        final result = await ApiService().getQuizResult(roomId, user.userId);
-                        if (!mounted) return;
-                        setState(() {
-                          _subjectLevel = result['subject_level'] as String?;
-                          _subjectScore = result['score'] as int?;
-                        });
+                      final roomId = room['room_id'] as String;
+                      final completed = await context.push<bool>('/student/subject_quiz/$roomId');
+                      if (completed == true && user != null) {
+                        ref.invalidate(studentHomeSummaryProvider(user.userId));
                       }
                     },
                   ),
@@ -250,11 +211,11 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
           ),
         ),
         _courseGrid(_kRecommended, 0),
-        if (_room != null && _lectures.isNotEmpty) ...[
+        if (room != null && lectures.isNotEmpty) ...[
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(28, 24, 28, 12),
             sliver: SliverToBoxAdapter(
-              child: _SectionTitle(title: '교안 목록', sub: '${_lectures.length}개'),
+              child: _SectionTitle(title: '교안 목록', sub: '${lectures.length}개'),
             ),
           ),
           SliverPadding(
@@ -264,14 +225,16 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
                 (_, i) => Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: _LectureCard(
-                    lecture: _lectures[i] as Map<String, dynamic>,
+                    lecture: lectures[i] as Map<String, dynamic>,
                     onTap: () => _goToLecture(
-                      _lectures[i] as Map<String, dynamic>,
+                      lectures[i] as Map<String, dynamic>,
                       user?.userId ?? '',
+                      roomId: room['room_id'] as String,
+                      subjectLevel: subjectLevel,
                     ),
                   ),
                 ),
-                childCount: _lectures.length,
+                childCount: lectures.length,
               ),
             ),
           ),

@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -14,8 +14,21 @@ firebase = FirebaseService()
 quiz_svc = QuizService()
 
 
+async def _generate_and_save_quiz(room_id: str, synopsis: str, core_concepts: list[str], subject: str):
+    try:
+        questions = await quiz_svc.generate_quiz(
+            synopsis=synopsis,
+            core_concepts=core_concepts,
+            subject=subject,
+        )
+        await firebase.save_room_quiz(room_id, questions)
+        logger.info(f"[room_quiz] 생성 완료 room={room_id} count={len(questions)}")
+    except Exception as e:
+        logger.warning(f"[room_quiz] 생성 실패 room={room_id}: {e}")
+
+
 @router.post("/rooms", response_model=Room)
-async def create_room(body: RoomCreate):
+async def create_room(body: RoomCreate, background_tasks: BackgroundTasks):
     try:
         user = await firebase.get_user(body.professor_uid)
         name = user.get("name", "") if user else ""
@@ -25,18 +38,15 @@ async def create_room(body: RoomCreate):
             core_concepts=body.core_concepts, youtube_url=body.youtube_url,
         )
         room = Room(**{k: data[k] for k in Room.model_fields if k in data})
-        # synopsis + core_concepts 있으면 자동으로 퀴즈 생성
+        # synopsis + core_concepts 있으면 응답 후 백그라운드에서 퀴즈 생성
         if body.synopsis or body.core_concepts:
-            try:
-                questions = await quiz_svc.generate_quiz(
-                    synopsis=body.synopsis,
-                    core_concepts=body.core_concepts,
-                    subject=body.subject,
-                )
-                await firebase.save_room_quiz(data["room_id"], questions)
-                room.has_quiz = True
-            except Exception as e:
-                logger.warning(f"[create_room] 퀴즈 자동 생성 실패 (계속 진행): {e}")
+            background_tasks.add_task(
+                _generate_and_save_quiz,
+                data["room_id"],
+                body.synopsis,
+                body.core_concepts,
+                body.subject,
+            )
         return room
     except Exception as e:
         logger.error(f"[create_room] 실패: {e}", exc_info=True)
@@ -51,6 +61,30 @@ async def list_student_rooms(user_id: str):
     except Exception as e:
         logger.error(f"[list_student_rooms] user={user_id} error={e}", exc_info=True)
         return []
+
+
+@router.get("/rooms/student/{user_id}/summary")
+async def get_student_room_summary(user_id: str):
+    rooms = await firebase.get_rooms_by_student(user_id)
+    if not rooms:
+        return {
+            "room": None,
+            "lectures": [],
+            "subject_level": None,
+            "score": None,
+        }
+
+    room = rooms[0]
+    room_id = room["room_id"]
+    lectures = await firebase.get_lectures_in_room(room_id)
+    level_data = await firebase.get_subject_level(user_id, room_id)
+
+    return {
+        "room": {k: room[k] for k in Room.model_fields if k in room},
+        "lectures": lectures,
+        "subject_level": level_data.get("subject_level") if level_data else None,
+        "score": level_data.get("score") if level_data else None,
+    }
 
 
 @router.get("/rooms/professor/{professor_uid}", response_model=list[Room])
@@ -83,7 +117,7 @@ async def get_room(room_id: str):
 
 
 @router.patch("/rooms/{room_id}/meta")
-async def update_room_meta(room_id: str, body: RoomMetaUpdate):
+async def update_room_meta(room_id: str, body: RoomMetaUpdate, background_tasks: BackgroundTasks):
     """강의실 줄거리, 핵심개념, YouTube URL, room_type 업데이트 + 퀴즈 재생성"""
     update_data = body.model_dump(exclude_none=True, exclude_unset=True)
     if not update_data:
@@ -96,11 +130,13 @@ async def update_room_meta(room_id: str, body: RoomMetaUpdate):
         synopsis = update_data.get("synopsis", room_data.get("synopsis", ""))
         core_concepts = update_data.get("core_concepts", room_data.get("core_concepts", []))
         subject = room_data.get("subject", "") if room_data else ""
-        try:
-            questions = await quiz_svc.generate_quiz(synopsis, core_concepts, subject)
-            await firebase.save_room_quiz(room_id, questions)
-        except Exception as e:
-            logger.warning(f"[update_room_meta] 퀴즈 재생성 실패: {e}")
+        background_tasks.add_task(
+            _generate_and_save_quiz,
+            room_id,
+            synopsis,
+            core_concepts,
+            subject,
+        )
 
     return {"status": "updated"}
 

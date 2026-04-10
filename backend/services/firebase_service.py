@@ -14,10 +14,13 @@ import secrets
 import string
 from datetime import datetime, timezone
 from typing import Any, Optional
+from services.redis_service import RedisService
 
 logger = logging.getLogger(__name__)
 
 _firebase_ok = False  # Firebase 사용 가능 여부
+_cache = RedisService()
+_CACHE_TTL = 60 * 5
 
 
 def _init_firebase() -> bool:
@@ -95,6 +98,25 @@ class FirebaseService:
             logger.warning("[Firebase] DB 없음 — 작업 건너뜀")
         return db
 
+    async def _cache_get(self, key: str):
+        try:
+            return await _cache.get(key)
+        except Exception as e:
+            logger.warning(f"[Cache] get 실패 key={key}: {e}")
+            return None
+
+    async def _cache_set(self, key: str, value, ttl: int = _CACHE_TTL):
+        try:
+            await _cache.set(key, value, ttl=ttl)
+        except Exception as e:
+            logger.warning(f"[Cache] set 실패 key={key}: {e}")
+
+    async def _cache_delete_prefix(self, prefix: str):
+        try:
+            await _cache.delete_prefix(prefix)
+        except Exception as e:
+            logger.warning(f"[Cache] delete_prefix 실패 prefix={prefix}: {e}")
+
     # ── 사용자 ────────────────────────────────────────────────────
 
     async def save_user(self, user_id: str, name: str, role: str, email: str = "") -> None:
@@ -152,12 +174,18 @@ class FirebaseService:
                 room_ref.set(data)
                 data["created_at"] = now.isoformat()
                 return data
-            return await _run(_write)
+            data = await _run(_write)
+            await self._cache_delete_prefix(f"professor_rooms:{professor_uid}")
+            return data
         except Exception as e:
             logger.error(f"[Firebase] create_room 실패: {e}")
             return base
 
     async def get_rooms_by_student(self, user_id: str) -> list[dict]:
+        cache_key = f"student_rooms:{user_id}"
+        cached = await self._cache_get(cache_key)
+        if cached is not None:
+            return cached
         db = self._safe_db()
         if db is None:
             return []
@@ -174,12 +202,18 @@ class FirebaseService:
                     d["student_count"] = len(d.get("students", []))
                     result.append(d)
                 return result
-            return await _run(_read)
+            result = await _run(_read)
+            await self._cache_set(cache_key, result)
+            return result
         except Exception as e:
             logger.warning(f"[Firebase] get_rooms_by_student 실패: {e}")
             return []
 
     async def get_rooms_by_professor(self, professor_uid: str) -> list[dict]:
+        cache_key = f"professor_rooms:{professor_uid}"
+        cached = await self._cache_get(cache_key)
+        if cached is not None:
+            return cached
         db = self._safe_db()
         if db is None:
             return []
@@ -203,7 +237,9 @@ class FirebaseService:
                         d["created_at"] = None
                     result.append(d)
                 return result
-            return await _run(_read)
+            result = await _run(_read)
+            await self._cache_set(cache_key, result)
+            return result
         except Exception as e:
             logger.warning(f"[Firebase] get_rooms_by_professor 실패: {e}")
             return []
@@ -227,6 +263,10 @@ class FirebaseService:
             return None
 
     async def get_room(self, room_id: str) -> Optional[dict]:
+        cache_key = f"room:{room_id}"
+        cached = await self._cache_get(cache_key)
+        if cached is not None:
+            return cached
         db = self._safe_db()
         if db is None:
             return None
@@ -238,7 +278,10 @@ class FirebaseService:
                 d = doc.to_dict()
                 d["student_count"] = len(d.get("students", []))
                 return d
-            return await _run(_read)
+            result = await _run(_read)
+            if result is not None:
+                await self._cache_set(cache_key, result)
+            return result
         except Exception as e:
             logger.warning(f"[Firebase] get_room 실패: {e}")
             return None
@@ -254,6 +297,9 @@ class FirebaseService:
                     {"students": firestore.ArrayUnion([user_id])}
                 )
             await _run(_write)
+            await self._cache_delete_prefix(f"room:{room_id}")
+            await self._cache_delete_prefix(f"room_students:{room_id}")
+            await self._cache_delete_prefix(f"student_rooms:{user_id}")
         except Exception as e:
             logger.warning(f"[Firebase] add_student_to_room 실패: {e}")
 
@@ -263,10 +309,18 @@ class FirebaseService:
             return
         try:
             await _run(lambda: db.collection("rooms").document(room_id).delete())
+            await self._cache_delete_prefix(f"room:{room_id}")
+            await self._cache_delete_prefix(f"room_students:{room_id}")
+            await self._cache_delete_prefix(f"room_lectures:{room_id}")
+            await self._cache_delete_prefix(f"room_quiz:{room_id}")
         except Exception as e:
             logger.warning(f"[Firebase] delete_room 실패: {e}")
 
     async def get_room_students(self, room_id: str) -> list[dict]:
+        cache_key = f"room_students:{room_id}"
+        cached = await self._cache_get(cache_key)
+        if cached is not None:
+            return cached
         db = self._safe_db()
         if db is None:
             return []
@@ -276,21 +330,32 @@ class FirebaseService:
                 if not doc.exists:
                     return []
                 student_ids = doc.to_dict().get("students", [])
+                if not student_ids:
+                    return []
+
+                refs = [db.collection("users").document(uid) for uid in student_ids]
+                docs = list(db.get_all(refs))
+                user_map = {
+                    doc.id: doc.to_dict()
+                    for doc in docs
+                    if doc.exists
+                }
+
                 result = []
                 for uid in student_ids:
-                    user_doc = db.collection("users").document(uid).get()
-                    if user_doc.exists:
-                        u = user_doc.to_dict()
-                        diag_doc = db.collection("diagnosis").document(uid).get()
-                        profile = diag_doc.to_dict().get("profile", {}) if diag_doc.exists else {}
-                        result.append({
-                            "user_id": uid,
-                            "name": u.get("name", uid),
-                            "primary_style": profile.get("learning_style"),
-                            "cognitive_style": profile.get("cognitive_style"),
-                        })
+                    u = user_map.get(uid, {})
+                    profile = u.get("learning_profile", {}) or {}
+                    result.append({
+                        "user_id": uid,
+                        "name": u.get("name", uid),
+                        "primary_style": profile.get("learning_style"),
+                        "social_type": profile.get("interaction"),
+                        "cognitive_type": profile.get("cognitive_style"),
+                    })
                 return result
-            return await _run(_read)
+            result = await _run(_read)
+            await self._cache_set(cache_key, result)
+            return result
         except Exception as e:
             logger.warning(f"[Firebase] get_room_students 실패: {e}")
             return []
@@ -312,6 +377,7 @@ class FirebaseService:
                     {"learning_profile": profile}, merge=True
                 )
             await _run(_write)
+            await self._cache_delete_prefix("room_students:")
         except Exception as e:
             logger.warning(f"[Firebase] save_diagnosis 실패: {e}")
 
@@ -354,7 +420,9 @@ class FirebaseService:
                     "created_at": datetime.now(timezone.utc),
                 })
                 return ref.id
-            return await _run(_write)
+            lecture_id = await _run(_write)
+            await self._cache_delete_prefix(f"room_lectures:{room_id}")
+            return lecture_id
         except Exception as e:
             logger.error(f"[Firebase] save_lecture 실패: {e}")
             return "offline-lecture"
@@ -388,10 +456,15 @@ class FirebaseService:
                     .collection("lectures").document(lecture_id)\
                     .update({"core_points": core_points, "confirmed": True})
             await _run(_write)
+            await self._cache_delete_prefix(f"room_lectures:{room_id}")
         except Exception as e:
             logger.warning(f"[Firebase] confirm_core_points 실패: {e}")
 
     async def get_lectures_in_room(self, room_id: str) -> list[dict]:
+        cache_key = f"room_lectures:{room_id}"
+        cached = await self._cache_get(cache_key)
+        if cached is not None:
+            return cached
         db = self._safe_db()
         if db is None:
             return []
@@ -403,7 +476,9 @@ class FirebaseService:
                     .stream()
                 )
                 return [doc.to_dict() for doc in docs]
-            return await _run(_read)
+            result = await _run(_read)
+            await self._cache_set(cache_key, result)
+            return result
         except Exception as e:
             logger.warning(f"[Firebase] get_lectures_in_room 실패: {e}")
             return []
@@ -487,6 +562,9 @@ class FirebaseService:
             return
         try:
             await _run(lambda: db.collection("rooms").document(room_id).update(meta))
+            await self._cache_delete_prefix(f"room:{room_id}")
+            await self._cache_delete_prefix("professor_rooms:")
+            await self._cache_delete_prefix("student_rooms:")
         except Exception as e:
             logger.warning(f"[Firebase] update_room_meta 실패: {e}")
 
@@ -500,10 +578,18 @@ class FirebaseService:
                     {"subject_quiz": questions, "has_quiz": True}
                 )
             await _run(_write)
+            await self._cache_delete_prefix(f"room_quiz:{room_id}")
+            await self._cache_delete_prefix(f"room:{room_id}")
+            await self._cache_delete_prefix("professor_rooms:")
+            await self._cache_delete_prefix("student_rooms:")
         except Exception as e:
             logger.warning(f"[Firebase] save_room_quiz 실패: {e}")
 
     async def get_room_quiz(self, room_id: str) -> list:
+        cache_key = f"room_quiz:{room_id}"
+        cached = await self._cache_get(cache_key)
+        if cached is not None:
+            return cached
         db = self._safe_db()
         if db is None:
             return []
@@ -511,7 +597,9 @@ class FirebaseService:
             def _read():
                 doc = db.collection("rooms").document(room_id).get()
                 return doc.to_dict().get("subject_quiz", []) if doc.exists else []
-            return await _run(_read)
+            result = await _run(_read)
+            await self._cache_set(cache_key, result)
+            return result
         except Exception as e:
             logger.warning(f"[Firebase] get_room_quiz 실패: {e}")
             return []
@@ -534,10 +622,15 @@ class FirebaseService:
                     "submitted_at": datetime.now(timezone.utc),
                 })
             await _run(_write)
+            await self._cache_delete_prefix(f"subject_level:{user_id}:{room_id}")
         except Exception as e:
             logger.warning(f"[Firebase] save_subject_level 실패: {e}")
 
     async def get_subject_level(self, user_id: str, room_id: str) -> Optional[dict]:
+        cache_key = f"subject_level:{user_id}:{room_id}"
+        cached = await self._cache_get(cache_key)
+        if cached is not None:
+            return cached
         db = self._safe_db()
         if db is None:
             return None
@@ -545,7 +638,10 @@ class FirebaseService:
             def _read():
                 doc = db.collection("subject_levels").document(f"{user_id}_{room_id}").get()
                 return doc.to_dict() if doc.exists else None
-            return await _run(_read)
+            result = await _run(_read)
+            if result is not None:
+                await self._cache_set(cache_key, result)
+            return result
         except Exception as e:
             logger.warning(f"[Firebase] get_subject_level 실패: {e}")
             return None
@@ -618,6 +714,7 @@ class FirebaseService:
                     .collection("lectures").document(lecture_id)\
                     .update({"original_file_url": url, "original_filename": filename})
             await _run(_write)
+            await self._cache_delete_prefix(f"room_lectures:{room_id}")
         except Exception as e:
             logger.warning(f"[Firebase] save_original_file_url 실패: {e}")
 

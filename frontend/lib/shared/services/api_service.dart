@@ -62,6 +62,11 @@ class ApiService {
     return res.data as List<dynamic>;
   }
 
+  Future<Map<String, dynamic>> getStudentRoomSummary(String uid) async {
+    final res = await _dio.get('/api/v1/rooms/student/$uid/summary');
+    return res.data as Map<String, dynamic>;
+  }
+
   Future<List<dynamic>> getProfessorRooms(String uid) async {
     final res = await _dio.get(ApiConstants.professorRooms(uid));
     return res.data as List<dynamic>;
