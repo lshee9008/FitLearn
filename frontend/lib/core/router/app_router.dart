@@ -12,6 +12,7 @@ import '../../features/professor/room/view/room_detail_page.dart';
 import '../../features/professor/lecture/view/upload_page.dart';
 import '../../features/professor/lecture/view/core_point_review_page.dart';
 import '../../features/professor/dashboard/view/dashboard_page.dart';
+import '../../features/lecture/presentation/pages/lecture_page.dart';
 
 final appRouter = GoRouter(
   initialLocation: '/',
@@ -76,6 +77,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/professor/dashboard/:roomId',
       builder: (_, state) => DashboardPage(roomId: state.pathParameters['roomId']!),
+    ),
+    GoRoute(
+      path: '/professor/qna',
+      builder: (_, __) => const LecturePage(),
     ),
 
     // ── 재가공 테스트 (독립) ──────────────────────────────────────────

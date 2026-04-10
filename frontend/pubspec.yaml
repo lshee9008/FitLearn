@@ -63,6 +63,11 @@ dependencies:
   # Google 소셜 로그인
   google_sign_in: ^6.2.1
 
+  # 영상 플레이어
+  youtube_player_iframe: ^5.0.0
+  video_player: ^2.8.0
+  chewie: ^1.7.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
