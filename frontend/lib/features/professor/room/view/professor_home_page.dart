@@ -66,51 +66,72 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
   }
  
   Future<void> _createRoom() async {
-  final user = ref.read(authNotifierProvider);
-  if (user == null) return;
-  final messenger = ScaffoldMessenger.of(context);
-  final result = await showDialog<Map<String, String>>(
-    context: context,
-    builder: (_) => const _CreateRoomDialog(),
-  );
-  if (result == null) return;
-  try {
-    final coreConcepts = (result['core_concepts'] ?? '')
-        .split('\n')
-        .map((s) => s.trim())
-        .where((s) => s.isNotEmpty)
-        .toList();
-    final roomData = await ApiService().createRoom(
-      professorUid: user.userId,
-      subject: result['subject']!,
-      description: result['description'] ?? '',
-      roomType: result['room_type'] ?? 'offline',
-      synopsis: result['synopsis'] ?? '',
-      coreConcepts: coreConcepts,
-      youtubeUrl: result['youtube_url'] ?? '',
+    final user = ref.read(authNotifierProvider);
+    if (user == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (_) => const _CreateRoomDialog(),
     );
+    if (result == null) return;
 
-    // ✅ _loadRooms() 제거 — 즉시 삽입 후 loading 없이 유지
-    setState(() => _rooms = [roomData, ..._rooms]);
+    // 1. 임시 ID로 낙관적 삽입
+    final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
+    final tempRoom = <String, dynamic>{
+      'room_id': tempId,
+      'subject': result['subject'] ?? '',
+      'description': result['description'] ?? '',
+      'room_code': '···',
+      'student_count': 0,
+      'created_at': DateTime.now().toIso8601String(),
+      '_loading': true,
+    };
+    setState(() => _rooms = [tempRoom, ..._rooms]);
 
-    if (mounted) {
-      final inviteCode = roomData['room_code'] as String? ?? '';
-      if (inviteCode.isNotEmpty) {
-        _showInviteCodeDialog(
-          code: inviteCode,
-          subject: result['subject'] ?? '',
-        );
+    try {
+      final coreConcepts = (result['core_concepts'] ?? '')
+          .split('\n')
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .toList();
+
+      final roomData = await ApiService().createRoom(
+        professorUid: user.userId,
+        subject: result['subject']!,
+        description: result['description'] ?? '',
+        roomType: result['room_type'] ?? 'offline',
+        synopsis: result['synopsis'] ?? '',
+        coreConcepts: coreConcepts,
+        youtubeUrl: result['youtube_url'] ?? '',
+      );
+
+      // 2. 임시 데이터를 실제 데이터로 교체
+      setState(() {
+        final idx = _rooms.indexWhere((r) => (r as Map)['room_id'] == tempId);
+        if (idx != -1) _rooms[idx] = roomData;
+      });
+
+      if (mounted) {
+        final inviteCode = roomData['room_code'] as String? ?? '';
+        if (inviteCode.isNotEmpty) {
+          _showInviteCodeDialog(
+            code: inviteCode,
+            subject: result['subject'] ?? '',
+          );
+        }
       }
+    } catch (e) {
+      // 3. 실패 시 임시 데이터 제거
+      setState(() => _rooms.removeWhere(
+            (r) => (r as Map)['room_id'] == tempId));
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('방 생성 오류: $e'),
+          duration: const Duration(seconds: 6),
+        ),
+      );
     }
-  } catch (e) {
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text('방 생성 오류: $e'),
-        duration: const Duration(seconds: 6),
-      ),
-    );
   }
-}
 
   Future<void> _deleteRoom(Map<String, dynamic> room) async {
     final roomId = room['room_id'] as String? ?? '';
@@ -703,11 +724,14 @@ class _RoomCardState extends State<_RoomCard> {
 
   @override
   Widget build(BuildContext context) {
+    final isLoading = widget.room['_loading'] == true;
     final studentCount = widget.room['student_count'] as int? ?? 0;
     final desc = widget.room['description'] as String? ?? '';
     final dateStr = _formatDate(widget.room['created_at'] as String?);
- 
-    return MouseRegion(
+
+    return Opacity(
+      opacity: isLoading ? 0.5 : 1.0,
+      child: MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       cursor: SystemMouseCursors.click,
@@ -750,7 +774,7 @@ class _RoomCardState extends State<_RoomCard> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    widget.room['room_code'] as String? ?? '',
+                    isLoading ? '생성 중...' : (widget.room['room_code'] as String? ?? ''),
                     style: const TextStyle(
                         color: _C.lime,
                         fontSize: 12,
@@ -842,6 +866,7 @@ class _RoomCardState extends State<_RoomCard> {
           ),
         ),
       ),
+    ),
     );
   }
 }
