@@ -193,6 +193,32 @@ _TEST_PROFILES = {
 }
 
 
+def _fallback_profile_from_user(user: dict | None) -> dict:
+    learning_profile = (user or {}).get("learning_profile", {}) or {}
+    if learning_profile:
+        return {
+            "learning_style": learning_profile.get("learning_style")
+            or learning_profile.get("vark")
+            or "읽기형",
+            "cognitive_style": learning_profile.get("cognitive_style", "분석형"),
+            "focus_pattern": learning_profile.get("focus_pattern", "단기집중형"),
+            "preferred_format": learning_profile.get("preferred_format", "상세형"),
+            "pace": learning_profile.get("pace", "숙고형"),
+            "interaction": learning_profile.get("interaction", "독립형"),
+            "confidence_score": learning_profile.get("confidence_score", 60),
+        }
+
+    return {
+        "learning_style": "읽기형",
+        "cognitive_style": "분석형",
+        "focus_pattern": "단기집중형",
+        "preferred_format": "상세형",
+        "pace": "숙고형",
+        "interaction": "독립형",
+        "confidence_score": 40,
+    }
+
+
 @router.get("/lectures/demo/reforged")
 async def get_demo_reforged(test_style: str = "읽기형"):
     """Firebase 없이 내장 샘플 교안으로 재가공 테스트."""
@@ -278,10 +304,12 @@ async def get_reforged(room_id: str, lecture_id: str, user_id: str, test_style: 
         raise HTTPException(status_code=400, detail="교수가 아직 핵심 포인트를 확정하지 않았습니다.")
 
     diagnosis = await firebase.get_diagnosis(user_id)
-    if not diagnosis:
-        raise HTTPException(status_code=400, detail="학습 성향 진단을 먼저 완료해주세요.")
-
-    profile = diagnosis["profile"]
+    if diagnosis and diagnosis.get("profile"):
+        profile = diagnosis["profile"]
+    else:
+        user = await firebase.get_user(user_id)
+        profile = _fallback_profile_from_user(user)
+        logger.info(f"[reforged] 진단 문서 없음 — users.learning_profile/default 폴백 user={user_id}")
 
     # 과목별 수준 주입 (4요소 재해석 핵심)
     level_data = await firebase.get_subject_level(user_id, room_id)

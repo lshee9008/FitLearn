@@ -1,5 +1,6 @@
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -72,6 +73,14 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
         _primaryStyle = data['primary_style'] as String? ?? '읽기형';
         _subjectLevel = data['subject_level'] as String?;
         _selectedStyle = _primaryStyle!;
+        _loading = false;
+      });
+    } on DioException catch (e) {
+      final detail = e.response?.data is Map<String, dynamic>
+          ? (e.response?.data['detail'] as String?)
+          : null;
+      setState(() {
+        _error = detail?.trim().isNotEmpty == true ? detail : e.toString();
         _loading = false;
       });
     } catch (e) {
