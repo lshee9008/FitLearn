@@ -134,12 +134,16 @@ async def get_student_service_hub(user_id: str):
             "application_status": room.get("application_status"),
         })
 
+    active_room_id = enrolled[0]["room_id"] if enrolled else None
+    active_notices = await firebase.get_notices(active_room_id) if active_room_id else []
+
     return {
         "enrolled_rooms": enrolled,
         "discover_rooms": catalog_items,
         "applications": applications,
         "active_room": enrolled[0] if enrolled else None,
         "active_room_lectures": room_summaries.get(enrolled[0]["room_id"], {}).get("lectures", []) if enrolled else [],
+        "active_room_notices": active_notices,
         "active_subject_level": room_summaries.get(enrolled[0]["room_id"], {}).get("subject_level") if enrolled else None,
         "active_subject_score": room_summaries.get(enrolled[0]["room_id"], {}).get("score") if enrolled else None,
     }

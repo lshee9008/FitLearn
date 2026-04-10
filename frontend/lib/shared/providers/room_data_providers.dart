@@ -24,6 +24,7 @@ class StudentServiceHub {
   final List<dynamic> applications;
   final Map<String, dynamic>? activeRoom;
   final List<dynamic> activeRoomLectures;
+  final List<dynamic> activeRoomNotices;
   final String? activeSubjectLevel;
   final int? activeSubjectScore;
 
@@ -33,6 +34,7 @@ class StudentServiceHub {
     required this.applications,
     required this.activeRoom,
     required this.activeRoomLectures,
+    required this.activeRoomNotices,
     required this.activeSubjectLevel,
     required this.activeSubjectScore,
   });
@@ -95,6 +97,7 @@ final studentServiceHubProvider =
     applications: data['applications'] as List<dynamic>? ?? const [],
     activeRoom: data['active_room'] as Map<String, dynamic>?,
     activeRoomLectures: data['active_room_lectures'] as List<dynamic>? ?? const [],
+    activeRoomNotices: data['active_room_notices'] as List<dynamic>? ?? const [],
     activeSubjectLevel: data['active_subject_level'] as String?,
     activeSubjectScore: data['active_subject_score'] as int?,
   );

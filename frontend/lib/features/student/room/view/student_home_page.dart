@@ -279,6 +279,7 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
     final discoverRooms = _filterRooms(hub?.discoverRooms ?? const <dynamic>[]);
     final applications = hub?.applications ?? const <dynamic>[];
     final activeRoomLectures = hub?.activeRoomLectures ?? const <dynamic>[];
+    final activeRoomNotices = hub?.activeRoomNotices ?? const <dynamic>[];
 
     return CustomScrollView(
       slivers: [
@@ -381,6 +382,28 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
                       }
                     },
                   ),
+                  const SizedBox(height: 24),
+                  _SectionTitle(
+                    title: '강의실 공지',
+                    sub: activeRoomNotices.isEmpty ? '새 공지 없음' : '${activeRoomNotices.length}개',
+                  ),
+                  const SizedBox(height: 12),
+                  if (activeRoomNotices.isEmpty)
+                    const _InlineHintCard(
+                      title: '아직 공지가 없습니다',
+                      body: '교수님이 등록한 공지와 운영 안내가 이곳에 표시됩니다.',
+                    )
+                  else
+                    Column(
+                      children: activeRoomNotices
+                          .cast<Map<String, dynamic>>()
+                          .take(3)
+                          .map((notice) => Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: _NoticeCard(notice: notice),
+                              ))
+                          .toList(),
+                    ),
                   const SizedBox(height: 24),
                   _SectionTitle(
                     title: '바로 입장 가능한 교안',
@@ -1003,6 +1026,71 @@ class _ApplicationStatusCard extends StatelessWidget {
                   message,
                   style: const TextStyle(color: _C.textSec, height: 1.45),
                 ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NoticeCard extends StatelessWidget {
+  final Map<String, dynamic> notice;
+
+  const _NoticeCard({required this.notice});
+
+  @override
+  Widget build(BuildContext context) {
+    final title = (notice['title'] as String? ?? '').trim();
+    final content = notice['content'] as String? ?? '';
+    final createdAt = notice['created_at'] as String? ?? '';
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _C.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _C.border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: _C.lavender.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(Icons.campaign_outlined, color: _C.lavender),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title.isEmpty ? '제목 없는 공지' : title,
+                  style: const TextStyle(
+                    color: _C.textPri,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  content,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: _C.textSec, height: 1.45),
+                ),
+                if (createdAt.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    createdAt,
+                    style: const TextStyle(color: _C.textMute, fontSize: 11),
+                  ),
+                ],
               ],
             ),
           ),
