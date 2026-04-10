@@ -1,3 +1,5 @@
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -135,6 +137,21 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
     );
   }
 
+  void _downloadMarkdown() {
+    final content = _styleContents?[_selectedStyle];
+    if (content == null) return;
+    final bytes = content.codeUnits;
+    final blob = html.Blob([bytes], 'text/markdown');
+    final url = html.Url.createObjectUrlFromBlob(blob);
+    final anchor = html.document.createElement('a') as html.AnchorElement
+      ..href = url
+      ..download = '${widget.title}_$_selectedStyle.md';
+    html.document.body!.append(anchor);
+    anchor.click();
+    anchor.remove();
+    html.Url.revokeObjectUrl(url);
+  }
+
   Widget _buildHeader() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
@@ -167,6 +184,21 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
               ],
             ]),
         ])),
+        // 다운로드 버튼
+        if (_styleContents != null)
+          GestureDetector(
+            onTap: _downloadMarkdown,
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.bgSurface,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: const Icon(Icons.download_rounded,
+                  color: AppColors.textMuted, size: 18),
+            ),
+          ),
       ]),
     );
   }
@@ -460,11 +492,11 @@ class _LoadingView extends StatelessWidget {
     return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
       const Text('🤖', style: TextStyle(fontSize: 48)),
       const SizedBox(height: 16),
-      const Text('AI가 6가지 스타일로 교안을 재가공하고 있어요',
+      const Text('AI가 교안을 재해석하고 있어요',
           textAlign: TextAlign.center,
           style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
       const SizedBox(height: 8),
-      const Text('시각형·청각형·읽기형·실습형·요약형·상세형 동시 생성 중',
+      const Text('내 학습 성향에 맞게 최적화 중입니다',
           style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
       const SizedBox(height: 24),
       SizedBox(width: 200, child: LinearProgressIndicator(
