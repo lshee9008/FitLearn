@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../features/auth/provider/auth_provider.dart';
@@ -74,7 +75,7 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
           .map((s) => s.trim())
           .where((s) => s.isNotEmpty)
           .toList();
-      await ApiService().createRoom(
+      final roomData = await ApiService().createRoom(
         professorUid: user.userId,
         subject: result['subject']!,
         description: result['description'] ?? '',
@@ -84,11 +85,27 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
         youtubeUrl: result['youtube_url'] ?? '',
       );
       _loadRooms();
+      if (mounted) {
+        final inviteCode = roomData['room_code'] as String? ?? '';
+        if (inviteCode.isNotEmpty) {
+          _showInviteCodeDialog(
+            code: inviteCode,
+            subject: result['subject'] ?? '',
+          );
+        }
+      }
     } catch (e) {
       messenger.showSnackBar(
         SnackBar(content: Text('방 생성 오류: $e'), duration: const Duration(seconds: 6)),
       );
     }
+  }
+
+  void _showInviteCodeDialog({required String code, required String subject}) {
+    showDialog(
+      context: context,
+      builder: (_) => _InviteCodeDialog(code: code, subject: subject),
+    );
   }
  
   Future<void> _logout() async {
@@ -1594,6 +1611,152 @@ class _AttachCardState extends State<_AttachCard> {
           ),
         ),
       ]),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// 초대 코드 다이얼로그
+// ════════════════════════════════════════════════════════════════
+class _InviteCodeDialog extends StatefulWidget {
+  final String code;
+  final String subject;
+  const _InviteCodeDialog({required this.code, required this.subject});
+
+  @override
+  State<_InviteCodeDialog> createState() => _InviteCodeDialogState();
+}
+
+class _InviteCodeDialogState extends State<_InviteCodeDialog> {
+  bool _copied = false;
+
+  static const _bg      = Color(0xFF141414);
+  static const _surf    = Color(0xFF1A1A1A);
+  static const _lime    = Color(0xFFC8F135);
+  static const _limeDark = Color(0xFF1A2E00);
+  static const _border  = Color(0xFF2A2A2A);
+  static const _textSec = Color(0xFF888888);
+  static const _textMute = Color(0xFF555555);
+
+  Future<void> _copyCode() async {
+    await Clipboard.setData(ClipboardData(text: widget.code));
+    setState(() => _copied = true);
+    await Future.delayed(const Duration(seconds: 2));
+    if (mounted) setState(() => _copied = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: _bg,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: SizedBox(
+        width: 420,
+        child: Padding(
+          padding: const EdgeInsets.all(36),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 아이콘
+              Container(
+                width: 64, height: 64,
+                decoration: const BoxDecoration(color: _limeDark, shape: BoxShape.circle),
+                child: const Icon(Icons.check_circle_rounded, color: _lime, size: 32),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                '강의 방이 생성되었습니다!',
+                style: TextStyle(color: Color(0xFFFFFFFF), fontSize: 18, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                widget.subject,
+                style: const TextStyle(color: _textSec, fontSize: 13),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 28),
+              // 초대 코드 박스
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                decoration: BoxDecoration(
+                  color: _surf,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: _lime.withValues(alpha: 0.4), width: 1.5),
+                ),
+                child: Column(children: [
+                  const Text(
+                    '학생 초대 코드',
+                    style: TextStyle(color: _textMute, fontSize: 11, letterSpacing: 1.5),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    widget.code,
+                    style: const TextStyle(
+                      color: _lime,
+                      fontSize: 36,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 10,
+                    ),
+                  ),
+                ]),
+              ),
+              const SizedBox(height: 16),
+              // 복사 버튼
+              GestureDetector(
+                onTap: _copyCode,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: double.infinity,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: _copied ? _limeDark : _lime,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Icon(
+                      _copied ? Icons.check_rounded : Icons.copy_rounded,
+                      color: _copied ? _lime : _limeDark,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _copied ? '복사됨!' : '코드 복사하기',
+                      style: TextStyle(
+                        color: _copied ? _lime : _limeDark,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ]),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                '학생들이 이 코드를 입력하면 강의 방에 참여할 수 있습니다.',
+                style: TextStyle(color: _textMute, fontSize: 11),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: _surf,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: _border),
+                  ),
+                  child: const Text(
+                    '닫기',
+                    style: TextStyle(color: _textSec, fontSize: 13),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
