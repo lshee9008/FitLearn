@@ -18,6 +18,18 @@ class StudentHomeSummary {
   bool get hasRoom => room != null;
 }
 
+class ProfessorRoomDetailSummary {
+  final Map<String, dynamic> room;
+  final List<dynamic> lectures;
+  final List<dynamic> students;
+
+  const ProfessorRoomDetailSummary({
+    required this.room,
+    required this.lectures,
+    required this.students,
+  });
+}
+
 final professorRoomsProvider =
     FutureProvider.autoDispose.family<List<dynamic>, String>((ref, userId) async {
   return ApiService().getProfessorRooms(userId);
@@ -48,6 +60,21 @@ final currentProfessorRoomsProvider = FutureProvider.autoDispose<List<dynamic>>(
   final user = ref.watch(authNotifierProvider);
   if (user == null) return [];
   return ref.watch(professorRoomsProvider(user.userId).future);
+});
+
+final professorRoomDetailProvider =
+    FutureProvider.autoDispose.family<ProfessorRoomDetailSummary, String>((ref, roomId) async {
+  final results = await Future.wait([
+    ApiService().getRoom(roomId),
+    ApiService().getRoomLectures(roomId),
+    ApiService().getRoomStudents(roomId),
+  ]);
+
+  return ProfessorRoomDetailSummary(
+    room: results[0] as Map<String, dynamic>,
+    lectures: results[1] as List<dynamic>,
+    students: results[2] as List<dynamic>,
+  );
 });
 
 final currentStudentHomeSummaryProvider =

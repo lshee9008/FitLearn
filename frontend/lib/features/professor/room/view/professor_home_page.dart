@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../features/auth/provider/auth_provider.dart';
+import '../../../../shared/providers/room_data_providers.dart';
 import '../../../../shared/services/api_service.dart';
  
 // ─── 컬러 ────────────────────────────────────────────────────
@@ -44,32 +45,9 @@ class ProfessorHomePage extends ConsumerStatefulWidget {
 }
  
 class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
-  // ── 기존 연결 상태 완전 유지 ────────────────────────────────
-  List<dynamic> _rooms = [];
-  bool _loading = true;
- 
-  @override
-  void initState() {
-    super.initState();
-    _loadRooms();
-  }
- 
-  // ── 기존 액션 완전 유지 ──────────────────────────────────────
-  Future<void> _loadRooms() async {
-    final user = ref.read(authNotifierProvider);
-    if (user == null) return;
-    setState(() => _loading = true);
-    try {
-      final rooms = await ApiService().getProfessorRooms(user.userId);
-      // 백엔드가 created_at DESC 정렬 반환. 없을 경우 역순 fallback
-      final sorted = (rooms.isNotEmpty &&
-              (rooms.first as Map)['created_at'] != null)
-          ? rooms
-          : rooms.reversed.toList();
-      setState(() { _rooms = sorted; _loading = false; });
-    } catch (_) {
-      setState(() => _loading = false);
-    }
+  Future<void> _refreshRooms() async {
+    ref.invalidate(currentProfessorRoomsProvider);
+    await ref.read(currentProfessorRoomsProvider.future);
   }
  
   Future<void> _createRoom() async {
@@ -83,19 +61,6 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
     if (result == null) return;
 
     final lectures = result['lectures'] as List<LectureItem>? ?? [];
-
-    // 1. 임시 ID로 낙관적 삽입
-    final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
-    final tempRoom = <String, dynamic>{
-      'room_id': tempId,
-      'subject': result['subject'] ?? '',
-      'description': result['description'] ?? '',
-      'room_code': '···',
-      'student_count': 0,
-      'created_at': DateTime.now().toIso8601String(),
-      '_loading': true,
-    };
-    setState(() => _rooms = [tempRoom, ..._rooms]);
 
     try {
       final coreConcepts = (result['core_concepts'] as String? ?? '')
@@ -130,11 +95,7 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
         await ApiService().createLectureShells(roomId, lectureSeeds);
       }
 
-      // 2. 임시 데이터를 실제 데이터로 교체
-      setState(() {
-        final idx = _rooms.indexWhere((r) => (r as Map)['room_id'] == tempId);
-        if (idx != -1) _rooms[idx] = roomData;
-      });
+      ref.invalidate(currentProfessorRoomsProvider);
 
       if (mounted) {
         final inviteCode = roomData['room_code'] as String? ?? '';
@@ -146,9 +107,6 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
         }
       }
     } catch (e) {
-      // 3. 실패 시 임시 데이터 제거
-      setState(() => _rooms.removeWhere(
-            (r) => (r as Map)['room_id'] == tempId));
       messenger.showSnackBar(
         SnackBar(
           content: Text('방 생성 오류: $e'),
@@ -182,13 +140,11 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
       ),
     );
     if (confirm != true || !mounted) return;
-    // 즉시 목록에서 제거
-    setState(() => _rooms.removeWhere((r) => (r as Map)['room_id'] == roomId));
     try {
       await ApiService().deleteRoom(roomId);
+      ref.invalidate(currentProfessorRoomsProvider);
     } catch (_) {
-      // 실패 시 다시 로드
-      _loadRooms();
+      await _refreshRooms();
     }
   }
 
@@ -206,11 +162,7 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
         synopsis: result['synopsis'] ?? '',
         coreConcepts: result['core_concepts'] ?? '',
       );
-      setState(() {
-        final idx = _rooms.indexWhere(
-            (r) => (r as Map)['room_id'] == room['room_id']);
-        if (idx != -1) _rooms[idx] = {...room, ...result};
-      });
+      ref.invalidate(currentProfessorRoomsProvider);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -234,7 +186,9 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authNotifierProvider);
-    final totalStudents = _rooms.fold<int>(
+    final roomsAsync = ref.watch(currentProfessorRoomsProvider);
+    final rooms = roomsAsync.valueOrNull ?? const <dynamic>[];
+    final totalStudents = rooms.fold<int>(
       0, (s, r) => s + ((r['student_count'] as int?) ?? 0),
     );
  
@@ -245,7 +199,7 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
           _Sidebar(onLogout: _logout, onCreateRoom: _createRoom),
           Expanded(
             child: RefreshIndicator(
-              onRefresh: _loadRooms,
+              onRefresh: _refreshRooms,
               color: _C.lime,
               backgroundColor: _C.surface,
               child: CustomScrollView(
@@ -261,13 +215,13 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
                           _WelcomeBanner(name: user?.name ?? ''),
                           const SizedBox(height: 20),
                           _StatsRow(
-                            roomCount: _rooms.length,
+                            roomCount: rooms.length,
                             studentCount: totalStudents,
                           ),
                           const SizedBox(height: 24),
                           _SectionTitle(
                             title: '내 강의 방',
-                            sub: '${_rooms.length}개',
+                            sub: '${rooms.length}개',
                             trailing: _CreateRoomButton(onTap: _createRoom),
                           ),
                           const SizedBox(height: 12),
@@ -277,7 +231,7 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
                   ),
  
                   // ── 로딩 ──────────────────────────────────────
-                  if (_loading)
+                  if (roomsAsync.isLoading)
                     const SliverFillRemaining(
                       child: Center(
                         child: CircularProgressIndicator(
@@ -287,7 +241,17 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
                     )
  
                   // ── 빈 상태 ───────────────────────────────────
-                  else if (_rooms.isEmpty)
+                  else if (roomsAsync.hasError)
+                    const SliverFillRemaining(
+                      child: Center(
+                        child: Text(
+                          '강의실 목록을 불러오지 못했습니다',
+                          style: TextStyle(color: _C.textSec, fontSize: 14),
+                        ),
+                      ),
+                    )
+
+                  else if (rooms.isEmpty)
                     SliverFillRemaining(
                       child: _EmptyRooms(onCreateRoom: _createRoom),
                     )
@@ -301,12 +265,12 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
                           (_, i) => Padding(
                             padding: const EdgeInsets.only(bottom: 12),
                             child: _RoomCard(
-                              room: _rooms[i] as Map<String, dynamic>,
-                              onDelete: () => _deleteRoom(_rooms[i] as Map<String, dynamic>),
-                              onEdit: () => _editRoom(_rooms[i] as Map<String, dynamic>),
+                              room: rooms[i] as Map<String, dynamic>,
+                              onDelete: () => _deleteRoom(rooms[i] as Map<String, dynamic>),
+                              onEdit: () => _editRoom(rooms[i] as Map<String, dynamic>),
                             ),
                           ),
-                          childCount: _rooms.length,
+                          childCount: rooms.length,
                         ),
                       ),
                     ),
@@ -314,7 +278,7 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
               ),
             ),
           ),
-          _RightPanel(rooms: _rooms),
+          _RightPanel(rooms: rooms),
         ],
       ),
     );

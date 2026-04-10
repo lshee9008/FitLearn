@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../shared/providers/room_data_providers.dart';
 import '../../../../shared/services/api_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/app_card.dart';
@@ -17,16 +18,11 @@ class RoomDetailPage extends ConsumerStatefulWidget {
 class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
     with SingleTickerProviderStateMixin {
   late final TabController _tabs;
-  Map<String, dynamic>? _room;
-  List<dynamic> _lectures = [];
-  List<dynamic> _students = [];
-  bool _loading = true;
 
   @override
   void initState() {
     super.initState();
     _tabs = TabController(length: 4, vsync: this);
-    _load();
   }
 
   @override
@@ -35,31 +31,18 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
     super.dispose();
   }
 
-  Future<void> _load() async {
-    setState(() => _loading = true);
-    try {
-      final results = await Future.wait([
-        ApiService().getRoom(widget.roomId),
-        ApiService().getRoomLectures(widget.roomId),
-        ApiService().getRoomStudents(widget.roomId),
-      ]);
-      setState(() {
-        _room = results[0] as Map<String, dynamic>;
-        _lectures = results[1] as List<dynamic>;
-        _students = results[2] as List<dynamic>;
-        _loading = false;
-      });
-    } catch (_) {
-      setState(() => _loading = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    final summaryAsync = ref.watch(professorRoomDetailProvider(widget.roomId));
+    final summary = summaryAsync.valueOrNull;
+    final room = summary?.room;
+    final lectures = summary?.lectures ?? const <dynamic>[];
+    final students = summary?.students ?? const <dynamic>[];
+
     return Scaffold(
       backgroundColor: AppColors.bg,
       appBar: AppBar(
-        title: Text(_room?['subject'] as String? ?? '강의 방'),
+        title: Text(room?['subject'] as String? ?? '강의 방'),
         backgroundColor: AppColors.bg,
         actions: [
           IconButton(
@@ -86,22 +69,29 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
         label: const Text('교안 업로드', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
         icon: const Icon(Icons.upload_file_rounded, color: Colors.white),
       ),
-      body: _loading
+      body: summaryAsync.isLoading
           ? const Center(child: CircularProgressIndicator(color: AppColors.primaryLight))
+          : summaryAsync.hasError || room == null
+              ? const Center(
+                  child: Text(
+                    '강의실 데이터를 불러오지 못했습니다',
+                    style: TextStyle(color: AppColors.textMuted),
+                  ),
+                )
           : TabBarView(
               controller: _tabs,
               children: [
-                _buildLectures(),
+                _buildLectures(lectures),
                 _buildNotices(),
-                _buildStudents(),
-                _buildSettings(),
+                _buildStudents(room, students),
+                _buildSettings(room),
               ],
             ),
     );
   }
 
-  Widget _buildLectures() {
-    if (_lectures.isEmpty) {
+  Widget _buildLectures(List<dynamic> lectures) {
+    if (lectures.isEmpty) {
       return const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
         Text('📄', style: TextStyle(fontSize: 48)),
         SizedBox(height: 12),
@@ -112,9 +102,9 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
     }
     return ListView.builder(
       padding: const EdgeInsets.all(20),
-      itemCount: _lectures.length,
+      itemCount: lectures.length,
       itemBuilder: (_, i) {
-        final lec = _lectures[i] as Map<String, dynamic>;
+        final lec = lectures[i] as Map<String, dynamic>;
         final confirmed = lec['confirmed'] as bool? ?? false;
         final order = lec['order_index'] as int? ?? (i + 1);
         final hasVideo = (lec['video_url'] as String? ?? '').trim().isNotEmpty;
@@ -207,9 +197,8 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
     );
   }
 
-  Widget _buildStudents() {
-    if (_room != null) {
-      final code = _room!['room_code'] as String? ?? '';
+  Widget _buildStudents(Map<String, dynamic> room, List<dynamic> students) {
+    final code = room['room_code'] as String? ?? '';
       return Column(children: [
         Padding(
           padding: const EdgeInsets.all(20),
@@ -235,13 +224,13 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
             ),
           ),
         ),
-        Expanded(child: _students.isEmpty
+        Expanded(child: students.isEmpty
             ? const Center(child: Text('아직 입장한 학생이 없습니다', style: TextStyle(color: AppColors.textMuted)))
             : ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                itemCount: _students.length,
+                itemCount: students.length,
                 itemBuilder: (_, i) {
-                  final s = _students[i] as Map<String, dynamic>;
+                  final s = students[i] as Map<String, dynamic>;
                   final style = s['primary_style'] as String?;
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 10),
@@ -277,8 +266,6 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
                 },
               )),
       ]);
-    }
-    return const SizedBox.shrink();
   }
 
   // ── 추가 기능 (더미 혹은 외부 이동) ──────────────────────────────────
@@ -305,12 +292,10 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
     );
   }
 
-  Widget _buildSettings() {
-    if (_room == null) return const SizedBox.shrink();
-    
-    final ctrlSynopsis = TextEditingController(text: _room!['synopsis'] ?? '');
-    final ctrlConcepts = TextEditingController(text: ((_room!['core_concepts'] as List<dynamic>?) ?? []).join(', '));
-    final ctrlYoutube = TextEditingController(text: _room!['youtube_url'] ?? '');
+  Widget _buildSettings(Map<String, dynamic> room) {
+    final ctrlSynopsis = TextEditingController(text: room['synopsis'] ?? '');
+    final ctrlConcepts = TextEditingController(text: ((room['core_concepts'] as List<dynamic>?) ?? []).join(', '));
+    final ctrlYoutube = TextEditingController(text: room['youtube_url'] ?? '');
     
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -358,9 +343,9 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
                       'core_concepts': concepts,
                       'youtube_url': ctrlYoutube.text.trim(),
                     });
+                    ref.invalidate(professorRoomDetailProvider(widget.roomId));
                     if (!mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('설정이 저장되었습니다.')));
-                    _load();
                   } catch (e) {
                     if (!mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('오류: $e')));
