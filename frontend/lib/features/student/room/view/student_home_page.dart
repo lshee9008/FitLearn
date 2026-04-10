@@ -593,6 +593,31 @@ class _RoomCardState extends State<_RoomCard> {
         // 교안 목록
         if (_expanded) ...[ 
           Container(height: 1, color: _C.border),
+          
+          // 수준 진단 퀴즈 버튼 추가
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            child: SizedBox(
+              width: double.infinity,
+              height: 44,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _C.lime.withValues(alpha: 0.1),
+                  foregroundColor: _C.lime,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  side: BorderSide(color: _C.lime.withValues(alpha: 0.3)),
+                ),
+                onPressed: () async {
+                  await context.push('/student/subject_quiz/${widget.room['room_id']}');
+                  // 퀴즈 결과 확인 후 UI 갱신 필요시 여기서 로드 가능
+                },
+                icon: const Icon(Icons.psychology_rounded, size: 20),
+                label: const Text('💡 과목 수준 진단 시작하기', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ),
+          Container(height: 1, color: _C.border),
+
           if (confirmedLectures.isEmpty)
             Padding(
               padding: const EdgeInsets.all(20),

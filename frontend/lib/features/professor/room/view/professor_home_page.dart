@@ -73,6 +73,9 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
         professorUid: user.userId,
         subject: result['subject']!,
         description: result['description'] ?? '',
+        roomType: result['room_type'] ?? 'offline',
+        synopsis: result['synopsis'] ?? '',
+        coreConcepts: (result['core_concepts'] ?? '').split('|').where((e) => e.isNotEmpty).toList(),
       );
       _loadRooms();
     } catch (e) {
@@ -1058,129 +1061,145 @@ class _CreateRoomDialog extends StatefulWidget {
 class _CreateRoomDialogState extends State<_CreateRoomDialog> {
   final _subjectCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
- 
+  final _synopsisCtrl = TextEditingController();
+  final _coreConceptsCtrl = TextEditingController();
+  String _roomType = 'offline';
+
   @override
   void dispose() {
     _subjectCtrl.dispose();
     _descCtrl.dispose();
+    _synopsisCtrl.dispose();
+    _coreConceptsCtrl.dispose();
     super.dispose();
   }
- 
+
+  Widget _buildTextField(String label, String hint, TextEditingController ctrl, {int maxLines = 1}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(color: _C.textSec, fontSize: 12)),
+        const SizedBox(height: 8),
+        TextField(
+          controller: ctrl,
+          maxLines: maxLines,
+          style: const TextStyle(color: _C.textPri),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: const TextStyle(color: _C.textMute),
+            filled: true,
+            fillColor: _C.surface2,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: _C.border),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: _C.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: _C.lime),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: _C.surface,
-      shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20)),
-      child: Padding(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Container(
+        width: 500,
         padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('강의 방 만들기',
-                style: TextStyle(
-                    color: _C.textPri,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800)),
-            const SizedBox(height: 20),
- 
-            const Text('과목명',
-                style:
-                    TextStyle(color: _C.textSec, fontSize: 12)),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _subjectCtrl,
-              style: const TextStyle(color: _C.textPri),
-              decoration: InputDecoration(
-                hintText: '예: 파이썬 프로그래밍 기초',
-                hintStyle:
-                    const TextStyle(color: _C.textMute),
-                filled: true,
-                fillColor: _C.surface2,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide:
-                      const BorderSide(color: _C.border),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide:
-                      const BorderSide(color: _C.border),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide:
-                      const BorderSide(color: _C.lime),
-                ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('강의 방 만들기',
+                  style: TextStyle(
+                      color: _C.textPri,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800)),
+              const SizedBox(height: 20),
+  
+              Row(
+                children: [
+                  const Text('강의 유형', style: TextStyle(color: _C.textSec, fontSize: 12)),
+                  const SizedBox(width: 16),
+                  Radio<String>(
+                    value: 'offline',
+                    groupValue: _roomType,
+                    activeColor: _C.lime,
+                    onChanged: (val) => setState(() => _roomType = val!),
+                  ),
+                  const Text('오프라인', style: TextStyle(color: _C.textPri, fontSize: 13)),
+                  const SizedBox(width: 16),
+                  Radio<String>(
+                    value: 'online',
+                    groupValue: _roomType,
+                    activeColor: _C.lime,
+                    onChanged: (val) => setState(() => _roomType = val!),
+                  ),
+                  const Text('온라인', style: TextStyle(color: _C.textPri, fontSize: 13)),
+                ],
               ),
-            ),
-            const SizedBox(height: 16),
- 
-            const Text('설명 (선택)',
-                style:
-                    TextStyle(color: _C.textSec, fontSize: 12)),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _descCtrl,
-              style: const TextStyle(color: _C.textPri),
-              decoration: InputDecoration(
-                hintText: '강의 설명을 입력하세요',
-                hintStyle:
-                    const TextStyle(color: _C.textMute),
-                filled: true,
-                fillColor: _C.surface2,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide:
-                      const BorderSide(color: _C.border),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide:
-                      const BorderSide(color: _C.border),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide:
-                      const BorderSide(color: _C.lime),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
- 
-            Row(children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: Container(
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: _C.surface2,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: _C.border),
-                    ),
-                    child: const Center(
-                      child: Text('취소',
-                          style: TextStyle(
-                              color: _C.textSec,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600)),
+              const SizedBox(height: 16),
+              
+              _buildTextField('과목명', '예: 파이썬 프로그래밍 기초', _subjectCtrl),
+              const SizedBox(height: 16),
+              _buildTextField('간단 설명 (선택)', '강의의 간략한 설명을 입력하세요', _descCtrl),
+              const SizedBox(height: 16),
+              _buildTextField('강의 줄거리 / 목표', '예: 데이터 사이언스를 위한 파이썬 문법과 라이브러리 활용', _synopsisCtrl, maxLines: 3),
+              const SizedBox(height: 16),
+              _buildTextField('핵심 개념 (쉼표로 구분)', '예: 변수, 반복문, 함수, 클래스', _coreConceptsCtrl),
+              
+              const SizedBox(height: 24),
+  
+              Row(children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: _C.surface2,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: _C.border),
+                      ),
+                      child: const Center(
+                        child: Text('취소',
+                            style: TextStyle(
+                                color: _C.textSec,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600)),
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () {
-                    if (_subjectCtrl.text.trim().isNotEmpty) {
-                      Navigator.pop(context, {
-                        'subject': _subjectCtrl.text.trim(),
-                        'description': _descCtrl.text.trim(),
-                      });
-                    }
-                  },
+                const SizedBox(width: 12),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () {
+                      if (_subjectCtrl.text.trim().isNotEmpty) {
+                        final concepts = _coreConceptsCtrl.text
+                            .split(',')
+                            .map((e) => e.trim())
+                            .where((e) => e.isNotEmpty)
+                            .toList();
+                        Navigator.pop(context, {
+                          'subject': _subjectCtrl.text.trim(),
+                          'description': _descCtrl.text.trim(),
+                          'room_type': _roomType,
+                          'synopsis': _synopsisCtrl.text.trim(),
+                          'core_concepts': concepts.join('|'), // 나중에 리스트로 처리
+                        });
+                      }
+                    },
                   child: Container(
                     height: 44,
                     decoration: BoxDecoration(

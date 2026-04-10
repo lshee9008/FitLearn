@@ -162,6 +162,32 @@ def _build_profile_instruction(style: str, profile: dict) -> str:
         else:
             instructions.append(f"[신뢰도 {confidence}%] 진단 신뢰도가 낮습니다. 읽기형 기본 체계를 유지하며 다양한 형식을 혼합하세요.")
 
+    # 과목별 학생 수준 반영 (4요소 재해석의 핵심)
+    subject_level = profile.get("subject_level", "")
+    level_map = {
+        "beginner": (
+            "[과목 수준 — 입문] 이 학생은 해당 과목의 기초 지식이 부족합니다.\n"
+            "- 전문 용어가 처음 나올 때마다 반드시 쉬운 말로 정의하세요.\n"
+            "- 일상 생활 유추·비유를 적극 활용하여 개념을 쉽게 풀어쓰세요.\n"
+            "- 전제 개념부터 차근차근, 결론으로 가는 귀납적 순서로 서술하세요.\n"
+            "- 코드 예제는 각 줄에 주석으로 설명을 달아주세요."
+        ),
+        "intermediate": (
+            "[과목 수준 — 중급] 이 학생은 기초 개념을 알고 있습니다.\n"
+            "- 기초 용어 정의는 생략하고 응용·사례 중심으로 서술하세요.\n"
+            "- 개념 간 연결과 '왜 이렇게 되는지' 원리 설명에 집중하세요.\n"
+            "- 코드 예제는 실행 결과와 함께 제공하세요."
+        ),
+        "advanced": (
+            "[과목 수준 — 고급] 이 학생은 해당 과목에 대한 깊은 이해를 가지고 있습니다.\n"
+            "- 기초 설명은 최소화하고 심화·예외 케이스·엣지 케이스를 포함하세요.\n"
+            "- 성능, 한계, 트레이드오프 등 전문가 관점의 내용을 적극 추가하세요.\n"
+            "- 코드 예제는 최적화·리팩터링 관점에서도 언급하세요."
+        ),
+    }
+    if subject_level in level_map:
+        instructions.append(level_map[subject_level])
+
     return "\n".join(instructions)
 
 

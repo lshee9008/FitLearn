@@ -152,6 +152,86 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
     html.Url.revokeObjectUrl(url);
   }
 
+  Future<void> _downloadOriginal() async {
+    try {
+      final res = await ApiService().getOriginalLectureUrl(widget.roomId, widget.lectureId);
+      final url = res['url'] as String?;
+      if (url == null || url.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('원본 파일을 찾을 수 없습니다.')));
+        return;
+      }
+      final anchor = html.document.createElement('a') as html.AnchorElement
+        ..href = url
+        ..target = '_blank'
+        ..download = widget.title;
+      html.document.body!.append(anchor);
+      anchor.click();
+      anchor.remove();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('오류: $e')));
+    }
+  }
+
+  void _showYouTubeModal() {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: AppColors.bgSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('📺 YouTube & AI 타임스탬프', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              const Text('온라인 강의 영상', style: TextStyle(color: AppColors.textMuted)),
+              const SizedBox(height: 8),
+              Container(
+                height: 200, width: double.infinity,
+                decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(12)),
+                child: const Center(child: Icon(Icons.play_circle_fill_rounded, color: Colors.white54, size: 48)),
+              ),
+              const SizedBox(height: 16),
+              const Text('AI 주요 구간 요약', style: TextStyle(color: AppColors.textMuted)),
+              const SizedBox(height: 8),
+              _buildTimestampMock('03:45', '데이터 전처리 기초 개념'),
+              _buildTimestampMock('12:10', '결측치 처리 전략 3가지'),
+              _buildTimestampMock('28:30', '스케일링 및 정규화 실습'),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.black),
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('닫기', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTimestampMock(String time, String desc) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(4)),
+            child: Text(time, style: const TextStyle(color: AppColors.primaryLight, fontSize: 12, fontWeight: FontWeight.bold)),
+          ),
+          const SizedBox(width: 8),
+          Expanded(child: Text(desc, style: const TextStyle(color: AppColors.textPrimary, fontSize: 13))),
+        ],
+      ),
+    );
+  }
+
   Widget _buildHeader() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
@@ -184,21 +264,19 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
               ],
             ]),
         ])),
-        // 다운로드 버튼
-        if (_styleContents != null)
-          GestureDetector(
-            onTap: _downloadMarkdown,
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.bgSurface,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: const Icon(Icons.download_rounded,
-                  color: AppColors.textMuted, size: 18),
-            ),
+        // 기능 아이콘들
+        if (_styleContents != null) ...[
+          IconButton(
+            tooltip: '원본 강의자료 다운로드',
+            icon: const Icon(Icons.download_rounded, color: AppColors.textMuted, size: 22),
+            onPressed: _downloadOriginal,
           ),
+          IconButton(
+            tooltip: 'YouTube 영상 & 요약',
+            icon: const Icon(Icons.smart_display_rounded, color: AppColors.secondary, size: 22),
+            onPressed: _showYouTubeModal,
+          ),
+        ]
       ]),
     );
   }

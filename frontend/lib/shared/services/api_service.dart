@@ -40,11 +40,19 @@ class ApiService {
     required String professorUid,
     required String subject,
     String description = '',
+    String roomType = 'offline',
+    String synopsis = '',
+    List<String> coreConcepts = const [],
+    String youtubeUrl = '',
   }) async {
     final res = await _dio.post(ApiConstants.createRoom, data: {
       'professor_uid': professorUid,
       'subject': subject,
       'description': description,
+      'room_type': roomType,
+      'synopsis': synopsis,
+      'core_concepts': coreConcepts,
+      'youtube_url': youtubeUrl,
     });
     return res.data as Map<String, dynamic>;
   }
@@ -172,6 +180,58 @@ class ApiService {
       ApiConstants.reforgedLecture(roomId, lectureId),
       queryParameters: params,
     );
+    return res.data as Map<String, dynamic>;
+  }
+
+  // ── Quiz & Level ──────────────────────────────────────────────
+  
+  Future<Map<String, dynamic>> updateRoomMeta(String roomId, Map<String, dynamic> data) async {
+    final res = await _dio.patch('/api/v1/rooms/$roomId/meta', data: data);
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getRoomQuiz(String roomId) async {
+    final res = await _dio.get('/api/v1/rooms/$roomId/quiz');
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> submitQuiz(String roomId, String userId, List<int> answers) async {
+    final res = await _dio.post('/api/v1/rooms/$roomId/quiz/submit', data: {
+      'user_id': userId,
+      'answers': answers,
+    });
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getQuizResult(String roomId, String userId) async {
+    final res = await _dio.get('/api/v1/rooms/$roomId/quiz/result/$userId');
+    return res.data as Map<String, dynamic>;
+  }
+
+  // ── Notices ───────────────────────────────────────────────────
+
+  Future<List<dynamic>> getNotices(String roomId) async {
+    final res = await _dio.get('/api/v1/rooms/$roomId/notices');
+    return res.data as List<dynamic>;
+  }
+
+  Future<Map<String, dynamic>> createNotice(String roomId, String professorUid, String content, {String title = ''}) async {
+    final res = await _dio.post('/api/v1/rooms/$roomId/notices', data: {
+      'professor_uid': professorUid,
+      'content': content,
+      'title': title,
+    });
+    return res.data as Map<String, dynamic>;
+  }
+  
+  Future<void> deleteNotice(String roomId, String noticeId) async {
+    await _dio.delete('/api/v1/rooms/$roomId/notices/$noticeId');
+  }
+
+  // ── Original File ──────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> getOriginalLectureUrl(String roomId, String lectureId) async {
+    final res = await _dio.get('/api/v1/lectures/$roomId/$lectureId/original');
     return res.data as Map<String, dynamic>;
   }
 

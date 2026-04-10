@@ -103,6 +103,16 @@ async def upload_lecture(
         core_points=result["core_points"],
         week_number=week_number,
     )
+    
+    # Storage 원본 파일 업로드 (백그라운드 또는 비동기 대기. MVP이므로 대기)
+    try:
+        content_type = file.content_type or "application/octet-stream"
+        await firebase.upload_original_file(
+            room_id, lecture_id, content, file.filename or "upload.bin", content_type
+        )
+    except Exception as e:
+        logger.warning(f"[upload] 원본 파일 Storage 업로드 실패: {e}")
+
     logger.info(f"[upload] 완료 lecture_id={lecture_id} points={len(result['core_points'])}")
 
     return LectureUploadResponse(
@@ -132,6 +142,15 @@ async def confirm_core_points(room_id: str, lecture_id: str, body: CorePointConf
     await firebase.confirm_core_points(room_id, lecture_id, points)
     logger.info(f"[confirm] room={room_id} lecture={lecture_id} points={len(points)}")
     return {"status": "confirmed", "count": len(points)}
+
+
+@router.get("/lectures/{room_id}/{lecture_id}/original")
+async def get_original_file(room_id: str, lecture_id: str):
+    """원본 교안 파일 다운로드 URL 반환"""
+    url = await firebase.get_lecture_original_url(room_id, lecture_id)
+    if not url:
+        raise HTTPException(status_code=404, detail="원본 파일이 없습니다.")
+    return {"url": url}
 
 
 _TEST_PROFILES = {
@@ -234,6 +253,13 @@ async def get_reforged(room_id: str, lecture_id: str, user_id: str, test_style: 
         raise HTTPException(status_code=400, detail="학습 성향 진단을 먼저 완료해주세요.")
 
     profile = diagnosis["profile"]
+
+    # 과목별 수준 주입 (4요소 재해석 핵심)
+    level_data = await firebase.get_subject_level(user_id, room_id)
+    if level_data:
+        profile["subject_level"] = level_data.get("subject_level", "")
+        logger.info(f"[reforged] 과목 수준 주입: {profile.get('subject_level')}")
+
     logger.info(f"[reforged] 6스타일 병렬 생성 시작 user={user_id} style={profile.get('learning_style')}")
 
     try:

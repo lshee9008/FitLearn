@@ -25,7 +25,7 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 2, vsync: this);
+    _tabs = TabController(length: 4, vsync: this);
     _load();
   }
 
@@ -74,7 +74,9 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
           indicatorColor: AppColors.primary,
           tabs: const [
             Tab(text: '교안'),
+            Tab(text: '공지'),
             Tab(text: '학생'),
+            Tab(text: '설정'),
           ],
         ),
       ),
@@ -88,7 +90,12 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
           ? const Center(child: CircularProgressIndicator(color: AppColors.primaryLight))
           : TabBarView(
               controller: _tabs,
-              children: [_buildLectures(), _buildStudents()],
+              children: [
+                _buildLectures(),
+                _buildNotices(),
+                _buildStudents(),
+                _buildSettings(),
+              ],
             ),
     );
   }
@@ -218,5 +225,97 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
       ]);
     }
     return const SizedBox.shrink();
+  }
+
+  // ── 추가 기능 (더미 혹은 외부 이동) ──────────────────────────────────
+  
+  Widget _buildNotices() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.campaign_outlined, size: 48, color: AppColors.textMuted),
+          const SizedBox(height: 16),
+          const Text('공지사항 관리', style: TextStyle(color: AppColors.textPri, fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          const Text('추가 기능 페이지에서 구현됩니다 (MVP)', style: TextStyle(color: AppColors.textMuted)),
+          const SizedBox(height: 24),
+          ElevatedButton(
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('공지사항 작성 화면으로 이동 (예정)')));
+            },
+            child: const Text('공지사항 쓰기'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSettings() {
+    if (_room == null) return const SizedBox.shrink();
+    
+    final ctrlSynopsis = TextEditingController(text: _room!['synopsis'] ?? '');
+    final ctrlConcepts = TextEditingController(text: ((_room!['core_concepts'] as List<dynamic>?) ?? []).join(', '));
+    final ctrlYoutube = TextEditingController(text: _room!['youtube_url'] ?? '');
+    
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: AppCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('강의실 설정', style: TextStyle(color: AppColors.textPri, fontSize: 18, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 24),
+            const Text('강의 줄거리 / 목표', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: ctrlSynopsis,
+              maxLines: 3,
+              style: const TextStyle(color: AppColors.textPri),
+              decoration: const InputDecoration(filled: true, fillColor: AppColors.bg),
+            ),
+            const SizedBox(height: 16),
+            const Text('핵심 개념 (쉼표 구분) - AI 퀴즈 자동 생성에 사용됨', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: ctrlConcepts,
+              style: const TextStyle(color: AppColors.textPri),
+              decoration: const InputDecoration(filled: true, fillColor: AppColors.bg),
+            ),
+            const SizedBox(height: 16),
+            const Text('YouTube URL (온라인 강의 시)', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: ctrlYoutube,
+              style: const TextStyle(color: AppColors.textPri),
+              decoration: const InputDecoration(filled: true, fillColor: AppColors.bg),
+            ),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.black),
+                onPressed: () async {
+                  final concepts = ctrlConcepts.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+                  try {
+                    await ApiService().updateRoomMeta(widget.roomId, {
+                      'synopsis': ctrlSynopsis.text.trim(),
+                      'core_concepts': concepts,
+                      'youtube_url': ctrlYoutube.text.trim(),
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('설정이 저장되었습니다.')));
+                    _load();
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('오류: $e')));
+                  }
+                },
+                child: const Text('변경사항 저장 및 AI 퀴즈 재생성', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

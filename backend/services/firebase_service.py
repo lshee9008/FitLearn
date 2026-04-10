@@ -36,9 +36,18 @@ def _init_firebase() -> bool:
             return False
 
         cred = credentials.Certificate(json.loads(cred_json))
-        firebase_admin.initialize_app(cred)
+        bucket_name = os.getenv("FIREBASE_STORAGE_BUCKET")
+        options = {}
+        if bucket_name:
+            options["storageBucket"] = bucket_name
+
+        if options:
+            firebase_admin.initialize_app(cred, options)
+        else:
+            firebase_admin.initialize_app(cred)
+
         _firebase_ok = True
-        logger.info("[Firebase] 초기화 완료")
+        logger.info(f"[Firebase] 초기화 완료 (Storage: {'사용' if bucket_name else '미사용'})")
         return True
     except Exception as e:
         logger.error(f"[Firebase] 초기화 실패: {e}")
@@ -119,30 +128,33 @@ class FirebaseService:
     # ── 방 ────────────────────────────────────────────────────────
 
     async def create_room(
-        self, professor_uid: str, professor_name: str, subject: str, description: str
+        self, professor_uid: str, professor_name: str, subject: str, description: str,
+        room_type: str = "offline", synopsis: str = "",
+        core_concepts: list = None, youtube_url: str = ""
     ) -> dict:
         code = _generate_room_code()
         db = self._safe_db()
+        base = {
+            "room_id": "offline", "room_code": code,
+            "professor_uid": professor_uid, "professor_name": professor_name,
+            "subject": subject, "description": description,
+            "room_type": room_type, "synopsis": synopsis,
+            "core_concepts": core_concepts or [], "youtube_url": youtube_url,
+            "has_quiz": False, "students": [],
+        }
         if db is None:
-            return {"room_id": "offline", "room_code": code, "professor_uid": professor_uid,
-                    "subject": subject, "description": description, "students": []}
+            return base
         try:
             def _write():
                 room_ref = db.collection("rooms").document()
-                data = {
-                    "room_id": room_ref.id, "room_code": code,
-                    "professor_uid": professor_uid, "professor_name": professor_name,
-                    "subject": subject, "description": description,
-                    "students": [], "created_at": datetime.now(timezone.utc),
-                }
+                data = {**base, "room_id": room_ref.id,
+                        "created_at": datetime.now(timezone.utc)}
                 room_ref.set(data)
                 return data
             return await _run(_write)
         except Exception as e:
             logger.error(f"[Firebase] create_room 실패: {e}")
-            return {"room_id": "offline", "room_code": code, "professor_uid": professor_uid,
-                    "professor_name": professor_name, "subject": subject,
-                    "description": description, "students": []}
+            return base
 
     async def get_rooms_by_student(self, user_id: str) -> list[dict]:
         db = self._safe_db()
@@ -455,3 +467,188 @@ class FirebaseService:
             return None
         primary = result["primary_style"]
         return {"content": result["styles"].get(primary, ""), "style": primary}
+
+    # ── 강의실 메타 업데이트 ───────────────────────────────────────
+
+    async def update_room_meta(self, room_id: str, meta: dict) -> None:
+        db = self._safe_db()
+        if db is None:
+            return
+        try:
+            await _run(lambda: db.collection("rooms").document(room_id).update(meta))
+        except Exception as e:
+            logger.warning(f"[Firebase] update_room_meta 실패: {e}")
+
+    async def save_room_quiz(self, room_id: str, questions: list) -> None:
+        db = self._safe_db()
+        if db is None:
+            return
+        try:
+            def _write():
+                db.collection("rooms").document(room_id).update(
+                    {"subject_quiz": questions, "has_quiz": True}
+                )
+            await _run(_write)
+        except Exception as e:
+            logger.warning(f"[Firebase] save_room_quiz 실패: {e}")
+
+    async def get_room_quiz(self, room_id: str) -> list:
+        db = self._safe_db()
+        if db is None:
+            return []
+        try:
+            def _read():
+                doc = db.collection("rooms").document(room_id).get()
+                return doc.to_dict().get("subject_quiz", []) if doc.exists else []
+            return await _run(_read)
+        except Exception as e:
+            logger.warning(f"[Firebase] get_room_quiz 실패: {e}")
+            return []
+
+    # ── 수준판단 결과 ──────────────────────────────────────────────
+
+    async def save_subject_level(
+        self, user_id: str, room_id: str, score: int, level: str,
+        correct: int, total: int
+    ) -> None:
+        db = self._safe_db()
+        if db is None:
+            return
+        try:
+            def _write():
+                db.collection("subject_levels").document(f"{user_id}_{room_id}").set({
+                    "user_id": user_id, "room_id": room_id,
+                    "score": score, "subject_level": level,
+                    "correct_count": correct, "total_count": total,
+                    "submitted_at": datetime.now(timezone.utc),
+                })
+            await _run(_write)
+        except Exception as e:
+            logger.warning(f"[Firebase] save_subject_level 실패: {e}")
+
+    async def get_subject_level(self, user_id: str, room_id: str) -> Optional[dict]:
+        db = self._safe_db()
+        if db is None:
+            return None
+        try:
+            def _read():
+                doc = db.collection("subject_levels").document(f"{user_id}_{room_id}").get()
+                return doc.to_dict() if doc.exists else None
+            return await _run(_read)
+        except Exception as e:
+            logger.warning(f"[Firebase] get_subject_level 실패: {e}")
+            return None
+
+    # ── 공지사항 ───────────────────────────────────────────────────
+
+    async def save_notice(
+        self, room_id: str, content: str, professor_uid: str, title: str = ""
+    ) -> str:
+        db = self._safe_db()
+        if db is None:
+            return "offline"
+        try:
+            def _write():
+                ref = db.collection("rooms").document(room_id).collection("notices").document()
+                ref.set({
+                    "notice_id": ref.id, "room_id": room_id,
+                    "title": title, "content": content,
+                    "professor_uid": professor_uid,
+                    "created_at": datetime.now(timezone.utc),
+                })
+                return ref.id
+            return await _run(_write)
+        except Exception as e:
+            logger.warning(f"[Firebase] save_notice 실패: {e}")
+            return "offline"
+
+    async def get_notices(self, room_id: str) -> list:
+        db = self._safe_db()
+        if db is None:
+            return []
+        try:
+            def _read():
+                docs = (
+                    db.collection("rooms").document(room_id)
+                    .collection("notices")
+                    .order_by("created_at", direction="DESCENDING")
+                    .limit(30)
+                    .stream()
+                )
+                return [doc.to_dict() for doc in docs]
+            return await _run(_read)
+        except Exception as e:
+            logger.warning(f"[Firebase] get_notices 실패: {e}")
+            return []
+
+    async def delete_notice(self, room_id: str, notice_id: str) -> None:
+        db = self._safe_db()
+        if db is None:
+            return
+        try:
+            await _run(
+                lambda: db.collection("rooms").document(room_id)
+                .collection("notices").document(notice_id).delete()
+            )
+        except Exception as e:
+            logger.warning(f"[Firebase] delete_notice 실패: {e}")
+
+    # ── 원본 파일 URL 저장 ─────────────────────────────────────────
+
+    async def save_original_file_url(
+        self, room_id: str, lecture_id: str, url: str, filename: str
+    ) -> None:
+        db = self._safe_db()
+        if db is None:
+            return
+        try:
+            def _write():
+                db.collection("rooms").document(room_id)\
+                    .collection("lectures").document(lecture_id)\
+                    .update({"original_file_url": url, "original_filename": filename})
+            await _run(_write)
+        except Exception as e:
+            logger.warning(f"[Firebase] save_original_file_url 실패: {e}")
+
+    async def get_lecture_original_url(self, room_id: str, lecture_id: str) -> Optional[str]:
+        data = await self.get_lecture(room_id, lecture_id)
+        return data.get("original_file_url") if data else None
+
+    # ── 원본 파일 Storage 업로드 ────────────────────────────────────
+
+    async def upload_original_file(
+        self, room_id: str, lecture_id: str, file_bytes: bytes, filename: str, content_type: str
+    ) -> Optional[str]:
+        db = self._safe_db()
+        bucket_name = os.getenv("FIREBASE_STORAGE_BUCKET")
+        if db is None or not bucket_name:
+            return None
+            
+        try:
+            from firebase_admin import storage
+            import uuid
+            
+            def _upload():
+                bucket = storage.bucket()
+                unique_name = f"rooms/{room_id}/lectures/{lecture_id}/{uuid.uuid4().hex}_{filename}"
+                blob = bucket.blob(unique_name)
+                
+                # 메타데이터를 설정하여 브라우저에서 바로 열리지 않고 다운로드되도록 함
+                blob.upload_from_string(
+                    file_bytes, 
+                    content_type=content_type
+                )
+                
+                # 공개 URL 생성 보다는 서명된 URL 또는 만료 기한 없는 토큰 방식 사용
+                # MVP에서는 단순 공개 토큰 만들어서 URL 리턴
+                blob.make_public()
+                return blob.public_url
+
+            url = await _run(_upload)
+            
+            # Firestore에 url 저장
+            await self.save_original_file_url(room_id, lecture_id, url, filename)
+            return url
+        except Exception as e:
+            logger.warning(f"[Firebase] upload_original_file 실패: {e}")
+            return None

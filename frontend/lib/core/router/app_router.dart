@@ -5,6 +5,7 @@ import '../../features/student/diagnosis/view/diagnosis_page.dart';
 import '../../features/student/diagnosis/view/diagnosis_result_page.dart';
 import '../../features/student/diagnosis/provider/diagnosis_provider.dart';
 import '../../features/student/room/view/student_home_page.dart';
+import '../../features/student/room/view/subject_quiz_page.dart';
 import '../../features/student/lecture/view/lecture_view_page.dart';
 import '../../features/professor/room/view/professor_home_page.dart';
 import '../../features/professor/room/view/room_detail_page.dart';
@@ -29,6 +30,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/student/diagnosis',
       builder: (_, __) => const DiagnosisPage(),
+    ),
+    GoRoute(
+      path: '/student/subject_quiz/:roomId',
+      builder: (_, state) => SubjectQuizPage(roomId: state.pathParameters['roomId']!),
     ),
     GoRoute(
       path: '/student/diagnosis/result',
