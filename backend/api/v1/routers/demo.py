@@ -170,13 +170,14 @@ async def demo_reforge(
         try:
             raw = await file.read()
             extracted = await file_svc.extract_text(raw, file.filename)
-            if extracted and not extracted.startswith("["):
+            # 성공적 추출: 내용이 있으며, 단순 실패 메시지("[PDF 파싱 실패", "[PPTX 파싱 실패" 등)가 아님
+            if extracted and not any(fail_word in extracted for fail_word in ["파싱 실패", "추출 실패"]):
                 text = extracted
                 source = f"file({file.filename})"
                 logger.info(f"[demo] 파일 추출 ✓ file={file.filename} len={len(text)}")
             else:
                 logger.warning(
-                    f"[demo] 파일 추출 결과 이상 — file={file.filename} "
+                    f"[demo] 파일 추출 결과 이상(실패 또는 빈 내용) — file={file.filename} "
                     f"result_head={repr(extracted[:80]) if extracted else 'EMPTY'}"
                 )
         except Exception as e:
