@@ -3,8 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../features/auth/provider/auth_provider.dart';
 import '../../../../shared/services/api_service.dart';
-import '../../../../core/theme/app_theme.dart';
-import '../../../../shared/widgets/app_card.dart';
 
 // ─── 컬러 ───────────────────────────────────────────────────────
 class _C {
@@ -90,11 +88,10 @@ class StudentHomePage extends ConsumerStatefulWidget {
 }
 
 class _StudentHomePageState extends ConsumerState<StudentHomePage> {
-  final _codeCtrl = TextEditingController();
   Map<String, dynamic>? _room;
   List<dynamic> _lectures = [];
-  bool _joining = false;
-  String? _error;
+  String? _subjectLevel;
+  int? _subjectScore;
 
   String _activeTag = '전체';
   final Map<int, bool> _liked = {};
@@ -103,12 +100,6 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadMyRooms());
-  }
-
-  @override
-  void dispose() {
-    _codeCtrl.dispose();
-    super.dispose();
   }
 
   // 참여한 방 자동 로드
@@ -120,31 +111,19 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
       if (rooms.isNotEmpty) {
         final room = rooms.first as Map<String, dynamic>;
         final lectures = await ApiService().getRoomLectures(room['room_id'] as String);
+        final quizResult = await ApiService().getQuizResult(
+          room['room_id'] as String,
+          user.userId,
+        );
         if (!mounted) return;
-        setState(() { _room = room; _lectures = lectures; });
+        setState(() {
+          _room = room;
+          _lectures = lectures;
+          _subjectLevel = quizResult['subject_level'] as String?;
+          _subjectScore = quizResult['score'] as int?;
+        });
       }
     } catch (_) {}
-  }
-
-  Future<void> _joinRoom() async {
-    final user = ref.read(authNotifierProvider);
-    if (user == null) return;
-    final code = _codeCtrl.text.trim().toUpperCase();
-    if (code.length != 6) {
-      setState(() => _error = '6자리 방 코드를 입력해주세요.');
-      return;
-    }
-    setState(() { _joining = true; _error = null; });
-    try {
-      final room = await ApiService().joinRoom(userId: user.userId, roomCode: code);
-      final lectures = await ApiService().getRoomLectures(room['room_id'] as String);
-      if (!mounted) return;
-      _codeCtrl.clear();
-      setState(() { _room = room; _lectures = lectures; _joining = false; });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() { _error = '방을 찾을 수 없습니다. 코드를 확인해주세요.'; _joining = false; });
-    }
   }
 
   Future<void> _logout() async {
@@ -164,7 +143,35 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
     });
   }
 
-  void _goToLecture(Map<String, dynamic> lecture, String userId) {
+  Future<void> _goToLecture(Map<String, dynamic> lecture, String userId) async {
+    if (_room == null || userId.isEmpty) return;
+
+    try {
+      final quiz = await ApiService().getRoomQuiz(_room!['room_id'] as String);
+      final questions = quiz['questions'] as List<dynamic>? ?? [];
+      final needsQuiz = questions.isNotEmpty && (_subjectLevel == null || _subjectLevel!.isEmpty);
+
+      if (needsQuiz && mounted) {
+        final completed = await context.push<bool>(
+          '/student/subject_quiz/${_room!['room_id']}',
+        );
+        if (completed != true || !mounted) return;
+
+        final result = await ApiService().getQuizResult(
+          _room!['room_id'] as String,
+          userId,
+        );
+        if (!mounted) return;
+        setState(() {
+          _subjectLevel = result['subject_level'] as String?;
+          _subjectScore = result['score'] as int?;
+        });
+      }
+    } catch (_) {
+      // 퀴즈 조회에 실패해도 교안 입장은 막지 않는다.
+    }
+
+    if (!mounted) return;
     context.push('/student/lecture', extra: {
       'room_id': _room!['room_id'],
       'lecture_id': lecture['lecture_id'],
@@ -214,6 +221,27 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
                   onResume: _goToEnrolledLecture,
                 ),
                 const SizedBox(height: 24),
+                if (_room != null) ...[
+                  _SubjectLevelBanner(
+                    roomName: _room!['name'] as String? ?? '강의실',
+                    subjectLevel: _subjectLevel,
+                    score: _subjectScore,
+                    onAction: () async {
+                      final roomId = _room!['room_id'] as String;
+                      final completed =
+                          await context.push<bool>('/student/subject_quiz/$roomId');
+                      if (completed == true && mounted && user != null) {
+                        final result = await ApiService().getQuizResult(roomId, user.userId);
+                        if (!mounted) return;
+                        setState(() {
+                          _subjectLevel = result['subject_level'] as String?;
+                          _subjectScore = result['score'] as int?;
+                        });
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                ],
                 // 추천강의
                 const _SectionTitle(title: '추천강의'),
                 const SizedBox(height: 12),
@@ -741,6 +769,144 @@ class _TagFilter extends StatelessWidget {
   }
 }
 
+class _SubjectLevelBanner extends StatelessWidget {
+  final String roomName;
+  final String? subjectLevel;
+  final int? score;
+  final VoidCallback onAction;
+
+  const _SubjectLevelBanner({
+    required this.roomName,
+    required this.subjectLevel,
+    required this.score,
+    required this.onAction,
+  });
+
+  String get _label {
+    switch (subjectLevel) {
+      case 'advanced':
+        return '고급';
+      case 'intermediate':
+        return '중급';
+      case 'beginner':
+        return '입문';
+      default:
+        return '미진단';
+    }
+  }
+
+  Color get _accent {
+    switch (subjectLevel) {
+      case 'advanced':
+        return _C.lime;
+      case 'intermediate':
+        return _C.yellow;
+      case 'beginner':
+        return _C.salmon;
+      default:
+        return _C.lavender;
+    }
+  }
+
+  String get _message {
+    switch (subjectLevel) {
+      case 'advanced':
+        return '심화 설명과 최적화 관점까지 반영된 교안을 우선 제공합니다.';
+      case 'intermediate':
+        return '핵심 개념과 응용 예시 중심으로 교안이 재해석됩니다.';
+      case 'beginner':
+        return '쉬운 용어, 단계별 설명, 따라하기 흐름 중심으로 교안이 재해석됩니다.';
+      default:
+        return '과목 수준 진단을 완료하면 이 강의에 맞는 난이도로 교안이 재해석됩니다.';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final diagnosed = subjectLevel != null && subjectLevel!.isNotEmpty;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: _C.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _C.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
+              color: _accent.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(
+              diagnosed ? Icons.auto_awesome_rounded : Icons.rule_folder_rounded,
+              color: _accent,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '$roomName 맞춤 교안 설정',
+                        style: const TextStyle(
+                          color: _C.textPri,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: _accent.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        diagnosed
+                            ? '과목 수준 $_label${score != null ? ' · $score점' : ''}'
+                            : '과목 수준 진단 필요',
+                        style: TextStyle(
+                          color: _accent,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _message,
+                  style: const TextStyle(
+                    color: _C.textSec,
+                    fontSize: 12,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          _HoverButton(
+            label: diagnosed ? '다시 진단' : '퀴즈 시작',
+            icon: diagnosed ? Icons.refresh_rounded : Icons.play_arrow_rounded,
+            color: _accent,
+            onTap: onAction,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ════════════════════════════════════════════════════════════════
 // 섹션 타이틀
 // ════════════════════════════════════════════════════════════════
@@ -1182,4 +1348,3 @@ class _MyLectureRow extends StatelessWidget {
     );
   }
 }
-

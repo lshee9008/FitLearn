@@ -36,7 +36,12 @@ def _extract_json(text: str) -> list | dict:
 
 class QuizService:
     def _model(self):
-        genai.configure(api_key=os.environ["GEMINI_API_KEY"], transport="rest")
+        api_key = os.getenv("GEMINI_API_KEY")
+        if api_key:
+            genai.configure(api_key=api_key, transport="rest")
+        else:
+            logger.warning("[QuizService] GEMINI_API_KEY 미설정 — 퀴즈 생성 기능 동작 보장 불가")
+            
         return genai.GenerativeModel(
             model_name=MODEL,
             generation_config=genai.GenerationConfig(

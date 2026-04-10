@@ -14,8 +14,7 @@ from .rag_pipeline.knowledge_base import PAPER_CHUNKS
 from .gemini_service import STYLE_GUIDES
 
 logger = logging.getLogger(__name__)
-
-MODEL = "models/gemma-4-31b-it"
+MODEL = "models/gemini-1.5-flash"  # 안정적인 최신 모델로 유지 (gemma-4-31b-it 등은 유효하지 않은 식별자일 수 있음)
 
 
 # ── 마크다운 후처리 ───────────────────────────────────────────────────────────
@@ -264,6 +263,142 @@ class ReforgeService:
             paper_context=paper_context,
         )
 
+    # ── 스트리밍 재가공 (SSE) ──────────────────────────────────────────────────
+    
+    async def reforge_stream(
+        self,
+        learning_type: str = "읽기형",
+        content: str = "",
+        room_id: str = "",
+        lecture_id: str = "",
+        user_id: str = "",
+        file_content: bytes = None,
+        file_name: str = "",
+    ):
+        """
+        교안 재가공 스트리밍 (SSE)
+        - user_id가 있으면 Firestore에서 실제 5차원 프로필을 로드
+        - 없으면 매개변수로 전달된 learning_type 기반 임시 프로필 생성
+        """
+        from .firebase_service import FirebaseService
+        _fb = FirebaseService()
+
+        # 1. 프로필 로드 또는 생성
+        profile = None
+        if user_id:
+            profile_data = await _fb.get_diagnosis(user_id)
+            if profile_data:
+                profile = profile_data.get("profile")
+        
+        if not profile:
+            # 임시 프로필 생성 (learning_type 기반)
+            types = [t.strip() for t in learning_type.replace("/", "+").split("+") if t.strip()]
+            vark, cog, density = "읽기형", "분석형", "상세형"
+            for t in types:
+                if t in ["시각형", "청각형", "읽기형", "운동형"]: vark = t
+                if t in ["분석형", "직관형"]: cog = t
+                if t in ["요약형", "상세형", "예시형"]: density = t
+            profile = {
+                "learning_style": vark,
+                "cognitive_style": cog,
+                "preferred_format": density,
+                "subject_level": "beginner",
+                "focus_pattern": "단기집중형",
+            }
+
+        # 2. 텍스트 소스 확보
+        text = content.strip()
+        if room_id and lecture_id:
+            lec = await _fb.get_lecture(room_id, lecture_id)
+            if lec and lec.get("original_text"):
+                text = lec["original_text"]
+        elif not text and lecture_id:
+            # room_id가 없어도 lecture_id가 있으면 전체 검색 (필요 시)
+            pass
+        
+        if not text and file_content:
+            from .file_service import FileService
+            _file_svc = FileService()
+            text = await _file_svc.extract_text(file_content, file_name)
+            
+        if not text:
+            yield {"error": "재가공할 텍스트를 찾을 수 없습니다."}
+            return
+
+        # 3. 태그 전송
+        yield {"tags": [profile.get("learning_style", "읽기형")]}
+
+        # 4. 스트리밍 시작
+        prompt = self._build_reforge_prompt(text, profile)
+        
+        try:
+            api_key = os.getenv("GEMINI_API_KEY")
+            if not api_key:
+                yield {"error": "GEMINI_API_KEY가 설정되지 않았습니다. .env 파일을 확인해주세요."}
+                return
+
+            genai.configure(api_key=api_key, transport="rest")
+            model = genai.GenerativeModel(MODEL)
+            
+            response = await asyncio.to_thread(
+                model.generate_content, 
+                prompt, 
+                stream=True
+            )
+            
+            for chunk in response:
+                if chunk.text:
+                    yield {"text": chunk.text}
+                    
+            yield "DONE"
+        except Exception as e:
+            logger.error(f"[ReforgeService] 스트리밍 실패: {e}")
+            yield {"error": str(e)}
+
+    def _build_reforge_prompt(self, original_content: str, profile: dict) -> str:
+        """기존 _reforge_one_with_context의 프롬프트 로직 재사용"""
+        style = profile.get("learning_style", "읽기형")
+        paper_strategy = PAPER_STRATEGY.get(style, "")
+        profile_instruction = _build_profile_instruction(style, profile)
+        
+        # profile_summary 생성
+        vark = profile.get("learning_style", style)
+        focus = profile.get("focus_pattern", "")
+        diff_resp = profile.get("difficulty_response") or profile.get("pace", "")
+        subject_level = profile.get("subject_level", "")
+        level_label = {"beginner": "초급", "intermediate": "중급", "advanced": "고급"}.get(subject_level, "")
+        profile_summary = f"VARK:{vark} / 집중:{focus} / 대응:{diff_resp} / 수준:{level_label}"
+
+        return f"""당신은 교육 콘텐츠 재해석 전문가입니다.
+원본 교안을 학생 프로파일에 맞게 재해석하세요. 한국어로만 출력하세요.
+
+━━━ 절대 원칙 ━━━
+1. 원본 내용을 요약하지 마세요 — 재해석(reinterpretation)이 목표입니다
+2. 코드 블록·수식·예제는 원본 그대로 보존, ``` 코드블록으로 감싸세요
+3. 원본에 없는 내용을 추가하지 마세요 (환각 금지)
+4. 인사말·역할 설명 등 메타 문장 절대 금지
+5. 순수 마크다운 본문만 출력
+
+━━━ 학습 이론 근거 [{style}] ━━━
+{paper_strategy}
+
+━━━ 학생 프로파일 ━━━
+{profile_summary}
+
+━━━ 5차원 재해석 지침 ━━━
+{profile_instruction}
+
+━━━ 원본 교안 ━━━
+{original_content[:4500]}
+
+━━━ 출력 형식 ━━━
+# 📚 [강의 제목] — {style} 맞춤 교안
+> 🎯 학습 프로파일: {profile_summary}
+
+---
+
+[재해석된 본문 — 노션 스타일 마크다운]"""
+
     async def _reforge_one_with_context(
         self,
         style: str,
@@ -343,7 +478,10 @@ Step 4. 위 계획대로 완성된 교안을 노션 스타일 마크다운으로
 
 ━━━ 지금 바로 Step 4 출력만 작성하세요 ━━━"""
 
-        genai.configure(api_key=os.environ["GEMINI_API_KEY"], transport="rest")
+        api_key = os.getenv("GEMINI_API_KEY")
+        if api_key:
+            genai.configure(api_key=api_key, transport="rest")
+            
         model = genai.GenerativeModel(
             model_name=MODEL,
             generation_config=genai.GenerationConfig(

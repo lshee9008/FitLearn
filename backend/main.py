@@ -68,6 +68,14 @@ except Exception as e:
     demo = None
 
 try:
+    from api.v1.routers import reforge
+    logger.info("[import] ✅ reforge 라우터")
+except Exception as e:
+    logger.error(f"[import] ❌ reforge 라우터 실패: {e}\n{traceback.format_exc()}")
+    _import_errors.append(f"reforge: {e}")
+    reforge = None
+
+try:
     from services.rag_pipeline.preprocessor import PaperVectorStore
     logger.info("[import] ✅ PaperVectorStore")
     _rag_available = True
@@ -82,6 +90,9 @@ ALLOW_ORIGINS = [
     "https://fit-learn-phi.vercel.app",
     "http://localhost:3000",
     "http://localhost:8080",
+    "http://localhost:51338", # Flutter Web
+    "http://localhost:51734",
+    "http://localhost:8000",
 ]
 
 ALLOW_ORIGIN_REGEX = r"https://.*\.vercel\.app"
@@ -141,6 +152,7 @@ async def health():
             "diagnosis": diagnosis is not None,
             "lectures": lectures is not None,
             "dashboard": dashboard is not None,
+            "reforge": reforge is not None,
         },
     }
 
@@ -180,6 +192,8 @@ if dashboard:
     app.include_router(dashboard.router, prefix="/api/v1")
 if demo:
     app.include_router(demo.router, prefix="/api/v1")
+if reforge:
+    app.include_router(reforge.router, prefix="/api/v1")
 
 # ── CORS 미들웨어 — 반드시 마지막에 추가 ─────────────────────────────────────
 app.add_middleware(

@@ -94,7 +94,11 @@ def _analyze_response_times(response_times: list[int]) -> dict:
 
 class RAGAnalyzer:
     def __init__(self):
-        genai.configure(api_key=os.environ["GEMINI_API_KEY"], transport="rest")
+        api_key = os.getenv("GEMINI_API_KEY")
+        if api_key:
+            genai.configure(api_key=api_key, transport="rest")
+        else:
+            logger.warning("[RAGAnalyzer] GEMINI_API_KEY 미설정 — 분석 기능 사용 불가")
 
     def _model(self) -> genai.GenerativeModel:
         return genai.GenerativeModel(

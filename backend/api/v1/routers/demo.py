@@ -78,7 +78,12 @@ async def _stream_sse(content: str, types: list[str]):
 
     def _sync():
         try:
-            genai.configure(api_key=os.environ["GEMINI_API_KEY"], transport="rest")
+            api_key = os.getenv("GEMINI_API_KEY")
+            if not api_key:
+                asyncio.run_coroutine_threadsafe(q.put(("error", "GEMINI_API_KEY 미설정")), loop)
+                return
+
+            genai.configure(api_key=api_key, transport="rest")
             model = genai.GenerativeModel(
                 model_name=MODEL,
                 generation_config=genai.GenerationConfig(

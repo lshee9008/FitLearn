@@ -1,3 +1,5 @@
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -24,15 +26,6 @@ const _styleColors = {
   '상세형': Color(0xFFEC4899),
 };
 
-const _styleDescs = {
-  '시각형': '도식·흐름도·색상 구분',
-  '청각형': '대화체·스토리텔링',
-  '읽기형': '체계적 텍스트·목록',
-  '실습형': '단계별 실습 가이드',
-  '요약형': '핵심만 3-5줄 압축',
-  '상세형': '단계별 상세·예외 포함',
-};
-
 class LectureViewPage extends ConsumerStatefulWidget {
   final String roomId;
   final String lectureId;
@@ -54,47 +47,30 @@ class LectureViewPage extends ConsumerStatefulWidget {
 class _LectureViewPageState extends ConsumerState<LectureViewPage> {
   Map<String, String>? _styleContents;
   String? _primaryStyle;
+  String? _subjectLevel;
   String _selectedStyle = '읽기형';
   bool _loading = false;
   String? _error;
-  String? _testStyle; // 테스트 모드 선택 스타일
 
   @override
   void initState() {
     super.initState();
-    // 시작 시 스타일 선택 시트 표시
-    WidgetsBinding.instance.addPostFrameCallback((_) => _showStylePicker());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
-  Future<void> _showStylePicker() async {
-    final picked = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => _StylePickerSheet(current: _testStyle),
-    );
-    if (picked != null) {
-      setState(() {
-        _testStyle = picked;
-        _selectedStyle = picked;
-      });
-      await _load(testStyle: picked);
-    }
-  }
-
-  Future<void> _load({String? testStyle}) async {
+  Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
     try {
       final data = await ApiService().getReforgedLecture(
         roomId: widget.roomId,
         lectureId: widget.lectureId,
         userId: widget.userId,
-        testStyle: testStyle ?? _testStyle,
       );
       final rawStyles = data['styles'] as Map<String, dynamic>? ?? {};
       setState(() {
         _styleContents = rawStyles.map((k, v) => MapEntry(k, v as String));
-        _primaryStyle = data['primary_style'] as String? ?? testStyle ?? '읽기형';
+        _primaryStyle = data['primary_style'] as String? ?? '읽기형';
+        _subjectLevel = data['subject_level'] as String?;
         _selectedStyle = _primaryStyle!;
         _loading = false;
       });
@@ -107,24 +83,15 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg,
-      floatingActionButton: _styleContents != null
-          ? FloatingActionButton.extended(
-              onPressed: _showStylePicker,
-              backgroundColor: AppColors.primary,
-              icon: const Icon(Icons.tune_rounded, color: Colors.white),
-              label: const Text('스타일 변경',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-            )
-          : null,
       body: SafeArea(
         child: Column(children: [
           _buildHeader(),
           if (_loading)
             const Expanded(child: _LoadingView())
           else if (_error != null)
-            Expanded(child: _ErrorView(message: _error!, onRetry: _showStylePicker))
+            Expanded(child: _ErrorView(message: _error!, onRetry: _load))
           else if (_styleContents == null)
-            Expanded(child: _EmptyView(onPick: _showStylePicker))
+            Expanded(child: _EmptyView(onRetry: _load))
           else ...[
             _buildStyleTabs(),
             Expanded(child: _buildContent()),
@@ -152,22 +119,66 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
             Row(children: [
               Text('${_styleEmojis[_primaryStyle]} $_primaryStyle 맞춤 교안',
                   style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
-              if (_testStyle != null) ...[
+              if (_subjectLevel != null && _subjectLevel!.isNotEmpty) ...[
                 const SizedBox(width: 6),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                   decoration: BoxDecoration(
-                    color: AppColors.accent.withValues(alpha: 0.15),
+                    color: AppColors.primary.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: const Text('테스트 모드',
-                      style: TextStyle(color: AppColors.accent, fontSize: 10, fontWeight: FontWeight.w700)),
+                  child: Text(_levelLabel(_subjectLevel!),
+                      style: const TextStyle(color: AppColors.primaryLight, fontSize: 10, fontWeight: FontWeight.w700)),
                 ),
               ],
             ]),
         ])),
+        IconButton(
+          tooltip: '원본 강의자료 다운로드',
+          icon: const Icon(Icons.download_rounded, color: AppColors.textMuted, size: 22),
+          onPressed: _downloadOriginal,
+        ),
       ]),
     );
+  }
+
+  String _levelLabel(String level) {
+    switch (level) {
+      case 'advanced':
+        return '고급';
+      case 'intermediate':
+        return '중급';
+      case 'beginner':
+        return '입문';
+      default:
+        return level;
+    }
+  }
+
+  Future<void> _downloadOriginal() async {
+    try {
+      final res = await ApiService().getOriginalLectureUrl(widget.roomId, widget.lectureId);
+      final url = res['url'] as String?;
+      if (url == null || url.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('원본 파일을 찾을 수 없습니다.')),
+        );
+        return;
+      }
+      final anchor = html.document.createElement('a') as html.AnchorElement
+        ..href = url
+        ..target = '_blank'
+        ..download = widget.title;
+      html.document.body?.append(anchor);
+      anchor.click();
+      anchor.remove();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('원본 파일 다운로드 실패: $e')),
+      );
+    }
   }
 
   Widget _buildStyleTabs() {
@@ -242,95 +253,25 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
 
 // ── 스타일 선택 바텀시트 ──────────────────────────────────────────────────────
 
-class _StylePickerSheet extends StatelessWidget {
-  final String? current;
-  const _StylePickerSheet({this.current});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.bgSurface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Container(
-          width: 40, height: 4,
-          decoration: BoxDecoration(
-            color: AppColors.border, borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        const SizedBox(height: 20),
-        const Text('학습 성향 선택',
-            style: TextStyle(color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.w900)),
-        const SizedBox(height: 6),
-        const Text('교안을 재가공할 학습 스타일을 선택하세요',
-            style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
-        const SizedBox(height: 24),
-        ...List.generate(_styles.length, (i) {
-          final s = _styles[i];
-          final color = _styleColors[s] ?? AppColors.primary;
-          final isSelected = s == current;
-          return GestureDetector(
-            onTap: () => Navigator.pop(context, s),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              decoration: BoxDecoration(
-                color: isSelected ? color.withValues(alpha: 0.12) : AppColors.bg,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: isSelected ? color : AppColors.border,
-                  width: isSelected ? 2 : 1,
-                ),
-              ),
-              child: Row(children: [
-                Text(_styleEmojis[s] ?? '📄', style: const TextStyle(fontSize: 22)),
-                const SizedBox(width: 14),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(s, style: TextStyle(
-                    color: isSelected ? color : AppColors.textPrimary,
-                    fontSize: 15, fontWeight: FontWeight.w700,
-                  )),
-                  Text(_styleDescs[s] ?? '', style: const TextStyle(
-                    color: AppColors.textMuted, fontSize: 12,
-                  )),
-                ])),
-                if (isSelected)
-                  Icon(Icons.check_circle_rounded, color: color, size: 20)
-                else
-                  const Icon(Icons.arrow_forward_ios_rounded,
-                      color: AppColors.textMuted, size: 14),
-              ]),
-            ),
-          );
-        }),
-      ]),
-    );
-  }
-}
-
 // ── 빈 상태 ───────────────────────────────────────────────────────────────────
 
 class _EmptyView extends StatelessWidget {
-  final VoidCallback onPick;
-  const _EmptyView({required this.onPick});
+  final VoidCallback onRetry;
+  const _EmptyView({required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
     return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
       const Text('🎯', style: TextStyle(fontSize: 56)),
       const SizedBox(height: 16),
-      const Text('학습 성향을 선택하세요', style: TextStyle(
+      const Text('교안이 아직 준비되지 않았습니다', style: TextStyle(
         color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w800,
       )),
       const SizedBox(height: 8),
-      const Text('AI가 선택한 성향에 맞게\n교안을 재가공합니다', textAlign: TextAlign.center,
+      const Text('교수님이 핵심 포인트를 확정하면\n개인화 교안이 생성됩니다', textAlign: TextAlign.center,
           style: TextStyle(color: AppColors.textMuted, fontSize: 14)),
       const SizedBox(height: 28),
-      GlowButton(text: '성향 선택하기', onTap: onPick),
+      GlowButton(text: '다시 불러오기', onTap: onRetry),
     ]));
   }
 }
@@ -426,12 +367,13 @@ class _MarkdownText extends StatelessWidget {
       return Container(
         margin: const EdgeInsets.symmetric(vertical: 8),
         padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           border: Border(left: BorderSide(color: AppColors.primaryLight, width: 3)),
-          color: AppColors.primary.withValues(alpha: 0.06),
-          borderRadius: const BorderRadius.only(
+          borderRadius: BorderRadius.only(
             topRight: Radius.circular(8), bottomRight: Radius.circular(8),
           ),
+        ).copyWith(
+          color: AppColors.primary.withValues(alpha: 0.06),
         ),
         child: Text(line.substring(2), style: const TextStyle(
           color: AppColors.textSecondary, fontSize: 13,
@@ -456,21 +398,37 @@ class _LoadingView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-      const Text('🤖', style: TextStyle(fontSize: 48)),
-      const SizedBox(height: 16),
-      const Text('AI가 6가지 스타일로 교안을 재가공하고 있어요',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
-      const SizedBox(height: 8),
-      const Text('시각형·청각형·읽기형·실습형·요약형·상세형 동시 생성 중',
-          style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
-      const SizedBox(height: 24),
-      SizedBox(width: 200, child: LinearProgressIndicator(
-        backgroundColor: AppColors.bgSurface,
-        valueColor: const AlwaysStoppedAnimation(AppColors.primaryLight),
-      )),
-    ]));
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text('🤖', style: TextStyle(fontSize: 48)),
+          SizedBox(height: 16),
+          Text(
+            'AI가 6가지 스타일로 교안을 재가공하고 있어요',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          SizedBox(height: 8),
+          Text(
+            '시각형·청각형·읽기형·실습형·요약형·상세형 동시 생성 중',
+            style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+          ),
+          SizedBox(height: 24),
+          SizedBox(
+            width: 200,
+            child: LinearProgressIndicator(
+              backgroundColor: AppColors.bgSurface,
+              valueColor: AlwaysStoppedAnimation(AppColors.primaryLight),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -481,19 +439,34 @@ class _ErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final lower = message.toLowerCase();
+    String title = '교안 로드 실패';
+    String hint = '잠시 후 다시 시도해주세요.';
+    if (message.contains('학습 성향 진단을 먼저 완료해주세요')) {
+      title = '학습 성향 진단이 필요합니다';
+      hint = '학생 홈에서 학습 성향 진단을 먼저 완료한 뒤 다시 열어주세요.';
+    } else if (message.contains('교수가 아직 핵심 포인트를 확정')) {
+      title = '교안 검토가 아직 진행 중입니다';
+      hint = '교수님이 핵심 포인트를 확정하면 개인화 교안을 볼 수 있습니다.';
+    } else if (lower.contains('404')) {
+      hint = '강의 자료가 아직 업로드되지 않았거나 삭제되었을 수 있습니다.';
+    }
     return Center(child: Padding(
       padding: const EdgeInsets.all(32),
       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
         const Text('⚠️', style: TextStyle(fontSize: 48)),
         const SizedBox(height: 16),
-        const Text('교안 로드 실패', style: TextStyle(
+        Text(title, style: const TextStyle(
           color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w700,
         )),
+        const SizedBox(height: 8),
+        Text(hint, textAlign: TextAlign.center,
+            style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
         const SizedBox(height: 8),
         Text(message, textAlign: TextAlign.center,
             style: const TextStyle(color: AppColors.textMuted, fontSize: 13)),
         const SizedBox(height: 24),
-        GlowButton(text: '스타일 다시 선택', onTap: onRetry),
+        GlowButton(text: '다시 불러오기', onTap: onRetry),
       ]),
     ));
   }

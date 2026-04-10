@@ -7,11 +7,14 @@ import os
 import re
 
 import google.generativeai as genai
+import logging
 
 MODEL = "gemma-4-31b-it"
 
 # 6가지 재가공 스타일
 REFORGE_STYLES = ["시각형", "청각형", "읽기형", "실습형", "요약형", "상세형"]
+logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 STYLE_GUIDES: dict[str, str] = {
     "시각형": (
@@ -66,7 +69,14 @@ def _extract_json(text: str) -> dict:
 
 class GeminiService:
     def __init__(self):
-        genai.configure(api_key=os.environ["GEMINI_API_KEY"], transport="rest")
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            logger.warning("[GeminiService] GEMINI_API_KEY 미설정 — AI 기능 동작 보장 불가")
+            # 최소한의 설정을 유지하거나 예외를 던지지 않고 로깅만 수행
+            # (main.py에서 임포트 시 전체 로딩이 중단되는 것을 방지하기 위함)
+            return
+
+        genai.configure(api_key=api_key, transport="rest")
 
     def _model(self, temperature: float = 0.3, max_tokens: int = 2048) -> genai.GenerativeModel:
         return genai.GenerativeModel(

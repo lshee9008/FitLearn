@@ -11,7 +11,9 @@ LEARNING_TYPES = ["요약형", "상세형", "예시형"]
 
 class ClaudeService:
     def __init__(self):
-        genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+        api_key = os.getenv("GEMINI_API_KEY")
+        if api_key:
+            genai.configure(api_key=api_key)
 
     async def classify_learning_type(self, answers: list[str]) -> str:
         """Few-shot + Self-consistency로 학습 유형 분류 (temperature=0.2)"""

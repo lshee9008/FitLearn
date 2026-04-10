@@ -1,6 +1,5 @@
 import 'package:go_router/go_router.dart';
 import '../../features/auth/view/welcome_page.dart';
-import '../../features/reforge_test/reforge_test_page.dart';
 import '../../features/student/diagnosis/view/diagnosis_page.dart';
 import '../../features/student/diagnosis/view/diagnosis_result_page.dart';
 import '../../features/student/diagnosis/provider/diagnosis_provider.dart';
@@ -83,14 +82,9 @@ final appRouter = GoRouter(
       builder: (_, __) => const LecturePage(),
     ),
 
-    // ── 재가공 테스트 (독립) ──────────────────────────────────────────
-    GoRoute(
-      path: '/reforge-test',
-      builder: (_, __) => const ReforgeTestPage(),
-    ),
-
     // ── Legacy (backward compat) ───────────────────────────────────
     GoRoute(path: '/onboarding', redirect: (_, __) => '/'),
     GoRoute(path: '/lecture', redirect: (_, __) => '/student/home'),
+    GoRoute(path: '/reforge-test', redirect: (_, __) => '/'),
   ],
 );

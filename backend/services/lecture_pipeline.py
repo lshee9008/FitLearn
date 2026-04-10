@@ -74,7 +74,11 @@ class LecturePipeline:
     """
 
     def __init__(self):
-        genai.configure(api_key=os.environ["GEMINI_API_KEY"], transport="rest")
+        api_key = os.getenv("GEMINI_API_KEY")
+        if api_key:
+            genai.configure(api_key=api_key, transport="rest")
+        else:
+            logger.warning("[LecturePipeline] GEMINI_API_KEY 미설정 — 분석 기능 동작 보장 불가")
 
     def _model(self, temp: float = 0.2) -> genai.GenerativeModel:
         return genai.GenerativeModel(
