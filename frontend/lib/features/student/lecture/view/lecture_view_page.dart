@@ -1,5 +1,7 @@
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
+// ignore: undefined_prefixed_name
+import 'dart:ui_web' as ui_web;
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -558,17 +560,18 @@ class _LearningWorkspaceHeader extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
+          if (hasVideo) ...[
+            _VideoStage(
+              videoUrl: videoUrl,
+              videoType: videoType,
+              videoStatus: videoStatus,
+            ),
+            const SizedBox(height: 14),
+          ],
           Wrap(
             spacing: 10,
             runSpacing: 10,
             children: [
-              _WorkspaceAction(
-                icon: hasVideo ? Icons.ondemand_video_rounded : Icons.videocam_off_rounded,
-                title: hasVideo ? _videoLabel(videoType) : '영상 없음',
-                subtitle: hasVideo ? _videoStatusLabel(videoStatus) : '교수가 영상 자료를 연결하면 표시됩니다.',
-                color: hasVideo ? AppColors.secondary : AppColors.textMuted,
-                onTap: hasVideo ? () => html.window.open(videoUrl, '_blank') : null,
-              ),
               _WorkspaceAction(
                 icon: hasOriginal ? Icons.file_download_outlined : Icons.insert_drive_file_outlined,
                 title: hasOriginal ? '원본 자료' : '원본 준비 중',
@@ -590,28 +593,208 @@ class _LearningWorkspaceHeader extends StatelessWidget {
     );
   }
 
-  static String _videoLabel(String type) {
-    switch (type) {
-      case 'youtube':
-        return 'YouTube 영상';
-      case 'upload':
-        return '업로드 영상';
-      case 'external':
-        return '외부 영상';
-      default:
-        return '영상 자료';
+}
+
+class _VideoStage extends StatelessWidget {
+  final String videoUrl;
+  final String videoType;
+  final String videoStatus;
+
+  static final Set<String> _registeredViewTypes = {};
+
+  const _VideoStage({
+    required this.videoUrl,
+    required this.videoType,
+    required this.videoStatus,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final viewType = 'fitlearn-video-${videoUrl.hashCode.abs()}';
+    final embedUrl = _embedUrl(videoUrl, videoType);
+    final canEmbed = embedUrl.isNotEmpty && videoStatus != 'processing';
+    if (canEmbed && !_registeredViewTypes.contains(viewType)) {
+      _registeredViewTypes.add(viewType);
+      ui_web.platformViewRegistry.registerViewFactory(viewType, (_) {
+        if (videoType == 'upload' || _looksLikeDirectVideo(embedUrl)) {
+          return html.VideoElement()
+            ..src = embedUrl
+            ..controls = true
+            ..style.width = '100%'
+            ..style.height = '100%'
+            ..style.objectFit = 'contain'
+            ..style.backgroundColor = '#050509';
+        }
+
+        return html.IFrameElement()
+          ..src = embedUrl
+          ..allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share'
+          ..allowFullscreen = true
+          ..style.border = '0'
+          ..style.width = '100%'
+          ..style.height = '100%';
+      });
     }
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: const Color(0xFF07070B),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.35),
+            blurRadius: 28,
+            offset: const Offset(0, 18),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+            child: AspectRatio(
+              aspectRatio: 16 / 9,
+              child: canEmbed
+                  ? HtmlElementView(viewType: viewType)
+                  : _VideoFallback(
+                      videoUrl: videoUrl,
+                      videoStatus: videoStatus,
+                    ),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: const BoxDecoration(
+              color: Color(0xFF0E0E14),
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(22)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: const Icon(Icons.play_arrow_rounded, color: AppColors.primaryLight),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    _videoTypeLabel(videoType),
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: () => html.window.open(videoUrl, '_blank'),
+                  icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                  label: const Text('새 탭'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
-  static String _videoStatusLabel(String status) {
-    switch (status) {
-      case 'ready':
-        return '재생 가능한 상태입니다. 새 탭에서 열립니다.';
-      case 'processing':
-        return '업로드 처리 중입니다. 잠시 후 다시 확인하세요.';
-      default:
-        return '영상 링크를 확인할 수 있습니다.';
+  static String _embedUrl(String url, String type) {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return '';
+    if (type == 'youtube' || uri.host.contains('youtube.com') || uri.host.contains('youtu.be')) {
+      final id = _youtubeId(uri);
+      return id == null ? url : 'https://www.youtube.com/embed/$id';
     }
+    return url;
+  }
+
+  static String? _youtubeId(Uri uri) {
+    if (uri.host.contains('youtu.be') && uri.pathSegments.isNotEmpty) {
+      return uri.pathSegments.first;
+    }
+    if (uri.queryParameters['v'] != null) {
+      return uri.queryParameters['v'];
+    }
+    final segments = uri.pathSegments;
+    final embedIndex = segments.indexOf('embed');
+    if (embedIndex >= 0 && segments.length > embedIndex + 1) {
+      return segments[embedIndex + 1];
+    }
+    final shortsIndex = segments.indexOf('shorts');
+    if (shortsIndex >= 0 && segments.length > shortsIndex + 1) {
+      return segments[shortsIndex + 1];
+    }
+    return null;
+  }
+
+  static bool _looksLikeDirectVideo(String url) {
+    final lower = url.toLowerCase();
+    return lower.endsWith('.mp4') ||
+        lower.endsWith('.webm') ||
+        lower.endsWith('.mov') ||
+        lower.contains('firebasestorage') ||
+        lower.contains('storage.googleapis.com');
+  }
+
+  static String _videoTypeLabel(String type) {
+    switch (type) {
+      case 'youtube':
+        return '온라인 영상 강의';
+      case 'upload':
+        return '업로드 영상 강의';
+      case 'external':
+        return '외부 영상 강의';
+      default:
+        return '영상 강의';
+    }
+  }
+}
+
+class _VideoFallback extends StatelessWidget {
+  final String videoUrl;
+  final String videoStatus;
+
+  const _VideoFallback({
+    required this.videoUrl,
+    required this.videoStatus,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: const Color(0xFF08080D),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.ondemand_video_rounded, color: AppColors.textMuted, size: 54),
+          const SizedBox(height: 14),
+          Text(
+            videoStatus == 'processing' ? '영상 업로드 처리 중입니다' : '앱 안에서 재생할 수 없는 영상입니다',
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            '새 탭으로 열면 원본 영상 페이지에서 확인할 수 있습니다.',
+            style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: () => html.window.open(videoUrl, '_blank'),
+            icon: const Icon(Icons.open_in_new_rounded),
+            label: const Text('영상 열기'),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -687,49 +870,79 @@ class _MarkdownText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final lines = content.split('\n');
+    final widgets = <Widget>[];
+    final codeBuffer = <String>[];
+    var inCodeBlock = false;
+
+    for (final line in lines) {
+      if (line.trim().startsWith('```')) {
+        if (inCodeBlock) {
+          widgets.add(_CodeBlock(code: codeBuffer.join('\n')));
+          codeBuffer.clear();
+          inCodeBlock = false;
+        } else {
+          inCodeBlock = true;
+        }
+        continue;
+      }
+
+      if (inCodeBlock) {
+        codeBuffer.add(line);
+      } else {
+        widgets.add(_renderLine(line));
+      }
+    }
+
+    if (codeBuffer.isNotEmpty) {
+      widgets.add(_CodeBlock(code: codeBuffer.join('\n')));
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: lines.map((line) => _renderLine(line)).toList(),
+      children: widgets,
     );
   }
 
   Widget _renderLine(String line) {
     if (line.startsWith('### ')) {
       return Padding(
-        padding: const EdgeInsets.fromLTRB(0, 20, 0, 6),
-        child: Text(line.substring(4), style: const TextStyle(
-          color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w800,
-        )),
+        padding: const EdgeInsets.fromLTRB(0, 20, 0, 8),
+        child: _SectionHeading(text: line.substring(4), level: 3),
       );
     }
     if (line.startsWith('## ')) {
       return Padding(
-        padding: const EdgeInsets.fromLTRB(0, 24, 0, 8),
-        child: Text(line.substring(3), style: const TextStyle(
-          color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w900,
-        )),
+        padding: const EdgeInsets.fromLTRB(0, 24, 0, 10),
+        child: _SectionHeading(text: line.substring(3), level: 2),
       );
     }
     if (line.startsWith('# ')) {
       return Padding(
-        padding: const EdgeInsets.fromLTRB(0, 8, 0, 16),
-        child: Text(line.substring(2), style: const TextStyle(
-          color: AppColors.primaryLight, fontSize: 20, fontWeight: FontWeight.w900,
-        )),
+        padding: const EdgeInsets.fromLTRB(0, 8, 0, 18),
+        child: _SectionHeading(text: line.substring(2), level: 1),
       );
     }
     if (line.startsWith('- ') || line.startsWith('* ')) {
       return Padding(
-        padding: const EdgeInsets.only(bottom: 6, left: 4),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(0, 7, 8, 0),
-            child: CircleAvatar(radius: 3, backgroundColor: AppColors.primaryLight),
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+          decoration: BoxDecoration(
+            color: AppColors.bgSurface.withValues(alpha: 0.72),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.border.withValues(alpha: 0.7)),
           ),
-          Expanded(child: Text(line.substring(2), style: const TextStyle(
-            color: AppColors.textSecondary, fontSize: 14, height: 1.6,
-          ))),
-        ]),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(0, 7, 10, 0),
+              child: CircleAvatar(radius: 3, backgroundColor: AppColors.primaryLight),
+            ),
+            Expanded(child: Text(line.substring(2), style: const TextStyle(
+              color: AppColors.textSecondary, fontSize: 14, height: 1.65,
+            ))),
+          ]),
+        ),
       );
     }
     if (line.startsWith('> ')) {
@@ -752,10 +965,107 @@ class _MarkdownText extends StatelessWidget {
     }
     if (line.trim().isEmpty) return const SizedBox(height: 8);
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Text(line, style: const TextStyle(
         color: AppColors.textSecondary, fontSize: 14, height: 1.7,
       )),
+    );
+  }
+}
+
+class _SectionHeading extends StatelessWidget {
+  final String text;
+  final int level;
+
+  const _SectionHeading({
+    required this.text,
+    required this.level,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isTop = level == 1;
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(horizontal: isTop ? 18 : 14, vertical: isTop ? 16 : 12),
+      decoration: BoxDecoration(
+        color: isTop
+            ? AppColors.primary.withValues(alpha: 0.1)
+            : AppColors.bgSurface.withValues(alpha: 0.82),
+        borderRadius: BorderRadius.circular(isTop ? 18 : 14),
+        border: Border.all(
+          color: isTop
+              ? AppColors.primaryLight.withValues(alpha: 0.28)
+              : AppColors.border,
+        ),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: isTop ? AppColors.primaryLight : AppColors.textPrimary,
+          fontSize: isTop ? 22 : (level == 2 ? 18 : 16),
+          fontWeight: FontWeight.w900,
+          height: 1.35,
+        ),
+      ),
+    );
+  }
+}
+
+class _CodeBlock extends StatelessWidget {
+  final String code;
+
+  const _CodeBlock({required this.code});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF080A0F),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.primaryLight.withValues(alpha: 0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: const BoxDecoration(
+              color: Color(0xFF10131B),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.code_rounded, color: AppColors.primaryLight, size: 16),
+                SizedBox(width: 8),
+                Text(
+                  '실습 코드',
+                  style: TextStyle(
+                    color: AppColors.primaryLight,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.all(16),
+            child: SelectableText(
+              code,
+              style: const TextStyle(
+                color: Color(0xFFE7EAF3),
+                fontFamily: 'monospace',
+                fontSize: 13,
+                height: 1.55,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
