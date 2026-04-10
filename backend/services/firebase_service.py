@@ -311,7 +311,8 @@ class FirebaseService:
     # ── 교안 ──────────────────────────────────────────────────────
 
     async def save_lecture(
-        self, room_id: str, title: str, original_text: str, core_points: list
+        self, room_id: str, title: str, original_text: str, core_points: list,
+        week_number: int = 0,
     ) -> str:
         db = self._safe_db()
         if db is None:
@@ -326,6 +327,7 @@ class FirebaseService:
                     "lecture_id": ref.id,
                     "room_id": room_id,
                     "title": title,
+                    "week_number": week_number,
                     "original_text": original_text,
                     "core_points": core_points,
                     "confirmed": False,

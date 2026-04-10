@@ -120,11 +120,15 @@ class ApiService {
     required String professorUid,
     required List<int> fileBytes,
     required String fileName,
+    int weekNumber = 0,
+    String lectureTitle = '',
   }) async {
     final formData = FormData.fromMap({
       'room_id': roomId,
       'professor_uid': professorUid,
       'file': MultipartFile.fromBytes(fileBytes, filename: fileName),
+      'week_number': weekNumber,
+      'lecture_title': lectureTitle,
     });
     final res = await _dio.post(ApiConstants.uploadLecture, data: formData);
     return res.data as Map<String, dynamic>;

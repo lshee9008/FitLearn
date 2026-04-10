@@ -66,13 +66,17 @@ async def upload_lecture(
     room_id: str = Form(...),
     professor_uid: str = Form(...),
     file: UploadFile = File(...),
+    week_number: int = Form(0),
+    lecture_title: str = Form(""),
 ):
     """
-    파일 업로드 → 8단계 AI 파이프라인:
-    전처리 → RAG → 핵심추출 → 주제분류 → 난이도판단 → 학습목표 → 검토질문 → 후처리
-    지원: PDF, PPT/PPTX, DOCX, HWP/HWPX, MD, TXT
+    파일 업로드 → 8단계 AI 파이프라인
+    지원: PDF, PPT/PPTX, DOCX, HWP/HWPX, MD, TXT, 이미지, 코드파일
+    week_number: 주차 (0=미지정), lecture_title: 교수 입력 제목
     """
-    logger.info(f"[upload] room={room_id} professor={professor_uid} file={file.filename}")
+    resolved_title = lecture_title.strip() or file.filename or "교안"
+    logger.info(f"[upload] room={room_id} professor={professor_uid} "
+                f"file={file.filename} week={week_number} title={resolved_title}")
     content = await file.read()
 
     try:
@@ -80,13 +84,12 @@ async def upload_lecture(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    if not text or text.startswith("[") and "실패" in text:
+    if not text or (text.startswith("[") and "실패" in text):
         raise HTTPException(
             status_code=422,
             detail=f"파일에서 텍스트를 추출할 수 없습니다. ({file.filename})"
         )
 
-    # 8단계 AI 파이프라인 실행
     try:
         result = await pipeline.run(text)
     except Exception as e:
@@ -95,15 +98,16 @@ async def upload_lecture(
 
     lecture_id = await firebase.save_lecture(
         room_id,
-        title=file.filename or "교안",
+        title=resolved_title,
         original_text=text,
         core_points=result["core_points"],
+        week_number=week_number,
     )
     logger.info(f"[upload] 완료 lecture_id={lecture_id} points={len(result['core_points'])}")
 
     return LectureUploadResponse(
         lecture_id=lecture_id,
-        title=file.filename or "교안",
+        title=resolved_title,
         core_points=[CorePoint(**cp) for cp in result["core_points"]],
         lecture_summary=result.get("lecture_summary", ""),
         topics=result.get("topics", []),
