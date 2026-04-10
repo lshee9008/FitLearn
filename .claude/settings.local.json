@@ -18,7 +18,8 @@
       "Bash(git fetch:*)",
       "Bash(python scripts/seed_firestore.py --env development)",
       "Bash(pip3 install:*)",
-      "Bash(PYENV_VERSION=3.10.12 python3:*)"
+      "Bash(PYENV_VERSION=3.10.12 python3:*)",
+      "Bash(grep -n \"ApiService\\\\|class ApiService\\\\|createRoom\\\\|createLecture\\\\|updateRoom\\\\|baseUrl\" /Users/pyojewon/Desktop/FitLearn/frontend/lib/**/*.dart 2>/dev/null | grep -v \"professor_home\" | head -30)"
     ]
   }
 }

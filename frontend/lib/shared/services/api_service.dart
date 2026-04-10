@@ -87,6 +87,24 @@ class ApiService {
     await _dio.delete(ApiConstants.deleteRoom(roomId));
   }
 
+  Future<void> updateRoom({
+    required String roomId,
+    required String subject,
+    String description = '',
+    String synopsis = '',
+    String coreConcepts = '',
+  }) async {
+    await _dio.put(
+      '/api/v1/rooms/$roomId',
+      data: {
+        'subject': subject,
+        'description': description,
+        'synopsis': synopsis,
+        'core_concepts': coreConcepts,
+      },
+    );
+  }
+
   Future<List<dynamic>> getRoomStudents(String roomId) async {
     final res = await _dio.get(ApiConstants.roomStudents(roomId));
     return res.data as List<dynamic>;
