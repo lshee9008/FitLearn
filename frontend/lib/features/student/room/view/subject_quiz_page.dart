@@ -176,7 +176,7 @@ class _SubjectQuizPageState extends ConsumerState<SubjectQuizPage> {
               const SizedBox(height: 32),
               Text(
                 q['question'] as String? ?? '',
-                style: const TextStyle(color: AppColors.textPri, fontSize: 22, fontWeight: FontWeight.bold, height: 1.4),
+                style: const TextStyle(color: AppColors.textPrimary, fontSize: 22, fontWeight: FontWeight.bold, height: 1.4),
               ),
               const SizedBox(height: 48),
               Expanded(
@@ -213,7 +213,7 @@ class _SubjectQuizPageState extends ConsumerState<SubjectQuizPage> {
                               child: Text(
                                 options[i] as String,
                                 style: TextStyle(
-                                  color: isSelected ? AppColors.primaryLight : AppColors.textPri,
+                                  color: isSelected ? AppColors.primaryLight : AppColors.textPrimary,
                                   fontSize: 16,
                                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                                 ),

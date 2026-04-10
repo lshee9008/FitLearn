@@ -1,0 +1,92 @@
+Analyzing frontend...                                           
+
+   info • Use 'const' with the constructor to improve performance • lib/features/auth/view/welcome_page.dart:117:28 • prefer_const_constructors
+   info • Use 'const' literals as arguments to constructors of '@immutable' classes • lib/features/auth/view/welcome_page.dart:117:42 • prefer_const_literals_to_create_immutables
+   info • Use 'const' with the constructor to improve performance • lib/features/auth/view/welcome_page.dart:120:23 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/auth/view/welcome_page.dart:120:39 • prefer_const_constructors
+   info • Use 'const' literals as arguments to constructors of '@immutable' classes • lib/features/auth/view/welcome_page.dart:120:102 • prefer_const_literals_to_create_immutables
+   info • Use 'const' with the constructor to improve performance • lib/features/professor/lecture/view/upload_page.dart:96:18 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/professor/lecture/view/upload_page.dart:114:13 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/professor/lecture/view/upload_page.dart:209:13 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/professor/lecture/view/upload_page.dart:231:23 • prefer_const_constructors
+   info • Use 'const' literals as arguments to constructors of '@immutable' classes • lib/features/professor/lecture/view/upload_page.dart:231:40 • prefer_const_literals_to_create_immutables
+   info • Use 'const' with the constructor to improve performance • lib/features/professor/lecture/view/upload_page.dart:348:41 • prefer_const_constructors
+   info • Unnecessary use of string interpolation • lib/features/professor/lecture/view/upload_page.dart:354:32 • unnecessary_string_interpolations
+   info • Use 'const' with the constructor to improve performance • lib/features/professor/lecture/view/upload_page.dart:390:23 • prefer_const_constructors
+   info • Use 'const' literals as arguments to constructors of '@immutable' classes • lib/features/professor/lecture/view/upload_page.dart:391:35 • prefer_const_literals_to_create_immutables
+   info • Use 'const' with the constructor to improve performance • lib/features/professor/lecture/view/upload_page.dart:392:27 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/professor/lecture/view/upload_page.dart:395:36 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/professor/lecture/view/upload_page.dart:397:45 • prefer_const_constructors
+warning • Unused import: '../../../../core/theme/app_theme.dart' • lib/features/professor/room/view/professor_home_page.dart:6:8 • unused_import
+   info • Use 'const' with the constructor to improve performance • lib/features/professor/room/view/professor_home_page.dart:757:23 • prefer_const_constructors
+   info • 'groupValue' is deprecated and shouldn't be used. Use a RadioGroup ancestor to manage group value instead. This feature was deprecated after v3.32.0-0.0.pre • lib/features/professor/room/view/professor_home_page.dart:1136:21 • deprecated_member_use
+   info • 'onChanged' is deprecated and shouldn't be used. Use RadioGroup to handle value change instead. This feature was deprecated after v3.32.0-0.0.pre • lib/features/professor/room/view/professor_home_page.dart:1138:21 • deprecated_member_use
+   info • 'groupValue' is deprecated and shouldn't be used. Use a RadioGroup ancestor to manage group value instead. This feature was deprecated after v3.32.0-0.0.pre • lib/features/professor/room/view/professor_home_page.dart:1144:21 • deprecated_member_use
+   info • 'onChanged' is deprecated and shouldn't be used. Use RadioGroup to handle value change instead. This feature was deprecated after v3.32.0-0.0.pre • lib/features/professor/room/view/professor_home_page.dart:1146:21 • deprecated_member_use
+  error • Expected to find '}' • lib/features/professor/room/view/professor_home_page.dart:1226:1 • expected_token
+   info • Don't use 'BuildContext's across async gaps • lib/features/professor/room/view/room_detail_page.dart:307:42 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/features/professor/room/view/room_detail_page.dart:310:42 • use_build_context_synchronously
+   info • Use 'const' with the constructor to improve performance • lib/features/reforge_test/reforge_test_page.dart:26:3 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/reforge_test/reforge_test_page.dart:27:5 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/reforge_test/reforge_test_page.dart:27:26 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/reforge_test/reforge_test_page.dart:28:5 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/reforge_test/reforge_test_page.dart:28:25 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/reforge_test/reforge_test_page.dart:29:5 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/reforge_test/reforge_test_page.dart:29:25 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/reforge_test/reforge_test_page.dart:30:5 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/reforge_test/reforge_test_page.dart:30:25 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/reforge_test/reforge_test_page.dart:32:3 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/reforge_test/reforge_test_page.dart:33:5 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/reforge_test/reforge_test_page.dart:33:25 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/reforge_test/reforge_test_page.dart:34:5 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/reforge_test/reforge_test_page.dart:34:25 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/reforge_test/reforge_test_page.dart:36:3 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/reforge_test/reforge_test_page.dart:37:5 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/reforge_test/reforge_test_page.dart:37:24 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/reforge_test/reforge_test_page.dart:38:5 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/reforge_test/reforge_test_page.dart:38:25 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/reforge_test/reforge_test_page.dart:39:5 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/reforge_test/reforge_test_page.dart:39:25 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/reforge_test/reforge_test_page.dart:257:18 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/reforge_test/reforge_test_page.dart:289:20 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/reforge_test/reforge_test_page.dart:290:24 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/reforge_test/reforge_test_page.dart:291:28 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/reforge_test/reforge_test_page.dart:482:25 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/reforge_test/reforge_test_page.dart:625:15 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/reforge_test/reforge_test_page.dart:628:26 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/reforge_test/reforge_test_page.dart:631:27 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/reforge_test/reforge_test_page.dart:711:9 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/reforge_test/reforge_test_page.dart:968:14 • prefer_const_constructors
+   info • Use 'const' literals as arguments to constructors of '@immutable' classes • lib/features/reforge_test/reforge_test_page.dart:968:73 • prefer_const_literals_to_create_immutables
+   info • Use 'const' with the constructor to improve performance • lib/features/reforge_test/reforge_test_page.dart:969:9 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/reforge_test/reforge_test_page.dart:972:20 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/reforge_test/reforge_test_page.dart:975:21 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/student/diagnosis/view/diagnosis_page.dart:1009:13 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/student/diagnosis/view/diagnosis_page.dart:1011:22 • prefer_const_constructors
+warning • The declaration '_focusLabel' isn't referenced • lib/features/student/diagnosis/view/diagnosis_result_page.dart:10:8 • unused_element
+warning • The declaration '_difficultyResponse' isn't referenced • lib/features/student/diagnosis/view/diagnosis_result_page.dart:17:8 • unused_element
+warning • The declaration '_dropoutRisk' isn't referenced • lib/features/student/diagnosis/view/diagnosis_result_page.dart:23:14 • unused_element
+   info • Use 'const' with the constructor to improve performance • lib/features/student/diagnosis/view/diagnosis_result_page.dart:179:16 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/student/diagnosis/view/diagnosis_result_page.dart:181:16 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/student/diagnosis/view/diagnosis_result_page.dart:183:16 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/student/diagnosis/view/diagnosis_result_page.dart:185:16 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/student/diagnosis/view/diagnosis_result_page.dart:408:9 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/student/diagnosis/view/diagnosis_result_page.dart:459:9 • prefer_const_constructors
+   info • Use 'const' for final variables initialized to a constant value • lib/features/student/diagnosis/view/diagnosis_result_page.dart:536:5 • prefer_const_declarations
+   info • Use 'const' with the constructor to improve performance • lib/features/student/diagnosis/view/diagnosis_result_page.dart:644:9 • prefer_const_constructors
+   info • 'dart:html' is deprecated and shouldn't be used. Use package:web and dart:js_interop instead • lib/features/student/lecture/view/lecture_view_page.dart:2:1 • deprecated_member_use
+   info • Don't use 'BuildContext's across async gaps • lib/features/student/lecture/view/lecture_view_page.dart:146:30 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/features/student/lecture/view/lecture_view_page.dart:157:28 • use_build_context_synchronously
+   info • Use 'const' with the constructor to improve performance • lib/features/student/lecture/view/lecture_view_page.dart:556:12 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/student/lecture/view/lecture_view_page.dart:556:26 • prefer_const_constructors
+   info • Use 'const' literals as arguments to constructors of '@immutable' classes • lib/features/student/lecture/view/lecture_view_page.dart:556:88 • prefer_const_literals_to_create_immutables
+   info • Use 'const' with the constructor to improve performance • lib/features/student/lecture/view/lecture_view_page.dart:566:7 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/student/lecture/view/lecture_view_page.dart:566:35 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/student/room/view/student_home_page.dart:135:15 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/student/room/view/student_home_page.dart:616:13 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/features/student/room/view/student_home_page.dart:618:22 • prefer_const_constructors
+   info • Use 'const' literals as arguments to constructors of '@immutable' classes • lib/features/student/room/view/student_home_page.dart:618:36 • prefer_const_literals_to_create_immutables
+   info • Unnecessary braces in a string interpolation • lib/features/student/room/view/student_home_page.dart:665:33 • unnecessary_brace_in_string_interps
+   info • Don't use 'BuildContext's across async gaps • lib/features/student/room/view/subject_quiz_page.dart:64:28 • use_build_context_synchronously
+   info • Use 'const' with the constructor to improve performance • lib/features/student/room/view/subject_quiz_page.dart:99:15 • prefer_const_constructors
+

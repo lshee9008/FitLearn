@@ -236,7 +236,7 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
         children: [
           const Icon(Icons.campaign_outlined, size: 48, color: AppColors.textMuted),
           const SizedBox(height: 16),
-          const Text('공지사항 관리', style: TextStyle(color: AppColors.textPri, fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text('공지사항 관리', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           const Text('추가 기능 페이지에서 구현됩니다 (MVP)', style: TextStyle(color: AppColors.textMuted)),
           const SizedBox(height: 24),
@@ -264,14 +264,14 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('강의실 설정', style: TextStyle(color: AppColors.textPri, fontSize: 18, fontWeight: FontWeight.w700)),
+            const Text('강의실 설정', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w700)),
             const SizedBox(height: 24),
             const Text('강의 줄거리 / 목표', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
             const SizedBox(height: 8),
             TextField(
               controller: ctrlSynopsis,
               maxLines: 3,
-              style: const TextStyle(color: AppColors.textPri),
+              style: const TextStyle(color: AppColors.textPrimary),
               decoration: const InputDecoration(filled: true, fillColor: AppColors.bg),
             ),
             const SizedBox(height: 16),
@@ -279,7 +279,7 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
             const SizedBox(height: 8),
             TextField(
               controller: ctrlConcepts,
-              style: const TextStyle(color: AppColors.textPri),
+              style: const TextStyle(color: AppColors.textPrimary),
               decoration: const InputDecoration(filled: true, fillColor: AppColors.bg),
             ),
             const SizedBox(height: 16),
@@ -287,7 +287,7 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
             const SizedBox(height: 8),
             TextField(
               controller: ctrlYoutube,
-              style: const TextStyle(color: AppColors.textPri),
+              style: const TextStyle(color: AppColors.textPrimary),
               decoration: const InputDecoration(filled: true, fillColor: AppColors.bg),
             ),
             const SizedBox(height: 32),

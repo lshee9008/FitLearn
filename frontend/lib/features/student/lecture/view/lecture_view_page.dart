@@ -137,20 +137,6 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
     );
   }
 
-  void _downloadMarkdown() {
-    final content = _styleContents?[_selectedStyle];
-    if (content == null) return;
-    final bytes = content.codeUnits;
-    final blob = html.Blob([bytes], 'text/markdown');
-    final url = html.Url.createObjectUrlFromBlob(blob);
-    final anchor = html.document.createElement('a') as html.AnchorElement
-      ..href = url
-      ..download = '${widget.title}_$_selectedStyle.md';
-    html.document.body!.append(anchor);
-    anchor.click();
-    anchor.remove();
-    html.Url.revokeObjectUrl(url);
-  }
 
   Future<void> _downloadOriginal() async {
     try {

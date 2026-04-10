@@ -1220,6 +1220,7 @@ class _CreateRoomDialogState extends State<_CreateRoomDialog> {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 }

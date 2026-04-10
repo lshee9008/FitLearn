@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../features/auth/provider/auth_provider.dart';
 import '../../../../shared/services/api_service.dart';
-import '../../../../core/theme/app_theme.dart';
 
 // ─── 컬러 ───────────────────────────────────────────────────────────────────
 class _C {
@@ -12,16 +11,11 @@ class _C {
   static const surface   = Color(0xFF161616);
   static const surface2  = Color(0xFF1E1E1E);
   static const border    = Color(0xFF262626);
-  static const borderHi  = Color(0xFF333333);
   static const lime      = Color(0xFFC8F135);
   static const limeDark  = Color(0xFF182600);
-  static const limeDeep  = Color(0xFFA8D010);
   static const salmon    = Color(0xFFFF6B5B);
   static const salmonDk  = Color(0xFF3D0A04);
   static const lavender  = Color(0xFFC5B8F8);
-  static const lavDark   = Color(0xFF26215C);
-  static const sky       = Color(0xFF38BDF8);
-  static const skyDark   = Color(0xFF0C2A3D);
   static const textPri   = Color(0xFFFFFFFF);
   static const textSec   = Color(0xFF999999);
   static const textMute  = Color(0xFF555555);
