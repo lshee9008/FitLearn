@@ -1,21 +1,22 @@
 """
 파일 파싱 서비스 — PDF, PPT/PPTX, DOCX, MD 텍스트 추출
-PPT/PDF 내 이미지(코드 스크린샷 등) → Gemini Vision OCR로 추출
+이미지 내 코드 스크린샷 / 시각 자료 → Gemini Vision으로 2단계 처리
 """
 import asyncio
 import base64
 import io
 import logging
 import os
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 
 class FileService:
-    SUPPORTED = {"pdf", "ppt", "pptx", "docx", "md", "txt", "hwp", "hwpx",
-                 "py", "js", "ts", "java", "c", "cpp", "cs", "go", "rs", "kt", "swift",
-                 "jpg", "jpeg", "png", "webp", "csv", "json", "xml"}
+    SUPPORTED = {
+        "pdf", "ppt", "pptx", "docx", "md", "txt", "hwp", "hwpx",
+        "py", "js", "ts", "java", "c", "cpp", "cs", "go", "rs", "kt", "swift",
+        "jpg", "jpeg", "png", "webp", "csv", "json", "xml",
+    }
 
     async def extract_text(self, file_bytes: bytes, filename: str) -> str:
         ext = filename.lower().rsplit(".", 1)[-1]
@@ -33,12 +34,11 @@ class FileService:
         elif ext in ("md", "txt"):
             return file_bytes.decode("utf-8", errors="ignore")
         elif ext in ("jpg", "jpeg", "png", "webp"):
-            return await self._ocr_image_bytes(file_bytes, ext)
+            return await self._analyze_image(file_bytes)
         elif ext in ("py", "js", "ts", "java", "c", "cpp", "cs", "go", "rs", "kt", "swift"):
             return file_bytes.decode("utf-8", errors="ignore")
         elif ext in ("csv", "json", "xml"):
             return file_bytes.decode("utf-8", errors="ignore")[:8000]
-
         return ""
 
     # ── PDF ──────────────────────────────────────────────────────────────────
@@ -47,18 +47,18 @@ class FileService:
             import PyPDF2
             reader = PyPDF2.PdfReader(io.BytesIO(data))
             pages_text: list[str] = []
-            for i, page in enumerate(reader.pages, 1):
-                text = page.extract_text() or ""
-                text = text.strip()
 
-                # 이미지 기반 페이지(텍스트 추출 결과가 빈 경우) → Vision OCR
-                if not text or len(text) < 30:
+            for i, page in enumerate(reader.pages, 1):
+                text = (page.extract_text() or "").strip()
+
+                # 텍스트가 거의 없는 경우 → 이미지 페이지로 판단 → Vision 분석
+                if len(text) < 40:
                     try:
-                        img_text = await self._ocr_pdf_page(data, i - 1)
-                        if img_text:
-                            text = f"[이미지 OCR] {img_text}"
+                        vision_text = await self._pdf_page_to_vision(data, i - 1)
+                        if vision_text:
+                            text = vision_text
                     except Exception as e:
-                        logger.warning(f"[FileService] PDF 페이지 {i} OCR 실패: {e}")
+                        logger.warning(f"[FileService] PDF p.{i} Vision 실패: {e}")
 
                 if text:
                     pages_text.append(f"[페이지 {i}]\n{text}")
@@ -67,15 +67,15 @@ class FileService:
         except ImportError:
             return "[PDF 파싱 실패: PyPDF2 미설치]"
 
-    async def _ocr_pdf_page(self, pdf_bytes: bytes, page_index: int) -> str:
-        """PDF 특정 페이지를 이미지로 변환 후 Vision OCR"""
+    async def _pdf_page_to_vision(self, pdf_bytes: bytes, page_index: int) -> str:
+        """PDF 페이지를 PNG로 렌더링 → Vision 분석"""
         try:
             import fitz  # PyMuPDF
             doc = fitz.open(stream=pdf_bytes, filetype="pdf")
             page = doc.load_page(page_index)
-            pix = page.get_pixmap(dpi=150)
+            pix = page.get_pixmap(dpi=180)  # 고해상도로 렌더링
             img_bytes = pix.tobytes("png")
-            return await self._ocr_image_bytes(img_bytes, "png")
+            return await self._analyze_image(img_bytes)
         except ImportError:
             logger.debug("[FileService] PyMuPDF 미설치 — PDF 이미지 OCR 건너뜀")
             return ""
@@ -84,24 +84,23 @@ class FileService:
     async def _from_pptx(self, data: bytes) -> str:
         try:
             from pptx import Presentation
-            from pptx.util import Inches
             prs = Presentation(io.BytesIO(data))
             slides_text: list[str] = []
 
             for i, slide in enumerate(prs.slides, 1):
                 texts: list[str] = []
-                image_parts: list[bytes] = []
+                image_blobs: list[bytes] = []
 
                 for shape in slide.shapes:
-                    # 텍스트 추출
+                    # 텍스트 박스 / 테이블 추출
                     if hasattr(shape, "text") and shape.text.strip():
                         texts.append(shape.text.strip())
 
-                    # 이미지 추출 (코드 스크린샷 등)
-                    if shape.shape_type == 13:  # MSO_SHAPE_TYPE.PICTURE
+                    # 모든 이미지 형태 추출
+                    # shape_type 13 = PICTURE, shape_type 14 = LINKED_PICTURE
+                    if shape.shape_type in (13, 14):
                         try:
-                            img_bytes = shape.image.blob
-                            image_parts.append(img_bytes)
+                            image_blobs.append(shape.image.blob)
                         except Exception:
                             pass
 
@@ -109,18 +108,15 @@ class FileService:
                 if texts:
                     slide_parts.append("\n".join(texts))
 
-                # 이미지 Vision OCR (병렬)
-                if image_parts:
-                    ocr_tasks = [
-                        self._ocr_image_bytes(img, "png")
-                        for img in image_parts
-                    ]
+                # 이미지 병렬 Vision 분석
+                if image_blobs:
+                    ocr_tasks = [self._analyze_image(blob) for blob in image_blobs]
                     ocr_results = await asyncio.gather(*ocr_tasks, return_exceptions=True)
                     for j, result in enumerate(ocr_results):
                         if isinstance(result, str) and result.strip():
-                            slide_parts.append(f"[이미지 {j+1} OCR]\n{result.strip()}")
+                            slide_parts.append(f"[슬라이드 이미지 {j+1}]\n{result.strip()}")
                         elif isinstance(result, Exception):
-                            logger.warning(f"[FileService] 슬라이드 {i} 이미지 {j+1} OCR 실패: {result}")
+                            logger.warning(f"[FileService] Slide {i} img {j+1} Vision 실패: {result}")
 
                 if slide_parts:
                     slides_text.append(f"[슬라이드 {i}]\n" + "\n\n".join(slide_parts))
@@ -141,7 +137,6 @@ class FileService:
 
     # ── HWP/HWPX ────────────────────────────────────────────────────────────
     def _from_hwp(self, data: bytes) -> str:
-        """한글 HWP/HWPX 파싱 — olefile 기반 텍스트 추출"""
         try:
             import zipfile, xml.etree.ElementTree as ET
             with zipfile.ZipFile(io.BytesIO(data)) as z:
@@ -181,13 +176,18 @@ class FileService:
         except Exception:
             pass
 
-        return "[HWP 파일 텍스트 추출 실패 — 다른 형식으로 변환 후 업로드해주세요]"
+        return "[HWP 파일 텍스트 추출 실패]"
 
-    # ── Gemini Vision OCR ────────────────────────────────────────────────────
-    async def _ocr_image_bytes(self, image_bytes: bytes, ext: str = "png") -> str:
+    # ── Gemini Vision 2단계 분석 (핵심) ─────────────────────────────────────
+    async def _analyze_image(self, image_bytes: bytes, ext: str = "png") -> str:
         """
-        Gemini Vision으로 이미지 내 텍스트(코드 포함) OCR 추출
-        코드 스크린샷이면 코드블록 형식으로 반환
+        이미지를 Gemini Vision으로 분석:
+        1단계: 이미지 유형 판단 (코드 / 다이어그램·차트 / 일반 텍스트)
+        2단계: 유형에 맞는 추출
+
+        - 코드 스크린샷 → 코드블록으로 100% 정확하게 추출 (들여쓰기 보존)
+        - 다이어그램/흐름도/차트 → 구성요소와 관계를 텍스트로 서술
+        - 일반 텍스트/슬라이드 → 전체 텍스트 추출
         """
         try:
             import google.generativeai as genai
@@ -198,8 +198,10 @@ class FileService:
             genai.configure(api_key=api_key, transport="rest")
             model = genai.GenerativeModel("gemini-2.0-flash")
 
-            mime_map = {"jpg": "image/jpeg", "jpeg": "image/jpeg",
-                        "png": "image/png", "webp": "image/webp"}
+            mime_map = {
+                "jpg": "image/jpeg", "jpeg": "image/jpeg",
+                "png": "image/png", "webp": "image/webp",
+            }
             mime_type = mime_map.get(ext.lower(), "image/png")
 
             image_part = {
@@ -209,22 +211,48 @@ class FileService:
                 }
             }
 
-            prompt = """이 이미지에서 모든 텍스트를 추출하세요.
-규칙:
-1. 코드가 있으면 ```언어\n코드\n``` 형식으로 감싸서 정확하게 추출하세요.
-2. 코드 들여쓰기와 구문을 100% 정확하게 보존하세요.
-3. 일반 텍스트, 제목, 설명도 모두 추출하세요.
-4. 이미지에 텍스트가 없으면 빈 문자열을 반환하세요.
-5. OCR 결과만 출력하고 부가 설명은 쓰지 마세요."""
+            prompt = """이 이미지를 분석하여 학습 교안에 사용할 수 있도록 정확하게 변환하세요.
+
+[판단 기준 및 처리 방법]
+
+1. **코드 스크린샷** (프로그래밍 코드, 터미널 출력, 명령어):
+   - 코드를 100% 정확하게 추출하세요. 들여쓰기, 공백, 특수문자 모두 보존.
+   - 언어를 감지하여 적절한 코드블록으로 감싸세요.
+   - 형식: ```python\n코드\n```
+   - 주석과 줄 번호도 포함하세요.
+
+2. **다이어그램 / 흐름도 / 아키텍처 도식**:
+   - 구성 요소와 연결 관계를 단계별로 텍스트로 서술하세요.
+   - 화살표 방향, 레이블, 박스 내 텍스트를 모두 포함하세요.
+   - 형식: [다이어그램 설명] → 단계별 설명 텍스트
+
+3. **수식 / 공식**:
+   - 수식을 텍스트로 정확하게 표현하세요.
+   - 형식: `수식 표현`
+
+4. **표 / 비교 자료**:
+   - 마크다운 표 형식으로 변환하세요.
+
+5. **일반 슬라이드 / 텍스트 이미지**:
+   - 모든 텍스트를 순서대로 추출하세요.
+
+출력 규칙:
+- 이미지에 내용이 없으면 빈 문자열만 반환하세요.
+- 설명이나 부가 코멘트 없이 변환 결과만 출력하세요.
+- 반드시 한국어 설명을 유지하고, 코드는 원어 그대로 보존하세요."""
 
             response = await asyncio.wait_for(
                 asyncio.to_thread(model.generate_content, [prompt, image_part]),
-                timeout=20.0,
+                timeout=25.0,
             )
-            return response.text.strip()
+            result = response.text.strip()
+            # 빈 응답 필터링
+            if result.lower() in ("", "없음", "none", "n/a"):
+                return ""
+            return result
 
         except asyncio.TimeoutError:
-            logger.warning("[FileService] Vision OCR 타임아웃 (20s)")
+            logger.warning("[FileService] Vision OCR 타임아웃 (25s)")
             return ""
         except Exception as e:
             logger.warning(f"[FileService] Vision OCR 실패: {e}")
