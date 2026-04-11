@@ -89,7 +89,6 @@ class GeminiService:
         )
 
     # ── 6차원 심리 진단 ──────────────────────────────────────────
-
     async def analyze_psychology(self, answers: list[dict]) -> dict:
         """15문항 답변 → 6차원 학습 성향 프로필 JSON 반환 (temperature=0.2)"""
         q_map = {a["question_id"]: a["answer"] for a in answers}
