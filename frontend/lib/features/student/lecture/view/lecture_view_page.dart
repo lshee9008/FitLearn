@@ -235,7 +235,8 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
         question: _segmentQuestionCtrl.text.trim(),
       );
       setState(() {
-        _segmentAnswer = _normalizeVideoSummary(data['answer'] as String? ?? '');
+        _segmentAnswer =
+            _normalizeVideoSummary(data['answer'] as String? ?? '');
         _segmentLoading = false;
       });
     } on DioException catch (e) {
@@ -904,32 +905,120 @@ class _AIQuestionTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 20),
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.primary.withValues(alpha: 0.08),
+            const Color(0xFF07070B),
+            const Color(0xFF030305),
+          ],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+      ),
+      child: Column(
+        children: [
+          const _AIQuestionHeader(),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(2, 18, 2, 20),
+              child: Column(
+                children: [
+                  if (answer == null)
+                    _EmptyChatView(
+                      onSelectPrompt: (value) {
+                        questionController.text = value;
+                        questionController.selection =
+                            TextSelection.collapsed(offset: value.length);
+                      },
+                    )
+                  else
+                    _ChatMessage(
+                      isAi: true,
+                      content: answer!,
+                    ),
+                ],
+              ),
+            ),
+          ),
+          _ChatInputArea(
+            startController: startController,
+            endController: endController,
+            questionController: questionController,
+            loading: loading,
+            onAsk: onAsk,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AIQuestionHeader extends StatelessWidget {
+  const _AIQuestionHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(2, 18, 2, 0),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0B1115).withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(18),
+        border:
+            Border.all(color: AppColors.primaryLight.withValues(alpha: 0.18)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryGlow.withValues(alpha: 0.12),
+            blurRadius: 28,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                  color: AppColors.primaryLight.withValues(alpha: 0.2)),
+            ),
+            child: const Icon(Icons.auto_awesome_rounded,
+                color: AppColors.primaryLight, size: 22),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (answer == null)
-                  const _EmptyChatView()
-                else
-                  _ChatMessage(
-                    isAi: true,
-                    content: answer!,
+                Text(
+                  '구간 기반 AI 튜터',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.4,
                   ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  '영상 대본, 교수 핵심 포인트, 원본 교안 안에서만 답합니다.',
+                  style: TextStyle(
+                    color: AppColors.textMuted,
+                    fontSize: 12,
+                    height: 1.35,
+                  ),
+                ),
               ],
             ),
           ),
-        ),
-        _ChatInputArea(
-          startController: startController,
-          endController: endController,
-          questionController: questionController,
-          loading: loading,
-          onAsk: onAsk,
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -1063,40 +1152,101 @@ class _StuckPointCard extends StatelessWidget {
 }
 
 class _EmptyChatView extends StatelessWidget {
-  const _EmptyChatView();
+  final ValueChanged<String> onSelectPrompt;
+
+  const _EmptyChatView({required this.onSelectPrompt});
 
   @override
   Widget build(BuildContext context) {
-    return Center(
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(18, 22, 18, 22),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0D1017),
+        borderRadius: BorderRadius.circular(22),
+        border:
+            Border.all(color: AppColors.borderLight.withValues(alpha: 0.46)),
+      ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 60),
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              color: const Color(0xFF101217),
-              borderRadius: BorderRadius.circular(15),
-            ),
-            child: const Icon(Icons.auto_awesome_rounded,
-                color: AppColors.primaryLight, size: 24),
-          ),
-          const SizedBox(height: 20),
           const Text(
-            "무엇이든 물어보세요",
+            "이렇게 물어보면 좋아요",
             style: TextStyle(
               color: AppColors.textPrimary,
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
+              fontSize: 17,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.45,
             ),
           ),
-          const SizedBox(height: 8),
-          const Text(
-            "영상 구간을 정하고 궁금한 점을 적으면\nAI가 교안 기반으로 친절하게 답변합니다.",
-            textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+          const SizedBox(height: 12),
+          _PromptHint(
+            text: "0~5분 구간에서 GAN의 생성자와 판별자 관계를 쉽게 설명해줘",
+            onTap: onSelectPrompt,
+          ),
+          _PromptHint(
+            text: "이 구간에서 시험에 나올 만한 핵심 개념을 3개만 뽑아줘",
+            onTap: onSelectPrompt,
+          ),
+          _PromptHint(
+            text: "실습이나 수식이 있으면 따라 할 순서대로 정리해줘",
+            onTap: onSelectPrompt,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            "대답이 길어도 구간, 대본, 교안 근거를 기준으로 완결된 형태로 보여줍니다.",
+            style: TextStyle(
+              color: AppColors.primaryLight.withValues(alpha: 0.82),
+              fontSize: 12,
+              height: 1.45,
+            ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PromptHint extends StatelessWidget {
+  final String text;
+  final ValueChanged<String> onTap;
+
+  const _PromptHint({required this.text, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: () => onTap(text),
+        child: Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+          decoration: BoxDecoration(
+            color: const Color(0xFF05070C),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+                color: AppColors.primaryLight.withValues(alpha: 0.12)),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  text,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Icon(Icons.north_west_rounded,
+                  color: AppColors.primaryLight, size: 15),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1129,10 +1279,20 @@ class _ChatMessage extends StatelessWidget {
             ),
           Expanded(
             child: Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
               decoration: BoxDecoration(
-                color: isAi ? const Color(0xFF101217) : AppColors.primary,
-                borderRadius: BorderRadius.circular(16),
+                color: isAi ? const Color(0xFF0F131C) : AppColors.primary,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: AppColors.primaryLight.withValues(alpha: 0.14),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.22),
+                    blurRadius: 18,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
               ),
               child: _MarkdownText(content),
             ),
@@ -1161,10 +1321,19 @@ class _ChatInputArea extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: const BoxDecoration(
-        color: Color(0xFF030303),
-        border: Border(top: BorderSide(color: Color(0xFF12141C))),
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF05070B),
+        border: Border(
+            top: BorderSide(
+                color: AppColors.primaryLight.withValues(alpha: 0.1))),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.38),
+            blurRadius: 28,
+            offset: const Offset(0, -12),
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -1179,13 +1348,14 @@ class _ChatInputArea extends StatelessWidget {
           const SizedBox(height: 12),
           TextField(
             controller: questionController,
-            maxLines: 2,
+            minLines: 1,
+            maxLines: 4,
             style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
             decoration: InputDecoration(
-              hintText: "궁금한 내용을 입력하세요...",
+              hintText: "이 구간에서 궁금한 내용을 입력하세요...",
               hintStyle: const TextStyle(color: AppColors.textMuted),
               filled: true,
-              fillColor: const Color(0xFF12141C),
+              fillColor: const Color(0xFF111520),
               contentPadding: const EdgeInsets.all(16),
               suffixIcon: IconButton(
                 icon: loading
@@ -1199,8 +1369,23 @@ class _ChatInputArea extends StatelessWidget {
                 onPressed: loading ? null : onAsk,
               ),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide.none,
+                borderRadius: BorderRadius.circular(18),
+                borderSide: BorderSide(
+                  color: AppColors.primaryLight.withValues(alpha: 0.16),
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(18),
+                borderSide: BorderSide(
+                  color: AppColors.borderLight.withValues(alpha: 0.5),
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(18),
+                borderSide: const BorderSide(
+                  color: AppColors.primaryLight,
+                  width: 1.5,
+                ),
               ),
             ),
           ),
@@ -1223,8 +1408,10 @@ class _ChatMinuteField extends StatelessWidget {
       height: 40,
       padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF12141C),
-        borderRadius: BorderRadius.circular(10),
+        color: const Color(0xFF111520),
+        borderRadius: BorderRadius.circular(12),
+        border:
+            Border.all(color: AppColors.borderLight.withValues(alpha: 0.45)),
       ),
       child: TextField(
         controller: controller,
@@ -1733,7 +1920,8 @@ class _VideoStage extends StatelessWidget {
   Widget build(BuildContext context) {
     final viewType = 'fitlearn-video-${videoUrl.hashCode.abs()}';
     final embedUrl = _embedUrl(videoUrl, videoType);
-    final isTemporaryBackendAsset = videoUrl.contains('/api/v1/lectures/assets/');
+    final isTemporaryBackendAsset =
+        videoUrl.contains('/api/v1/lectures/assets/');
     final canEmbed = embedUrl.isNotEmpty && !isTemporaryBackendAsset;
     if (canEmbed && !_registeredViewTypes.contains(viewType)) {
       _registeredViewTypes.add(viewType);
@@ -1858,7 +2046,7 @@ class _VideoFallback extends StatelessWidget {
                 ? '영상 업로드 처리 중입니다'
                 : videoStatus == 'temporary_expired'
                     ? '임시 영상 URL이 만료되었습니다'
-                : '앱 안에서 재생할 수 없는 영상입니다',
+                    : '앱 안에서 재생할 수 없는 영상입니다',
             style: const TextStyle(
               color: AppColors.textPrimary,
               fontWeight: FontWeight.w800,
