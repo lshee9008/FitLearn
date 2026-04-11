@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 from services.redis_service import RedisService
 
+
 logger = logging.getLogger(__name__)
 
 _firebase_ok = False  # Firebase 사용 가능 여부
