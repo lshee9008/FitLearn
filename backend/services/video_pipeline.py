@@ -12,11 +12,9 @@ import json
 import logging
 import os
 import re
-import shutil
 import tempfile
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, urlparse
 
 import google.generativeai as genai
 
@@ -67,21 +65,15 @@ def _fallback_video_analysis(original_text: str, core_points: list[dict]) -> dic
     }
 
 
-def _row_value(row: Any, key: str, default: Any = None) -> Any:
-    if isinstance(row, dict):
-        return row.get(key, default)
-    return getattr(row, key, default)
-
-
-def _fallback_youtube_analysis(
+def summarize_transcript_locally(
     *,
-    title: str,
     transcript_text: str,
-    segments: list[dict[str, Any]],
+    title: str,
     original_text: str,
     core_points: list[dict],
     reason: str = "",
 ) -> dict[str, Any]:
+    segments = _segments_from_transcript_text(transcript_text)
     points = [
         str(point.get("content", "")).strip()
         for point in core_points
@@ -107,9 +99,9 @@ def _fallback_youtube_analysis(
         "chapters": _segments_to_chapters(segments),
         "summary_markdown": (
             f"## {title or '영상 강의'} 요약\n\n"
-            "> AI 정밀 요약이 지연되어, 현재 확보된 유튜브 자막과 교수 핵심 포인트를 기준으로 먼저 제공합니다.\n\n"
+            "> AI 정밀 요약이 지연되어, 현재 확보된 영상 대본과 교수 핵심 포인트를 기준으로 먼저 제공합니다.\n\n"
             "### 핵심 흐름\n"
-            f"{bullets or '- 영상 자막이 없어 교안 핵심 포인트 기준으로만 확인할 수 있습니다.'}\n\n"
+            f"{bullets or '- 영상 대본이 없어 교안 핵심 포인트 기준으로만 확인할 수 있습니다.'}\n\n"
             "### 학습 팁\n"
             "- 영상에서 사용한 용어를 교안의 핵심 포인트와 나란히 확인하세요.\n"
             "- 코드나 실습 장면은 영상 화면을 멈춘 뒤 그대로 따라 입력하고 결과를 비교하세요."
@@ -152,127 +144,63 @@ def _segments_to_chapters(segments: list[dict[str, Any]]) -> list[dict[str, Any]
     return chapters
 
 
+def _segments_from_transcript_text(transcript_text: str) -> list[dict[str, Any]]:
+    lines = [
+        re.sub(r"\s+", " ", line.strip())
+        for line in (transcript_text or "").splitlines()
+        if line.strip()
+    ]
+    if not lines:
+        return []
+
+    segments: list[dict[str, Any]] = []
+    current_minute = 0
+    for index in range(0, len(lines), 4):
+        chunk = " ".join(lines[index:index + 4]).strip()
+        if not chunk:
+            continue
+        minute_match = re.search(r"(\d{1,3})\s*(?:분|:)", chunk)
+        start = int(minute_match.group(1)) if minute_match else current_minute
+        end = max(start + 1, start + 5)
+        segments.append({
+            "start_minute": start,
+            "end_minute": end,
+            "text": chunk[:900],
+        })
+        current_minute = end
+    return segments[:180]
+
+
 class VideoPipeline:
-    async def transcribe_youtube_url(
+    async def summarize_transcript_text(
         self,
         *,
-        video_url: str,
+        transcript_text: str,
         title: str,
         original_text: str,
         core_points: list[dict],
     ) -> dict[str, Any]:
-        """Fetch YouTube captions and summarize them for grounded segment Q&A."""
-        video_id = self._youtube_id(video_url)
-        if not video_id:
-            raise ValueError("유효한 YouTube 영상 URL이 아닙니다.")
-
-        def _fetch():
-            try:
-                from youtube_transcript_api import YouTubeTranscriptApi
-            except ImportError:
-                raise RuntimeError("youtube-transcript-api가 설치되지 않았습니다. pip install youtube-transcript-api 필요.")
-            
-            try:
-                # 1. 우선 한국어, 영어 수동/자동 자막 모두 폭넓게 시도
-                return YouTubeTranscriptApi.get_transcript(video_id, languages=["ko", "en", "ko-KR", "en-US"])
-            except Exception:
-                # 2. 실패 시, 아무 자막이나 찾아서 한국어로 번역 시도 (자동 생성 자막 등)
-                try:
-                    transcripts = YouTubeTranscriptApi.list_transcripts(video_id)
-                    for t in transcripts:
-                        if t.is_translatable:
-                            return t.translate('ko').fetch()
-                        return t.fetch()
-                except Exception as inner_e:
-                    raise RuntimeError(f"가져올 수 있는 자막이 없습니다: {inner_e}")
-
-        try:
-            rows = await asyncio.to_thread(_fetch)
-        except Exception as e:
-            logger.warning(f"[VideoPipeline] YouTube 자막 추출 실패 — 영상 다운로드 전사 폴백 시도: {e}")
-            return await self._transcribe_youtube_by_download(
-                video_url=video_url,
-                title=title,
-                original_text=original_text,
-                core_points=core_points,
-            )
-        
-        if not rows:
-            return await self._transcribe_youtube_by_download(
-                video_url=video_url,
-                title=title,
-                original_text=original_text,
-                core_points=core_points,
-            )
-
-        segments = [
-            {
-                "start_minute": max(0, int(float(row.get("start", 0)) // 60)),
-                "end_minute": max(0, int((float(row.get("start", 0)) + float(row.get("duration", 0))) // 60) + 1),
-                "text": str(row.get("text", "")).replace("\n", " ").strip(),
-            }
-            for row in rows
-            if str(row.get("text", "")).strip()
-        ]
-        transcript_text = "\n".join(
-            f"[{item['start_minute']}~{item['end_minute']}분] {item['text']}"
-            for item in segments
-        )
-        return await self._summarize_transcript(
-            transcript_text=transcript_text[:14000],
-            segments=segments,
-            title=title,
-            original_text=original_text,
-            core_points=core_points,
-            source="youtube",
-        )
-
-    async def _transcribe_youtube_by_download(
-        self,
-        *,
-        video_url: str,
-        title: str,
-        original_text: str,
-        core_points: list[dict],
-    ) -> dict[str, Any]:
-        temp_dir = tempfile.mkdtemp(prefix="fitlearn_youtube_")
-        try:
-            def _download() -> Path:
-                try:
-                    from yt_dlp import YoutubeDL
-                except ImportError:
-                    raise RuntimeError("yt-dlp가 설치되지 않았습니다. pip install yt-dlp 필요.")
-
-                outtmpl = str(Path(temp_dir) / "%(id)s.%(ext)s")
-                options = {
-                    "outtmpl": outtmpl,
-                    "format": "best[height<=720][ext=mp4]/best[ext=mp4]/best",
-                    "quiet": True,
-                    "no_warnings": True,
-                    "noplaylist": True,
-                }
-                with YoutubeDL(options) as ydl:
-                    ydl.download([video_url])
-                files = [p for p in Path(temp_dir).iterdir() if p.is_file()]
-                if not files:
-                    raise RuntimeError("YouTube 영상 다운로드 결과 파일이 없습니다.")
-                return max(files, key=lambda p: p.stat().st_size)
-
-            downloaded = await asyncio.to_thread(_download)
-            return await self.transcribe_uploaded_video(
-                video_bytes=downloaded.read_bytes(),
-                filename=downloaded.name,
-                mime_type="video/mp4",
-                title=title,
-                original_text=original_text,
-                core_points=core_points,
-            )
-        except Exception as e:
-            logger.error(f"[VideoPipeline] YouTube 다운로드 폴백마저 실패 (차단됨): {e}")
-            # [핵심] 에러로 터뜨리지 않고, 교안/핵심포인트 기반의 빈 요약본이라도 리턴해서 화면 깨짐을 방지!
+        segments = _segments_from_transcript_text(transcript_text)
+        if not transcript_text.strip():
             return _fallback_video_analysis(original_text, core_points)
-        finally:
-            shutil.rmtree(temp_dir, ignore_errors=True)
+        try:
+            return await self._summarize_transcript(
+                transcript_text=transcript_text[:18000],
+                segments=segments,
+                title=title,
+                original_text=original_text,
+                core_points=core_points,
+                source="transcript",
+            )
+        except Exception as e:
+            logger.warning(f"[VideoPipeline] 대본 요약 실패 — 로컬 요약 폴백: {e}")
+            return summarize_transcript_locally(
+                transcript_text=transcript_text,
+                title=title,
+                original_text=original_text,
+                core_points=core_points,
+                reason=str(e)[:240],
+            )
 
     async def transcribe_uploaded_video(
         self,
@@ -396,7 +324,7 @@ class VideoPipeline:
             if point.get("content")
         )
         prompt = f"""당신은 온라인 강의 전사 기반 요약 전문가입니다.
-아래 {source} 전사와 교수 핵심 포인트, 원본 교안을 근거로 학생용 영상 요약을 만드세요.
+아래 {source} 대본과 교수 핵심 포인트, 원본 교안을 근거로 학생용 영상 요약을 만드세요.
 전사에 없는 내용을 꾸며내지 말고, 코드/실습 흐름은 가능한 한 단계별로 보존하세요.
 한국어로만 작성하고 JSON만 출력하세요.
 
@@ -409,7 +337,7 @@ class VideoPipeline:
 [원본 교안 일부]
 {original_text[:3000]}
 
-[영상 전사]
+[영상 대본]
 {transcript_text}
 
 {{
@@ -454,15 +382,3 @@ class VideoPipeline:
             "study_tips": parsed.get("study_tips") or [],
             "stuck_points": parsed.get("stuck_points") or [],
         }
-
-    @staticmethod
-    def _youtube_id(url: str) -> str:
-        parsed = urlparse(url or "")
-        host = parsed.netloc.lower()
-        if "youtu.be" in host:
-            return parsed.path.strip("/").split("/")[0]
-        if "youtube.com" in host:
-            if parsed.path.startswith("/shorts/") or parsed.path.startswith("/embed/"):
-                return parsed.path.strip("/").split("/")[1]
-            return parse_qs(parsed.query).get("v", [""])[0]
-        return ""

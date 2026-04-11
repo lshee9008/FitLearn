@@ -231,6 +231,27 @@ def _fallback_content(
 """
 
 
+def _needs_grounded_boost(content: str, original_content: str) -> bool:
+    if len(content.strip()) < 1800 and len(original_content.strip()) > 2500:
+        return True
+    if content.count("## ") < 4 and len(original_content.strip()) > 2500:
+        return True
+    return bool(re.search(r"(\*$|-\s*$|##\s*$|문장이|다음과|아래와)$", content.strip()))
+
+
+def _append_grounded_boost(content: str, style: str, original_content: str, core_text: str) -> str:
+    boost = _fallback_content(style, core_text, original_content)
+    boost = re.sub(r"^# .+?\n+", "", boost, count=1)
+    return _clean_markdown(f"""{content.strip()}
+
+---
+
+## 원본 근거 보강
+
+{boost}
+""")
+
+
 def _build_source_excerpt(original_content: str, max_chars: int = 16000) -> str:
     """Long lecture source sampler that keeps beginning/middle/end plus code and visual blocks."""
     content = (original_content or "").strip()
@@ -270,7 +291,7 @@ def _build_profile_instruction(style: str, profile: dict) -> str:
     VARK + 집중패턴 + 난이도대응 + 이탈위험 + 신뢰도 5차원을
     구체적인 재가공 지침 문장으로 변환
     """
-    vark = profile.get("learning_style") or profile.get("vark_type") or style
+    vark = _normalize_learning_style(profile.get("learning_style") or profile.get("vark_type") or style)
     focus = profile.get("focus_pattern", "")
     difficulty_response = profile.get("difficulty_response") or profile.get("pace", "")
     dropout_risk = profile.get("dropout_risk") or profile.get("isolation_risk", "")
@@ -367,6 +388,25 @@ PAPER_STRATEGY = {
 }
 
 
+def _normalize_learning_style(style: str) -> str:
+    aliases = {
+        "시각": "시각형",
+        "visual": "시각형",
+        "청각": "청각형",
+        "aural": "청각형",
+        "듣기": "청각형",
+        "읽기": "읽기형",
+        "read/write": "읽기형",
+        "reading": "읽기형",
+        "행동": "실습형",
+        "운동": "실습형",
+        "kinesthetic": "실습형",
+        "실습": "실습형",
+    }
+    cleaned = (style or "").strip()
+    return aliases.get(cleaned.lower(), aliases.get(cleaned, cleaned if cleaned in PAPER_STRATEGY else "읽기형"))
+
+
 async def _get_paper_context_for_style(style: str) -> str:
     relevant = []
     keywords = {
@@ -417,9 +457,7 @@ class ReforgeService:
         profile: dict,
     ) -> str:
         """단일 학생 프로파일 맞춤형 교안 재가공"""
-        style = profile.get("learning_style", "읽기형")
-        if style not in PAPER_STRATEGY:
-            style = "읽기형"
+        style = _normalize_learning_style(profile.get("learning_style", "읽기형"))
         paper_context = await _get_paper_context_for_style(style)
         return await self._reforge_one_with_context(
             style=style,
@@ -523,18 +561,18 @@ class ReforgeService:
 
     def _build_reforge_prompt(self, original_content: str, profile: dict) -> str:
         """기존 _reforge_one_with_context의 프롬프트 로직 재사용"""
-        style = profile.get("learning_style", "읽기형")
+        style = _normalize_learning_style(profile.get("learning_style", "읽기형"))
         paper_strategy = PAPER_STRATEGY.get(style, "")
         profile_instruction = _build_profile_instruction(style, profile)
         
         # profile_summary 생성
-        vark = profile.get("learning_style", style)
+        vark = _normalize_learning_style(profile.get("learning_style", style))
         focus = profile.get("focus_pattern", "")
         diff_resp = profile.get("difficulty_response") or profile.get("pace", "")
         subject_level = profile.get("subject_level", "")
         level_label = {"beginner": "초급", "intermediate": "중급", "advanced": "고급"}.get(subject_level, "")
         profile_summary = f"VARK:{vark} / 집중:{focus} / 대응:{diff_resp} / 수준:{level_label}"
-        source_excerpt = _build_source_excerpt(original_content)
+        source_excerpt = _build_source_excerpt(original_content, max_chars=22000)
 
         return f"""당신은 교육 콘텐츠 재해석 전문가입니다.
 원본 교안을 학생 프로파일에 맞게 재해석하세요. 한국어로만 출력하세요.
@@ -586,7 +624,7 @@ class ReforgeService:
         profile_instruction = _build_profile_instruction(style, profile)
 
         # 학생 프로파일 요약 (헤더용)
-        vark = profile.get("learning_style", style)
+        vark = _normalize_learning_style(profile.get("learning_style", style))
         focus = profile.get("focus_pattern", "")
         diff_resp = profile.get("difficulty_response") or profile.get("pace", "")
         dropout = profile.get("dropout_risk", "")
@@ -597,7 +635,7 @@ class ReforgeService:
                          (f" / 이탈위험:{dropout}" if dropout else "") + \
                          (f" / 신뢰도:{conf}%" if conf else "") + \
                          (f" / 과목수준:{level_label}" if level_label else "")
-        source_excerpt = _build_source_excerpt(original_content)
+        source_excerpt = _build_source_excerpt(original_content, max_chars=24000)
 
         prompt = f"""당신은 교육 콘텐츠 재해석 전문가입니다.
 원본 교안을 학생 프로파일에 맞게 재해석하세요. 한국어로만 출력하세요.
@@ -613,6 +651,8 @@ class ReforgeService:
 8. 인사말·역할 설명·"재해석하겠습니다" 같은 메타 문장 절대 금지
 9. 순수 마크다운 본문만 출력 (노션 스타일)
 10. 너무 짧게 쓰지 마세요. 원본 근거를 최소 10개 이상 살리고, 섹션을 6개 이상 구성하세요
+11. 이미지/슬라이드에서 추출된 [시각자료/코드 캡처]는 반드시 별도 섹션으로 재배치하고, 수업 중 따라 해야 할 코드·명령어는 절대 압축하지 마세요
+12. 출력이 길어도 완성된 마크다운 문서로 끝내세요. 마지막 섹션을 중간에 끊지 마세요
 
 ━━━ 학습 이론 근거 [{style}] ━━━
 {paper_strategy}
@@ -665,11 +705,15 @@ class ReforgeService:
             raw = await generate_gemini_text(
                 prompt,
                 temperature=0.35,
-                max_output_tokens=6000,
-                timeout=75.0,
+                max_output_tokens=8192,
+                timeout=90.0,
                 feature=f"reforge:{style}",
             )
-            return _clean_markdown(raw)
+            cleaned = _clean_markdown(raw)
+            if _needs_grounded_boost(cleaned, original_content):
+                logger.warning(f"[reforge] {style} 출력이 짧거나 끊긴 것으로 판단 — 원본 근거 보강")
+                cleaned = _append_grounded_boost(cleaned, style, original_content, core_text)
+            return cleaned
         except asyncio.TimeoutError:
             logger.error(f"[reforge] {style} 타임아웃 (35s 초과)")
             return _fallback_content(style, core_text, original_content, profile_summary)

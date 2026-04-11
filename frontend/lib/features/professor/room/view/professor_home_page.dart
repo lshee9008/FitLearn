@@ -1305,15 +1305,7 @@ class _CreateRoomDialogState extends State<_CreateRoomDialog> {
       'room_type': _roomType,
       'synopsis': _synopsisCtrl.text.trim(),
       'core_concepts': _currCtrl.text.trim(),
-      'youtube_url': _roomType == 'online'
-          ? _lectures
-              .firstWhere(
-                (lecture) => lecture.videoUrl.trim().isNotEmpty,
-                orElse: () => LectureItem(),
-              )
-              .videoUrl
-              .trim()
-          : '',
+      'youtube_url': '',
       'lectures': _lectures,
     });
   }
@@ -1495,7 +1487,7 @@ class _CreateRoomDialogState extends State<_CreateRoomDialog> {
         ),
         child: Text(
           _roomType == 'online'
-              ? '온라인 강의는 각 강의 항목에 유튜브 링크 또는 영상 파일을 연결할 수 있습니다.'
+              ? '온라인 강의는 각 강의 항목에 업로드 영상과 대본을 연결해 관리합니다.'
               : '오프라인 강의는 교안, 실습 코드, 공지 중심으로 관리됩니다.',
           style: const TextStyle(color: _textSec, fontSize: 12, height: 1.5),
         ),
@@ -1578,14 +1570,6 @@ class _CreateRoomDialogState extends State<_CreateRoomDialog> {
                     decoration:
                         _inputDeco('강의 제목', hasValue: lec.title.isNotEmpty),
                     onChanged: (v) => setState(() => lec.title = v),
-                  ),
-                  const SizedBox(height: 8),
-                  // 영상 URL
-                  TextField(
-                    style: const TextStyle(color: _textPri, fontSize: 13),
-                    decoration: _inputDeco('유튜브 URL 또는 공개 영상 링크',
-                        hasValue: lec.videoUrl.isNotEmpty),
-                    onChanged: (v) => setState(() => lec.videoUrl = v),
                   ),
                   const SizedBox(height: 8),
                   // 교안 URL

@@ -350,13 +350,17 @@ class _LearningExperienceShell extends StatelessWidget {
     final materialUrl = lecture?['material_url'] as String? ?? '';
     final hasOriginal =
         (lecture?['original_file_url'] as String? ?? '').isNotEmpty;
-    final hasVideo = videoUrl.trim().isNotEmpty;
+    final hasVideoStage = videoUrl.trim().isNotEmpty;
+    final hasVideoAnalysis = hasVideoStage ||
+        videoType == 'transcript' ||
+        (lecture?['video_summary'] as String? ?? '').trim().isNotEmpty ||
+        (lecture?['video_transcript'] as String? ?? '').trim().isNotEmpty;
 
     // 모바일 (세로 스택) 레이아웃
     if (!useSplit) {
       return Column(
         children: [
-          if (hasVideo) ...[
+          if (hasVideoStage) ...[
             _VideoStage(
                 videoUrl: videoUrl,
                 videoType: videoType,
@@ -384,7 +388,8 @@ class _LearningExperienceShell extends StatelessWidget {
               onAskSegment: onAskSegment,
               title: title,
               content: content,
-              hasVideo: hasVideo,
+              hasVideo: hasVideoAnalysis,
+              hasVideoStage: hasVideoStage,
             ),
           ),
         ],
@@ -405,7 +410,7 @@ class _LearningExperienceShell extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (hasVideo)
+                  if (hasVideoStage)
                     _VideoStage(
                       videoUrl: videoUrl,
                       videoType: videoType,
@@ -446,7 +451,8 @@ class _LearningExperienceShell extends StatelessWidget {
               onAskSegment: onAskSegment,
               title: title,
               content: content,
-              hasVideo: hasVideo,
+              hasVideo: hasVideoAnalysis,
+              hasVideoStage: hasVideoStage,
             ),
           ),
         ],
@@ -531,6 +537,7 @@ class _DashboardSidePanel extends StatelessWidget {
   final String title;
   final String content;
   final bool hasVideo;
+  final bool hasVideoStage;
 
   const _DashboardSidePanel({
     required this.lecture,
@@ -549,6 +556,7 @@ class _DashboardSidePanel extends StatelessWidget {
     required this.title,
     required this.content,
     required this.hasVideo,
+    required this.hasVideoStage,
   });
 
   @override
@@ -597,7 +605,7 @@ class _DashboardSidePanel extends StatelessWidget {
                   onDownloadOriginal: onDownloadOriginal,
                   title: title,
                   content: content,
-                  hasVideo: hasVideo,
+                  hasVideo: hasVideoStage,
                 ),
                 _AIQuestionTab(
                   startController: startController,
@@ -654,8 +662,8 @@ class _VideoAnalysisTab extends StatelessWidget {
           ] else ...[
             _VideoSummaryCard(
               summary: transcriptionStatus == 'failed'
-                  ? '## 영상 요약 대기\n- 영상 자막 또는 업로드 파일 분석에 실패했습니다.\n- 다시 업로드하거나 자막이 있는 유튜브 링크인지 확인해주세요.'
-                  : '## 영상 요약 준비 중\n- 영상 전사와 요약을 생성하고 있습니다.\n- 잠시 후 다시 들어오면 자동 로드됩니다.',
+                  ? '## 영상 요약 대기\n- 영상 대본 또는 업로드 파일 분석에 실패했습니다.\n- 대본을 붙여넣거나 업로드 영상을 다시 확인해주세요.'
+                  : '## 영상 요약 준비 중\n- 영상 대본과 요약을 생성하고 있습니다.\n- 잠시 후 다시 들어오면 자동 로드됩니다.',
             ),
             const SizedBox(height: 24),
           ],
@@ -1702,29 +1710,9 @@ class _VideoStage extends StatelessWidget {
     if (type == 'youtube' ||
         uri.host.contains('youtube.com') ||
         uri.host.contains('youtu.be')) {
-      final id = _youtubeId(uri);
-      return id == null ? url : 'https://www.youtube.com/embed/$id';
+      return '';
     }
     return url;
-  }
-
-  static String? _youtubeId(Uri uri) {
-    if (uri.host.contains('youtu.be') && uri.pathSegments.isNotEmpty) {
-      return uri.pathSegments.first;
-    }
-    if (uri.queryParameters['v'] != null) {
-      return uri.queryParameters['v'];
-    }
-    final segments = uri.pathSegments;
-    final embedIndex = segments.indexOf('embed');
-    if (embedIndex >= 0 && segments.length > embedIndex + 1) {
-      return segments[embedIndex + 1];
-    }
-    final shortsIndex = segments.indexOf('shorts');
-    if (shortsIndex >= 0 && segments.length > shortsIndex + 1) {
-      return segments[shortsIndex + 1];
-    }
-    return null;
   }
 
   static bool _looksLikeDirectVideo(String url) {

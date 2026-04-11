@@ -202,6 +202,7 @@ class ApiService {
     String lectureId = '',
     int orderIndex = 0,
     String videoUrl = '',
+    String videoTranscriptText = '',
     String materialUrl = '',
     List<int>? videoFileBytes,
     String? videoFileName,
@@ -215,6 +216,7 @@ class ApiService {
       'lecture_id': lectureId,
       'order_index': orderIndex,
       'video_url': videoUrl,
+      'video_transcript_text': videoTranscriptText,
       'material_url': materialUrl,
       if (videoFileBytes != null)
         'video_file': MultipartFile.fromBytes(

@@ -12,7 +12,7 @@ from services.lecture_pipeline import LecturePipeline
 from services.reforge_service import ReforgeService, generate_gemini_text
 from services.file_service import FileService
 from services.firebase_service import FirebaseService
-from services.video_pipeline import VideoPipeline
+from services.video_pipeline import VideoPipeline, summarize_transcript_locally
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["lectures"])
@@ -22,7 +22,7 @@ file_svc = FileService()
 firebase = FirebaseService()
 video_pipeline = VideoPipeline()
 LOCAL_ASSET_DIR = Path(os.getenv("FITLEARN_ASSET_DIR", "/tmp/fitlearn_assets"))
-REFORGED_CACHE_VERSION = 4
+REFORGED_CACHE_VERSION = 5
 FALLBACK_CACHE_MARKERS = (
     "AI 서버 응답 지연",
     "AI 응답이 지연",
@@ -58,6 +58,20 @@ def _as_int(value, default: int = 0) -> int:
         return default
 
 
+def _normalize_public_style(style: str) -> str:
+    aliases = {
+        "시각": "시각형",
+        "청각": "청각형",
+        "듣기": "청각형",
+        "읽기": "읽기형",
+        "행동": "실습형",
+        "운동": "실습형",
+        "실습": "실습형",
+    }
+    value = (style or "").strip()
+    return aliases.get(value, value or "읽기형")
+
+
 def _video_summary_fallback(title: str, original_text: str, core_points: list[dict], reason: str) -> str:
     point_lines = [
         f"- {str(point.get('content', '')).strip()}"
@@ -72,11 +86,11 @@ def _video_summary_fallback(title: str, original_text: str, core_points: list[di
         ][:8]
     return (
         f"## {title or '영상 강의'} 요약\n\n"
-        "> 유튜브 자막/영상 전사가 지연되어 현재는 교안과 교수 핵심 포인트 기준으로 먼저 제공합니다.\n\n"
+        "> 영상 대본/전사가 지연되어 현재는 교안과 교수 핵심 포인트 기준으로 먼저 제공합니다.\n\n"
         "### 핵심 포인트\n"
         f"{chr(10).join(point_lines) if point_lines else '- 아직 요약 가능한 텍스트 근거가 충분하지 않습니다.'}\n\n"
         "### 다음 확인\n"
-        "- 영상 자막이 있는 링크라면 잠시 후 다시 전사 확인을 눌러주세요.\n"
+        "- 대본이 준비되면 업로드 화면에서 붙여넣어 전사 기반 요약으로 갱신해주세요.\n"
         "- 실습/코드 장면은 영상 화면을 기준으로 그대로 따라 하며 교안의 핵심 포인트와 대조하세요.\n\n"
         f"> 처리 메모: {reason}"
     )
@@ -152,10 +166,10 @@ async def _process_uploaded_video_transcript(
         })
 
 
-async def _process_youtube_transcript(
+async def _process_transcript_text(
     room_id: str,
     lecture_id: str,
-    video_url: str,
+    transcript_text: str,
     title: str,
     original_text: str,
     core_points: list[dict],
@@ -166,8 +180,8 @@ async def _process_youtube_transcript(
             "transcription_error": "",
             "summary_status": "processing",
         })
-        result = await video_pipeline.transcribe_youtube_url(
-            video_url=video_url,
+        result = await video_pipeline.summarize_transcript_text(
+            transcript_text=transcript_text,
             title=title,
             original_text=original_text,
             core_points=core_points,
@@ -185,22 +199,25 @@ async def _process_youtube_transcript(
             "transcription_status": "ready",
             "transcription_error": "",
         })
-        logger.info(f"[youtube_transcript] 완료 room={room_id} lecture={lecture_id}")
+        logger.info(f"[transcript_text] 완료 room={room_id} lecture={lecture_id}")
     except Exception as e:
-        logger.warning(f"[youtube_transcript] 실패 room={room_id} lecture={lecture_id}: {e}")
-        fallback_summary = _video_summary_fallback(title, original_text, core_points, str(e)[:240])
+        logger.warning(f"[transcript_text] 실패 room={room_id} lecture={lecture_id}: {e}")
+        result = summarize_transcript_locally(
+            transcript_text=transcript_text,
+            title=title,
+            original_text=original_text,
+            core_points=core_points,
+            reason=str(e)[:240],
+        )
         await firebase.update_lecture_meta(room_id, lecture_id, {
-            "video_transcript": "",
-            "video_segments": [],
-            "chapters": [],
-            "video_summary": fallback_summary,
-            "video_key_moments": [],
-            "video_study_tips": [
-                "유튜브 자막이 열리면 전사 기반 요약으로 다시 갱신됩니다.",
-                "현재는 교안과 교수 핵심 포인트를 기준으로 학습하세요.",
-            ],
-            "video_stuck_points": [],
-            "summary_cache": {"default": fallback_summary},
+            "video_transcript": result.get("transcript", ""),
+            "video_segments": result.get("segments", []),
+            "chapters": result.get("chapters", []),
+            "video_summary": result.get("summary_markdown", ""),
+            "video_key_moments": result.get("key_moments", []),
+            "video_study_tips": result.get("study_tips", []),
+            "video_stuck_points": result.get("stuck_points", []),
+            "summary_cache": {"default": result.get("summary_markdown", "")},
             "transcription_status": "partial",
             "transcription_error": str(e)[:500],
             "summary_status": "ready",
@@ -253,24 +270,14 @@ _DEMO_CORE_POINTS = [
 ]
 
 
-def _resolve_video_meta(video_url: str, has_video_file: bool, title: str) -> dict:
-    clean_url = (video_url or "").strip()
+def _resolve_video_meta(has_video_file: bool, title: str) -> dict:
     if has_video_file:
         return {
             "video_type": "upload",
-            "video_url": clean_url,
+            "video_url": "",
             "video_title": title,
             "video_status": "processing",
             "video_source": "uploaded_file",
-        }
-    if clean_url:
-        is_youtube = bool(re.search(r"(youtube\.com|youtu\.be)", clean_url, re.IGNORECASE))
-        return {
-            "video_type": "youtube" if is_youtube else "external",
-            "video_url": clean_url,
-            "video_title": title,
-            "video_status": "ready",
-            "video_source": "youtube" if is_youtube else "external_url",
         }
     return {
         "video_type": "none",
@@ -292,6 +299,7 @@ async def upload_lecture(
     lecture_id: str = Form(""),
     order_index: int = Form(0),
     video_url: str = Form(""),
+    video_transcript_text: str = Form(""),
     material_url: str = Form(""),
     video_file: UploadFile | None = File(None),
 ):
@@ -316,7 +324,10 @@ async def upload_lecture(
             detail=f"파일에서 텍스트를 추출할 수 없습니다. ({file.filename})"
         )
 
-    video_meta = _resolve_video_meta(video_url, video_file is not None, resolved_title)
+    if video_url.strip():
+        logger.info("[upload] video_url 입력은 더 이상 분석에 사용하지 않음")
+    transcript_text = video_transcript_text.strip()
+    video_meta = _resolve_video_meta(video_file is not None, resolved_title)
 
     try:
         result = await pipeline.run(text)
@@ -379,29 +390,43 @@ async def upload_lecture(
                     "transcription_status": "queued",
                     "summary_status": "processing",
                 })
-                background_tasks.add_task(
-                    _process_uploaded_video_transcript,
-                    room_id,
-                    lecture_id,
-                    video_content,
-                    video_filename,
-                    video_content_type,
-                    resolved_title,
-                    text,
-                    result["core_points"],
-                )
+                if transcript_text:
+                    background_tasks.add_task(
+                        _process_transcript_text,
+                        room_id,
+                        lecture_id,
+                        transcript_text,
+                        resolved_title,
+                        text,
+                        result["core_points"],
+                    )
+                else:
+                    background_tasks.add_task(
+                        _process_uploaded_video_transcript,
+                        room_id,
+                        lecture_id,
+                        video_content,
+                        video_filename,
+                        video_content_type,
+                        resolved_title,
+                        text,
+                        result["core_points"],
+                    )
         except Exception as e:
             logger.warning(f"[upload] 영상 파일 Storage 업로드 실패: {e}")
-    elif video_meta["video_type"] == "youtube" and video_meta["video_url"]:
+    elif transcript_text:
         await firebase.update_lecture_meta(room_id, lecture_id, {
+            "video_type": "transcript",
+            "video_source": "transcript_text",
+            "video_status": "ready",
             "transcription_status": "queued",
             "summary_status": "processing",
         })
         background_tasks.add_task(
-            _process_youtube_transcript,
+            _process_transcript_text,
             room_id,
             lecture_id,
-            video_meta["video_url"],
+            transcript_text,
             resolved_title,
             text,
             result["core_points"],
@@ -481,24 +506,6 @@ async def assist_video_segment(room_id: str, lecture_id: str, body: VideoAssistR
     )
     transcript_text = str(transcript)[:4500] if transcript else ""
     video_segments = lecture.get("video_segments") or []
-    video_url = lecture.get("video_url") or ""
-    video_type = lecture.get("video_type") or ""
-    if not transcript_text and (video_type == "youtube" or "youtu" in video_url):
-        try:
-            logger.info(f"[video_assist] 전사 없음 — YouTube 전사 온디맨드 시도 lecture={lecture_id}")
-            await _process_youtube_transcript(
-                room_id,
-                lecture_id,
-                video_url,
-                lecture.get("title") or lecture_id,
-                lecture.get("original_text", ""),
-                core_points,
-            )
-            lecture = await firebase.get_lecture(room_id, lecture_id) or lecture
-            transcript_text = str(lecture.get("video_transcript") or "")[:4500]
-            video_segments = lecture.get("video_segments") or []
-        except Exception as e:
-            logger.warning(f"[video_assist] YouTube 전사 온디맨드 실패: {e}")
     segment_context = "\n".join(
         f"- {item.get('start_minute', 0)}~{item.get('end_minute', 0)}분: {item.get('text', '')}"
         for item in video_segments
@@ -636,7 +643,7 @@ async def _resolve_student_profile(user_id: str, room_id: str) -> dict:
 def _public_profile_summary(profile: dict) -> dict:
     reliability = profile.get("reliability", {}) or {}
     return {
-        "vark_type": profile.get("learning_style", "읽기형"),
+        "vark_type": _normalize_public_style(profile.get("learning_style", "읽기형")),
         "focus_pattern": profile.get("focus_pattern", "단기집중형"),
         "difficulty_response": profile.get("difficulty_response") or profile.get("pace", "숙고형"),
         "dropout_risk": profile.get("dropout_risk") or profile.get("isolation_risk", ""),
@@ -748,7 +755,7 @@ async def get_reforged(
     if not lecture.get("confirmed"):
         raise HTTPException(status_code=400, detail="교수가 아직 핵심 포인트를 확정하지 않았습니다.")
 
-    primary_style = profile.get("learning_style", "읽기형")
+    primary_style = _normalize_public_style(profile.get("learning_style", "읽기형"))
     logger.info(f"[reforged] 주 스타일 우선 생성 시작 user={user_id} style={primary_style}")
 
     try:

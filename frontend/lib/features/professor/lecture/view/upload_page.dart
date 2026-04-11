@@ -31,7 +31,7 @@ class _LectureUploadPageState extends ConsumerState<LectureUploadPage> {
   String? _error;
   int _weekNumber = 0;       // 0 = 주차 미지정
   final _titleCtrl = TextEditingController();
-  final _videoUrlCtrl = TextEditingController();
+  final _transcriptCtrl = TextEditingController();
   final _materialUrlCtrl = TextEditingController();
   List<dynamic> _lectureOptions = [];
   String? _selectedLectureId;
@@ -46,7 +46,7 @@ class _LectureUploadPageState extends ConsumerState<LectureUploadPage> {
   @override
   void dispose() {
     _titleCtrl.dispose();
-    _videoUrlCtrl.dispose();
+    _transcriptCtrl.dispose();
     _materialUrlCtrl.dispose();
     super.dispose();
   }
@@ -101,7 +101,7 @@ class _LectureUploadPageState extends ConsumerState<LectureUploadPage> {
       _selectedOrderIndex = lecture['order_index'] as int? ?? 0;
       _weekNumber = lecture['week_number'] as int? ?? 0;
       _titleCtrl.text = lecture['title'] as String? ?? '';
-      _videoUrlCtrl.text = lecture['video_url'] as String? ?? '';
+      _transcriptCtrl.text = lecture['video_transcript'] as String? ?? '';
       _materialUrlCtrl.text = lecture['material_url'] as String? ?? '';
     });
   }
@@ -122,7 +122,7 @@ class _LectureUploadPageState extends ConsumerState<LectureUploadPage> {
         lectureTitle: _titleCtrl.text.trim(),
         lectureId: _selectedLectureId ?? '',
         orderIndex: _selectedOrderIndex,
-        videoUrl: _videoUrlCtrl.text.trim(),
+        videoTranscriptText: _transcriptCtrl.text.trim(),
         materialUrl: _materialUrlCtrl.text.trim(),
         videoFileBytes: _videoFile?.bytes,
         videoFileName: _videoFile?.name,
@@ -322,41 +322,13 @@ class _LectureUploadPageState extends ConsumerState<LectureUploadPage> {
 
             const SizedBox(height: 20),
 
-            const Text('영상 연결',
+            const Text('영상 / 대본 연결',
                 style: TextStyle(
                     color: AppColors.textMuted,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0.5)),
             const SizedBox(height: 8),
-            TextField(
-              controller: _videoUrlCtrl,
-              style: const TextStyle(
-                  color: AppColors.textPrimary, fontSize: 14),
-              decoration: InputDecoration(
-                hintText: 'YouTube 링크 또는 공개 영상 URL',
-                hintStyle: const TextStyle(
-                    color: AppColors.textMuted, fontSize: 13),
-                filled: true,
-                fillColor: AppColors.bgCard,
-                contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 12),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: AppColors.border),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: AppColors.border),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(
-                      color: AppColors.primary, width: 1.5),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
             GestureDetector(
               onTap: _uploading ? null : _pickVideoFile,
               child: Container(
@@ -398,6 +370,35 @@ class _LectureUploadPageState extends ConsumerState<LectureUploadPage> {
                         child: const Icon(Icons.close_rounded, color: AppColors.textMuted, size: 18),
                       ),
                   ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _transcriptCtrl,
+              maxLines: 6,
+              style: const TextStyle(
+                  color: AppColors.textPrimary, fontSize: 13, height: 1.45),
+              decoration: InputDecoration(
+                hintText: '영상 대본을 붙여넣으면 이 대본만 기준으로 요약/질문 답변을 생성합니다. 외부 링크 분석은 사용하지 않습니다.',
+                hintStyle: const TextStyle(
+                    color: AppColors.textMuted, fontSize: 12, height: 1.45),
+                filled: true,
+                fillColor: AppColors.bgCard,
+                contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 14),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.border),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(
+                      color: AppColors.primary, width: 1.5),
                 ),
               ),
             ),

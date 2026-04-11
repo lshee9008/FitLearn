@@ -107,6 +107,11 @@ class FileService:
                                     f"{combined}\n\n[페이지 {i} 시각자료/코드 캡처]\n{vision_text}"
                                     if combined else vision_text
                                 )
+                            elif has_visuals:
+                                combined = (
+                                    f"{combined}\n\n[페이지 {i} 시각자료]\n이 페이지에는 이미지·도식·코드 캡처가 포함되어 있으나 OCR 결과가 비어 있습니다. 재해석 시 원본 파일과 함께 확인하세요."
+                                    if combined else f"[페이지 {i} 시각자료]\n이미지·도식·코드 캡처가 포함되어 있으나 OCR 결과가 비어 있습니다. 원본 파일 확인이 필요합니다."
+                                )
                         except Exception as e:
                             logger.warning(f"[FileService] PDF p.{i} Vision 실패: {e}")
 
@@ -132,6 +137,8 @@ class FileService:
                         vision_text = await self._pdf_page_to_vision(data, i - 1)
                         if vision_text:
                             text = vision_text
+                        else:
+                            text = f"[페이지 {i} 시각자료]\n이미지 기반 페이지로 보이나 OCR 결과가 비어 있습니다. 원본 파일 확인이 필요합니다."
                     except Exception as e:
                         logger.warning(f"[FileService] PDF p.{i} Vision 실패: {e}")
                 if text:
@@ -182,6 +189,8 @@ class FileService:
                     result = await self._analyze_image(blob)
                     if result and result.strip():
                         slide_parts.append(f"[슬라이드 {i} 시각자료/코드 캡처 {j+1}]\n{result.strip()}")
+                    else:
+                        slide_parts.append(f"[슬라이드 {i} 시각자료 {j+1}]\n이미지·도식·코드 캡처가 포함되어 있으나 OCR 결과가 비어 있습니다. 원본 슬라이드와 함께 확인하세요.")
                     # 이미지 사이 짧은 대기 (API rate limit 보호)
                     if j < len(limited_blobs) - 1:
                         await asyncio.sleep(0.5)
@@ -213,6 +222,8 @@ class FileService:
                 result = await self._analyze_image(blob)
                 if result and result.strip():
                     parts.append(f"[DOCX 시각자료/코드 캡처 {i}]\n{result.strip()}")
+                else:
+                    parts.append(f"[DOCX 시각자료 {i}]\n이미지·도식·코드 캡처가 포함되어 있으나 OCR 결과가 비어 있습니다. 원본 파일과 함께 확인하세요.")
 
             return "\n\n".join(part for part in parts if part.strip())
         except ImportError:

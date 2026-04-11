@@ -113,8 +113,6 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
   Future<void> _editLecture(Map<String, dynamic> lecture) async {
     final titleCtrl =
         TextEditingController(text: lecture['title'] as String? ?? '');
-    final videoCtrl =
-        TextEditingController(text: lecture['video_url'] as String? ?? '');
     final materialCtrl =
         TextEditingController(text: lecture['material_url'] as String? ?? '');
     final weekCtrl = TextEditingController(
@@ -129,8 +127,6 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
           const SizedBox(height: 12),
           _DialogField(
               ctrl: weekCtrl, label: '주차', keyboardType: TextInputType.number),
-          const SizedBox(height: 12),
-          _DialogField(ctrl: videoCtrl, label: '영상 링크'),
           const SizedBox(height: 12),
           _DialogField(ctrl: materialCtrl, label: '보조 자료 링크'),
         ]),
@@ -149,7 +145,6 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
           .updateLectureMeta(widget.roomId, lecture['lecture_id'] as String, {
         'title': titleCtrl.text.trim(),
         'week_number': int.tryParse(weekCtrl.text.trim()) ?? 0,
-        'video_url': videoCtrl.text.trim(),
         'material_url': materialCtrl.text.trim(),
       });
       ref.invalidate(professorRoomDetailProvider(widget.roomId));
@@ -629,8 +624,6 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
     final ctrlSynopsis = TextEditingController(text: room['synopsis'] ?? '');
     final ctrlConcepts = TextEditingController(
         text: ((room['core_concepts'] as List<dynamic>?) ?? []).join(', '));
-    final ctrlYoutube = TextEditingController(text: room['youtube_url'] ?? '');
-
     return Column(children: [
       const _TabHeader(title: '강의실 설정', sub: '강의 정보 및 AI 학습 설정을 관리합니다'),
       Expanded(
@@ -652,10 +645,6 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
               const _FieldLabel('핵심 개념 (쉼표 구분) — AI 퀴즈 자동 생성에 사용됨'),
               const SizedBox(height: 8),
               _SettingsField(ctrl: ctrlConcepts),
-              const SizedBox(height: 20),
-              const _FieldLabel('YouTube URL (온라인 강의 시)'),
-              const SizedBox(height: 8),
-              _SettingsField(ctrl: ctrlYoutube),
               const SizedBox(height: 32),
               GestureDetector(
                 onTap: () async {
@@ -668,7 +657,7 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
                     await ApiService().updateRoomMeta(widget.roomId, {
                       'synopsis': ctrlSynopsis.text.trim(),
                       'core_concepts': concepts,
-                      'youtube_url': ctrlYoutube.text.trim(),
+                      'youtube_url': '',
                     });
                     ref.invalidate(professorRoomDetailProvider(widget.roomId));
                     if (!mounted) return;
