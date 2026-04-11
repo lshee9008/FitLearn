@@ -44,10 +44,11 @@ class QuizService:
             
         return genai.GenerativeModel(
             model_name=MODEL,
-            generation_config=genai.GenerationConfig(
-                temperature=0.3,
-                max_output_tokens=2048,
-            ),
+            generation_config={
+                "temperature": 0.3,
+                "max_output_tokens": 2048,
+                "thinking_config": {"thinking_budget": 0},
+            },
         )
 
     async def generate_quiz(

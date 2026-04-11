@@ -81,10 +81,11 @@ class GeminiService:
     def _model(self, temperature: float = 0.3, max_tokens: int = 2048) -> genai.GenerativeModel:
         return genai.GenerativeModel(
             model_name=MODEL,
-            generation_config=genai.GenerationConfig(
-                temperature=temperature,
-                max_output_tokens=max_tokens,
-            ),
+            generation_config={
+                "temperature": temperature,
+                "max_output_tokens": max_tokens,
+                "thinking_config": {"thinking_budget": 0},
+            },
         )
 
     # ── 6차원 심리 진단 ──────────────────────────────────────────

@@ -103,10 +103,11 @@ class RAGAnalyzer:
     def _model(self) -> genai.GenerativeModel:
         return genai.GenerativeModel(
             model_name=MODEL,
-            generation_config=genai.GenerationConfig(
-                temperature=0.1,
-                max_output_tokens=3000,
-            ),
+            generation_config={
+                "temperature": 0.1,
+                "max_output_tokens": 3000,
+                "thinking_config": {"thinking_budget": 0},
+            },
         )
 
     def _build_context(self, retrieved: list[dict]) -> str:

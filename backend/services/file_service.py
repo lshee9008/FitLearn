@@ -345,7 +345,12 @@ class FileService:
             for model_name in _VISION_MODELS:
                 for attempt in range(_VISION_RETRIES):
                     try:
-                        model = genai.GenerativeModel(model_name)
+                        model = genai.GenerativeModel(
+                            model_name,
+                            generation_config={
+                                "thinking_config": {"thinking_budget": 0},
+                            }
+                        )
                         response = await asyncio.wait_for(
                             asyncio.to_thread(model.generate_content, [prompt, image_part]),
                             timeout=_VISION_TIMEOUT_SECONDS,
