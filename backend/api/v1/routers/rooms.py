@@ -45,6 +45,7 @@ async def create_room(body: RoomCreate, background_tasks: BackgroundTasks):
             body.professor_uid, name, body.subject, body.description,
             room_type=body.room_type, synopsis=body.synopsis,
             core_concepts=body.core_concepts, youtube_url=body.youtube_url,
+            price=body.price,
         )
         room = Room(**{k: data[k] for k in Room.model_fields if k in data})
         # synopsis + core_concepts 있으면 응답 후 백그라운드에서 퀴즈 생성
@@ -109,11 +110,19 @@ async def get_student_service_hub(user_id: str):
         lectures = await firebase.get_lectures_in_room(room_id)
         level_data = await firebase.get_subject_level(user_id, room_id)
         confirmed_count = sum(1 for lecture in lectures if lecture.get("confirmed"))
+        progress = await firebase.get_lecture_progress(user_id, room_id)
+        completed_count = min(
+            int(progress.get("max_completed_order", 0) or 0),
+            confirmed_count,
+        )
+        progress_rate = 0 if confirmed_count == 0 else round(completed_count / confirmed_count * 100)
         next_lecture = next((lecture for lecture in lectures if lecture.get("confirmed")), None)
         room_data = {
             **{k: room[k] for k in Room.model_fields if k in room},
             "lecture_count": len(lectures),
             "confirmed_lecture_count": confirmed_count,
+            "completed_lecture_count": completed_count,
+            "progress_rate": progress_rate,
             "subject_level": level_data.get("subject_level") if level_data else None,
             "score": level_data.get("score") if level_data else None,
             "next_lecture_id": next_lecture.get("lecture_id") if next_lecture else None,
@@ -177,6 +186,15 @@ async def apply_to_room(room_id: str, body: RoomApplicationCreate):
         raise HTTPException(status_code=404, detail="방을 찾을 수 없습니다.")
     application = await firebase.create_room_application(room_id, body.user_id, body.note)
     return {"status": "submitted", "application": application}
+
+
+@router.post("/rooms/{room_id}/enroll")
+async def enroll_room(room_id: str, body: RoomApplicationCreate):
+    room = await firebase.get_room(room_id)
+    if not room:
+        raise HTTPException(status_code=404, detail="방을 찾을 수 없습니다.")
+    await firebase.add_student_to_room(room_id, body.user_id)
+    return {"status": "enrolled", "room_id": room_id, "user_id": body.user_id}
 
 
 @router.get("/rooms/student/{user_id}/applications")
@@ -287,6 +305,21 @@ async def reorder_lectures(room_id: str, body: LectureReorderRequest):
 async def delete_lecture(room_id: str, lecture_id: str):
     await firebase.delete_lecture(room_id, lecture_id)
     return {"status": "deleted"}
+
+
+@router.post("/rooms/{room_id}/lectures/{lecture_id}/progress")
+async def mark_lecture_progress(room_id: str, lecture_id: str, body: RoomApplicationCreate):
+    lecture = await firebase.get_lecture(room_id, lecture_id)
+    if not lecture:
+        raise HTTPException(status_code=404, detail="강의를 찾을 수 없습니다.")
+    order_index = int(lecture.get("order_index") or 1)
+    result = await firebase.save_lecture_progress(
+        user_id=body.user_id,
+        room_id=room_id,
+        lecture_id=lecture_id,
+        order_index=order_index,
+    )
+    return {"status": "updated", "progress": result}
 
 
 # ── 수준판단 퀴즈 ──────────────────────────────────────────────────────────────

@@ -200,7 +200,7 @@ class FirebaseService:
     async def create_room(
         self, professor_uid: str, professor_name: str, subject: str, description: str,
         room_type: str = "offline", synopsis: str = "",
-        core_concepts: list = None, youtube_url: str = ""
+        core_concepts: list = None, youtube_url: str = "", price: int = 0
     ) -> dict:
         code = _generate_room_code()
         db = self._safe_db()
@@ -210,6 +210,8 @@ class FirebaseService:
             "subject": subject, "description": description,
             "room_type": room_type, "synopsis": synopsis,
             "core_concepts": core_concepts or [], "youtube_url": youtube_url,
+            "price": price,
+            "completion_rate": 0,
             "has_quiz": False, "students": [],
         }
         if db is None:
@@ -229,7 +231,7 @@ class FirebaseService:
                     "instructor": professor_name or professor_uid,
                     "professor_uid": professor_uid,
                     "professor_name": professor_name,
-                    "price": 0,
+                    "price": price,
                     "tags": [room_type],
                     "curriculum": core_concepts or [],
                     "room_type": room_type,
@@ -306,6 +308,7 @@ class FirebaseService:
                 for doc in docs:
                     d = _normalize_firestore_value(doc.to_dict())
                     d["student_count"] = len(d.get("students", []))
+                    d["completion_rate"] = d.get("completion_rate", 0)
                     result.append(d)
                 if not ordered:
                     result.sort(key=lambda item: item.get("created_at") or "", reverse=True)
@@ -382,6 +385,88 @@ class FirebaseService:
                 await self._cache_delete_prefix(f"professor_rooms:{prof_uid}")
         except Exception as e:
             logger.warning(f"[Firebase] add_student_to_room 실패: {e}")
+
+    async def get_lecture_progress(self, user_id: str, room_id: str) -> dict:
+        db = self._safe_db()
+        if db is None:
+            return {}
+        try:
+            def _read():
+                doc = db.collection("lecture_progress").document(f"{user_id}_{room_id}").get()
+                return _normalize_firestore_value(doc.to_dict()) if doc.exists else {}
+            return await _run(_read)
+        except Exception as e:
+            logger.warning(f"[Firebase] get_lecture_progress 실패: {e}")
+            return {}
+
+    async def save_lecture_progress(
+        self, user_id: str, room_id: str, lecture_id: str, order_index: int
+    ) -> dict:
+        db = self._safe_db()
+        if db is None:
+            return {"max_completed_order": order_index, "last_lecture_id": lecture_id}
+        try:
+            room_data = await self.get_room(room_id)
+            prof_uid = room_data.get("professor_uid") if room_data else None
+
+            def _write():
+                ref = db.collection("lecture_progress").document(f"{user_id}_{room_id}")
+                snap = ref.get()
+                prev = snap.to_dict() if snap.exists else {}
+                max_order = max(int(prev.get("max_completed_order", 0) or 0), order_index)
+                payload = {
+                    "user_id": user_id,
+                    "room_id": room_id,
+                    "last_lecture_id": lecture_id,
+                    "last_order_index": order_index,
+                    "max_completed_order": max_order,
+                    "updated_at": datetime.now(timezone.utc),
+                }
+                ref.set(payload, merge=True)
+                room_ref = db.collection("rooms").document(room_id)
+                room_snap = room_ref.get()
+                room = room_snap.to_dict() if room_snap.exists else {}
+                students = room.get("students", []) or []
+                lecture_docs = list(
+                    room_ref.collection("lectures")
+                    .where("confirmed", "==", True)
+                    .stream()
+                )
+                lecture_total = len(lecture_docs)
+                if students and lecture_total:
+                    progress_docs = list(
+                        db.collection("lecture_progress")
+                        .where("room_id", "==", room_id)
+                        .stream()
+                    )
+                    progress_map = {
+                        doc.to_dict().get("user_id"): int(
+                            doc.to_dict().get("max_completed_order", 0) or 0
+                        )
+                        for doc in progress_docs
+                    }
+                    total_rate = 0
+                    for student_id in students:
+                        completed = min(progress_map.get(student_id, 0), lecture_total)
+                        total_rate += completed / lecture_total
+                    room_ref.set(
+                        {
+                            "completion_rate": round(total_rate / len(students) * 100),
+                            "updated_at": datetime.now(timezone.utc),
+                        },
+                        merge=True,
+                    )
+                return _normalize_firestore_value(payload)
+
+            result = await _run(_write)
+            await self._cache_delete_prefix(f"student_hub:{user_id}")
+            await self._cache_delete_prefix(f"student_rooms:{user_id}")
+            if prof_uid:
+                await self._cache_delete_prefix(f"professor_rooms:{prof_uid}")
+            return result
+        except Exception as e:
+            logger.warning(f"[Firebase] save_lecture_progress 실패: {e}")
+            return {"max_completed_order": order_index, "last_lecture_id": lecture_id}
 
     async def create_room_application(self, room_id: str, user_id: str, note: str = "") -> dict:
         db = self._safe_db()

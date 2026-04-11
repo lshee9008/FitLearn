@@ -49,6 +49,7 @@ class ApiService {
     String synopsis = '',
     List<String> coreConcepts = const [],
     String youtubeUrl = '',
+    int price = 0,
   }) async {
     final res = await _dio.post(ApiConstants.createRoom, data: {
       'professor_uid': professorUid,
@@ -58,6 +59,7 @@ class ApiService {
       'synopsis': synopsis,
       'core_concepts': coreConcepts,
       'youtube_url': youtubeUrl,
+      'price': price,
     });
     return res.data as Map<String, dynamic>;
   }
@@ -103,6 +105,15 @@ class ApiService {
       'note': note,
     });
     return res.data as Map<String, dynamic>;
+  }
+
+  Future<void> enrollRoom({
+    required String roomId,
+    required String userId,
+  }) async {
+    await _dio.post('/api/v1/rooms/$roomId/enroll', data: {
+      'user_id': userId,
+    });
   }
 
   Future<List<dynamic>> getStudentApplications(String userId) async {
@@ -164,6 +175,17 @@ class ApiService {
   Future<List<dynamic>> getRoomLectures(String roomId) async {
     final res = await _dio.get(ApiConstants.roomLectures(roomId));
     return res.data as List<dynamic>;
+  }
+
+  Future<void> markLectureProgress({
+    required String roomId,
+    required String lectureId,
+    required String userId,
+  }) async {
+    await _dio.post(
+      '/api/v1/rooms/$roomId/lectures/$lectureId/progress',
+      data: {'user_id': userId},
+    );
   }
 
   // ── Diagnosis ─────────────────────────────────────────────────

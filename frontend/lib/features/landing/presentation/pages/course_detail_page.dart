@@ -2,7 +2,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../features/auth/provider/auth_provider.dart';
+import '../../../../shared/services/api_service.dart';
 
 // ── 컬러 ─────────────────────────────────────────────────────────
 class _C {
@@ -93,6 +95,9 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
   Future<void> _pay() async {
     final profile = ref.read(authNotifierProvider);
     if (profile == null) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('pendingCourseId', widget.courseId);
+      if (!mounted) return;
       context.push('/auth');
       return;
     }
@@ -120,6 +125,9 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
         'students': FieldValue.arrayUnion([profile.userId]),
         'updated_at': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
+      try {
+        await ApiService().enrollRoom(roomId: roomId, userId: profile.userId);
+      } catch (_) {}
       setState(() {
         _enrolled = true;
         _enrolledRoomId = roomId;

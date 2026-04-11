@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../features/auth/provider/auth_provider.dart';
 import '../../../../shared/services/api_service.dart';
 
@@ -54,6 +55,64 @@ class _AuthPageState extends ConsumerState<AuthPage>
     if (mounted) setState(() { _loading = false; _error = msg; });
   }
 
+  Future<void> _routeAfterAuth(UserProfile profile) async {
+    if (profile.role == UserRole.professor) {
+      if (mounted) context.go('/professor/home');
+      return;
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final pendingCourseId = prefs.getString('pendingCourseId');
+      if (pendingCourseId != null && pendingCourseId.isNotEmpty) {
+        final courseDoc = await FirebaseFirestore.instance
+            .collection('courses')
+            .doc(pendingCourseId)
+            .get();
+        if (courseDoc.exists) {
+          final course = {'id': courseDoc.id, ...courseDoc.data()!};
+          final roomId = course['roomId'] as String? ?? pendingCourseId;
+          await FirebaseFirestore.instance
+              .collection('enrollments')
+              .doc('${profile.userId}_$roomId')
+              .set({
+            'userId': profile.userId,
+            'studentName': profile.name,
+            'courseId': pendingCourseId,
+            'courseTitle': course['title'] as String? ?? '강의',
+            'roomId': roomId,
+            'professorUid': course['professor_uid'] as String? ?? '',
+            'professorName': (course['professor_name'] as String?) ??
+                (course['instructor'] as String?) ??
+                '',
+            'paidAt': FieldValue.serverTimestamp(),
+            'fitlearnActivated': true,
+            'status': 'paid',
+          }, SetOptions(merge: true));
+          await FirebaseFirestore.instance.collection('rooms').doc(roomId).set({
+            'students': FieldValue.arrayUnion([profile.userId]),
+            'updated_at': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+          try {
+            await ApiService().enrollRoom(roomId: roomId, userId: profile.userId);
+          } catch (_) {}
+          await prefs.remove('pendingCourseId');
+        }
+      }
+
+      final paid = await FirebaseFirestore.instance
+          .collection('enrollments')
+          .where('userId', isEqualTo: profile.userId)
+          .where('status', isEqualTo: 'paid')
+          .limit(1)
+          .get();
+      if (!mounted) return;
+      context.go(paid.docs.isEmpty ? '/' : '/student/home');
+    } catch (_) {
+      if (mounted) context.go('/');
+    }
+  }
+
   // ── 로그인 ─────────────────────────────────────────────────────
   Future<void> _signIn(String email, String password) async {
     setState(() { _loading = true; _error = null; });
@@ -80,11 +139,7 @@ class _AuthPageState extends ConsumerState<AuthPage>
       ref.read(authNotifierProvider.notifier).setProfile(profile);
 
       if (!mounted) return;
-      if (role == UserRole.professor) {
-        context.go('/professor/home');
-      } else {
-        context.go('/welcome');
-      }
+      await _routeAfterAuth(profile);
     } on FirebaseAuthException catch (e) {
       _setError(firebaseErrorToKorean(e));
     } catch (e) {
@@ -136,11 +191,7 @@ class _AuthPageState extends ConsumerState<AuthPage>
       ref.read(authNotifierProvider.notifier).setProfile(profile);
 
       if (!mounted) return;
-      if (role == UserRole.professor) {
-        context.go('/professor/home');
-      } else {
-        context.go('/welcome');
-      }
+      await _routeAfterAuth(profile);
     } on FirebaseAuthException catch (e) {
       _setError(firebaseErrorToKorean(e));
     } catch (e) {

@@ -24,8 +24,6 @@ class _C {
   static const textMute  = Color(0xFF4A4A5A);
 }
 
-const _kTags = ['전체', '온라인', '오프라인', '신청 가능', '승인 대기'];
-
 class StudentHomePage extends ConsumerStatefulWidget {
   const StudentHomePage({super.key});
 
@@ -34,7 +32,6 @@ class StudentHomePage extends ConsumerStatefulWidget {
 }
 
 class _StudentHomePageState extends ConsumerState<StudentHomePage> {
-  String _activeTag = '전체';
   String _searchQuery = '';
 
   @override
@@ -292,6 +289,17 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
       // 퀴즈가 아직 없으면 입장을 막지 않는다.
     }
 
+    try {
+      await ApiService().markLectureProgress(
+        roomId: roomId,
+        lectureId: lecture['lecture_id'] as String,
+        userId: userId,
+      );
+      _refreshHub(userId);
+    } catch (_) {
+      // 진행률 저장이 늦어져도 학습 화면 진입은 막지 않는다.
+    }
+
     if (!mounted) return;
     context.push('/student/lecture', extra: {
       'room_id': roomId,
@@ -306,50 +314,31 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
     String userId, {
     String? subjectLevel,
   }) async {
-    final nextLectureId = room['next_lecture_id'] as String?;
-    if (nextLectureId == null || nextLectureId.isEmpty) {
-      if (!mounted) return;
+    final roomId = room['room_id'] as String;
+    final lectures = (await ApiService().getRoomLectures(roomId))
+        .cast<Map<String, dynamic>>()
+        .where((lecture) => lecture['confirmed'] == true)
+        .toList();
+    if (!mounted) return;
+    if (lectures.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('아직 입장 가능한 교안이 없습니다.')),
       );
       return;
     }
 
-    await _goToLecture(
-      {
-        'lecture_id': nextLectureId,
-        'title': room['next_lecture_title'] ?? room['subject'] ?? '강의',
-      },
-      userId,
-      roomId: room['room_id'] as String,
-      subjectLevel: subjectLevel,
+    final completedCount = room['completed_lecture_count'] as int? ?? 0;
+    final selected = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (_) => _LecturePickerDialog(
+        roomTitle: room['subject'] as String? ?? '강의',
+        lectures: lectures,
+        completedCount: completedCount,
+      ),
     );
-  }
+    if (selected == null) return;
 
-  List<Map<String, dynamic>> _filterRooms(List<dynamic> rooms) {
-    final items = rooms.cast<Map<String, dynamic>>();
-    return items.where((room) {
-      final subject = (room['subject'] as String? ?? '').toLowerCase();
-      final synopsis = (room['synopsis'] as String? ?? '').toLowerCase();
-      final professor = (room['professor_name'] as String? ?? '').toLowerCase();
-      final query = _searchQuery.toLowerCase();
-      final matchesQuery = query.isEmpty ||
-          subject.contains(query) ||
-          synopsis.contains(query) ||
-          professor.contains(query);
-
-      final roomType = room['room_type'] as String? ?? 'offline';
-      final status = room['application_status'] as String?;
-      final matchesTag = switch (_activeTag) {
-        '온라인' => roomType == 'online',
-        '오프라인' => roomType == 'offline',
-        '신청 가능' => status == null || status.isEmpty || status == 'rejected',
-        '승인 대기' => status == 'pending',
-        _ => true,
-      };
-
-      return matchesQuery && matchesTag;
-    }).toList();
+    await _goToLecture(selected, userId, roomId: roomId, subjectLevel: subjectLevel);
   }
 
   @override
@@ -378,8 +367,6 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
     final hub = hubAsync.valueOrNull;
     final activeRoom = hub?.activeRoom;
     final enrolledRooms = hub?.enrolledRooms ?? const <dynamic>[];
-    final discoverRooms = _filterRooms(hub?.discoverRooms ?? const <dynamic>[]);
-    final applications = hub?.applications ?? const <dynamic>[];
     final activeRoomLectures = hub?.activeRoomLectures ?? const <dynamic>[];
     final activeRoomNotices = hub?.activeRoomNotices ?? const <dynamic>[];
 
@@ -400,15 +387,6 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
                 _WelcomeBanner(
                   name: user?.name ?? '',
                   enrolledCount: enrolledRooms.length,
-                  pendingCount: applications.where((item) {
-                    return (item as Map<String, dynamic>)['status'] == 'pending';
-                  }).length,
-                ),
-                const SizedBox(height: 18),
-                _TagFilter(
-                  tags: _kTags,
-                  active: _activeTag,
-                  onTap: (tag) => setState(() => _activeTag = tag),
                 ),
                 const SizedBox(height: 24),
                 _SectionTitle(
@@ -447,27 +425,6 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
                         );
                       },
                     ),
-                  ),
-                const SizedBox(height: 28),
-                _SectionTitle(
-                  title: '신청 진행 상황',
-                  sub: applications.isEmpty ? '진행 중인 신청 없음' : '${applications.length}건 확인',
-                ),
-                const SizedBox(height: 12),
-                if (applications.isEmpty)
-                  const _InlineHintCard(
-                    title: '신청 내역이 비어 있습니다',
-                    body: '승인 대기, 반려, 승인 완료 상태가 이곳에 정리됩니다.',
-                  )
-                else
-                  Column(
-                    children: applications
-                        .cast<Map<String, dynamic>>()
-                        .map((application) => Padding(
-                              padding: const EdgeInsets.only(bottom: 10),
-                              child: _ApplicationStatusCard(application: application),
-                            ))
-                        .toList(),
                   ),
                 if (activeRoom != null) ...[
                   const SizedBox(height: 28),
@@ -538,48 +495,10 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
                           .toList(),
                     ),
                 ],
-                const SizedBox(height: 28),
-                _SectionTitle(
-                  title: '강의 탐색',
-                  sub: discoverRooms.isEmpty ? '조건에 맞는 강의가 없습니다' : '${discoverRooms.length}개 강의실',
-                ),
-                const SizedBox(height: 12),
               ],
             ),
           ),
         ),
-        if (discoverRooms.isEmpty)
-          const SliverPadding(
-            padding: EdgeInsets.symmetric(horizontal: 28),
-            sliver: SliverToBoxAdapter(
-              child: _InlineHintCard(
-                title: '새로 탐색할 강의가 없습니다',
-                body: '검색 조건을 바꾸거나 교수님이 새 강의를 열 때까지 기다려주세요.',
-              ),
-            ),
-          )
-        else
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 28),
-            sliver: SliverGrid(
-              delegate: SliverChildBuilderDelegate(
-                (_, index) {
-                  final room = discoverRooms[index];
-                  return _DiscoverRoomCard(
-                    room: room,
-                    onApply: user == null ? null : () => _applyToRoom(room, user.userId),
-                  );
-                },
-                childCount: discoverRooms.length,
-              ),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 1.5,
-              ),
-            ),
-          ),
         const SliverPadding(padding: EdgeInsets.only(bottom: 36)),
       ],
     );
@@ -605,10 +524,7 @@ class _SidebarState extends State<_Sidebar> {
   static const _items = [
     ('홈', Icons.grid_view_rounded),
     ('강의 탐색', Icons.travel_explore_rounded),
-    ('내 강의실', Icons.meeting_room_outlined),
     ('학습 성향', Icons.tune_rounded),
-    ('학습 지원', Icons.forum_outlined),
-    ('설정', Icons.settings_outlined),
   ];
 
   @override
@@ -665,7 +581,8 @@ class _SidebarState extends State<_Sidebar> {
                 return InkWell(
                   onTap: () {
                     setState(() => _selected = index);
-                    if (index == 3) widget.onDiagnosis();
+                    if (index == 1) context.go('/');
+                    if (index == 2) widget.onDiagnosis();
                   },
                   child: Container(
                     margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
@@ -772,12 +689,10 @@ class _TopBar extends StatelessWidget {
 class _WelcomeBanner extends StatelessWidget {
   final String name;
   final int enrolledCount;
-  final int pendingCount;
 
   const _WelcomeBanner({
     required this.name,
     required this.enrolledCount,
-    required this.pendingCount,
   });
 
   @override
@@ -808,15 +723,13 @@ class _WelcomeBanner extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  '강의 탐색부터 신청, 승인, 강의실 입장까지 한 화면에서 이어지도록 정리했습니다.',
+                  '결제한 강의와 학습 진행률을 한 화면에서 이어지도록 정리했습니다.',
                   style: TextStyle(color: Color(0xFF314200), height: 1.5),
                 ),
                 const SizedBox(height: 14),
                 Row(
                   children: [
                     _MetricPill(label: '수강 중', value: '$enrolledCount개'),
-                    const SizedBox(width: 10),
-                    _MetricPill(label: '승인 대기', value: '$pendingCount건'),
                   ],
                 ),
               ],
@@ -951,6 +864,122 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
+class _LecturePickerDialog extends StatelessWidget {
+  final String roomTitle;
+  final List<Map<String, dynamic>> lectures;
+  final int completedCount;
+
+  const _LecturePickerDialog({
+    required this.roomTitle,
+    required this.lectures,
+    required this.completedCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.all(24),
+      child: Container(
+        width: 420,
+        constraints: const BoxConstraints(maxHeight: 560),
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          color: _C.surface,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: _C.border),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              roomTitle,
+              style: const TextStyle(
+                color: _C.textPri,
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '학습할 강의를 선택하세요. 이미 본 강의는 초록색으로 표시됩니다.',
+              style: TextStyle(color: _C.textSec, height: 1.5),
+            ),
+            const SizedBox(height: 18),
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: lectures.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (_, index) {
+                  final lecture = lectures[index];
+                  final order = lecture['order_index'] as int? ?? index + 1;
+                  final watched = order <= completedCount;
+                  return InkWell(
+                    onTap: () => Navigator.pop(context, lecture),
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: watched ? _C.limeDark : _C.surface2,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: watched ? _C.lime.withValues(alpha: 0.5) : _C.border,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: watched ? _C.lime : _C.bg,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Center(
+                              child: Text(
+                                '$order',
+                                style: TextStyle(
+                                  color: watched ? _C.bg : _C.textSec,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              lecture['title'] as String? ?? '$order강',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: _C.textPri,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          Icon(
+                            watched
+                                ? Icons.check_circle_rounded
+                                : Icons.arrow_forward_ios_rounded,
+                            color: watched ? _C.lime : _C.textMute,
+                            size: watched ? 18 : 14,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _EnrolledRoomCard extends StatelessWidget {
   final Map<String, dynamic> room;
   final bool highlighted;
@@ -964,11 +993,10 @@ class _EnrolledRoomCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final lectureCount = room['lecture_count'] as int? ?? 0;
     final confirmedCount = room['confirmed_lecture_count'] as int? ?? 0;
-    final progress = lectureCount == 0 ? 0.0 : confirmedCount / lectureCount;
-    final roomType = room['room_type'] as String? ?? 'offline';
-    final accent = roomType == 'online' ? _C.lime : _C.lavender;
+    final completedCount = room['completed_lecture_count'] as int? ?? 0;
+    final progress = confirmedCount == 0 ? 0.0 : completedCount / confirmedCount;
+    const accent = _C.lime;
 
     return Container(
       width: 308,
@@ -981,11 +1009,6 @@ class _EnrolledRoomCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-	          _TinyChip(
-	            label: roomType == 'online' ? '온라인' : '오프라인',
-	            color: accent,
-	          ),
-          const SizedBox(height: 14),
           Text(
             room['subject'] as String? ?? '강의실',
             maxLines: 2,
@@ -1008,7 +1031,7 @@ class _EnrolledRoomCard extends StatelessWidget {
             children: [
               _InfoText(icon: Icons.groups_2_outlined, text: '${room['student_count'] ?? 0}명'),
               const SizedBox(width: 12),
-              _InfoText(icon: Icons.menu_book_rounded, text: '$confirmedCount / $lectureCount'),
+              _InfoText(icon: Icons.menu_book_rounded, text: '$completedCount / $confirmedCount'),
             ],
           ),
           const SizedBox(height: 10),
@@ -1032,7 +1055,7 @@ class _EnrolledRoomCard extends StatelessWidget {
               ),
               icon: const Icon(Icons.play_arrow_rounded),
               label: Text(
-                confirmedCount > 0 ? '강의실 입장' : '오픈 대기',
+                confirmedCount > 0 ? '강의 목록 보기' : '오픈 대기',
                 style: const TextStyle(fontWeight: FontWeight.w800),
               ),
             ),
@@ -1501,9 +1524,6 @@ class _RightPanelState extends State<_RightPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final doneCount = _todos.where((t) => t.$1).length;
-    final totalCount = _todos.length;
-
     return Container(
       width: 220,
       decoration: const BoxDecoration(
@@ -1514,116 +1534,6 @@ class _RightPanelState extends State<_RightPanel> {
         padding: const EdgeInsets.all(20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           _AiDiagCard(onDiagnosis: widget.onDiagnosis),
-          const SizedBox(height: 16),
-          const Text('수강 중인 강의',
-              style: TextStyle(color: _C.textPri, fontSize: 13, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 10),
-          ..._myLectures.map((e) => Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: _MyLectureRow(
-              title: e.$1, sub: e.$2, progress: e.$3,
-              color: e.$4, colorBg: e.$5, label: e.$6,
-            ),
-          )),
-          const Divider(color: _C.border, height: 24),
-          // ── 오늘 할 일 헤더 ──
-          Row(children: [
-            const Text('오늘 할 일',
-                style: TextStyle(color: _C.textPri, fontSize: 13, fontWeight: FontWeight.w700)),
-            const Spacer(),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: _C.limeDark, borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text('$doneCount / $totalCount', style: const TextStyle(
-                color: _C.lime, fontSize: 10, fontWeight: FontWeight.w700,
-              )),
-            ),
-          ]),
-          const SizedBox(height: 6),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(3),
-            child: LinearProgressIndicator(
-              value: doneCount / totalCount,
-              minHeight: 3,
-              backgroundColor: _C.surface2,
-              valueColor: const AlwaysStoppedAnimation(_C.lime),
-            ),
-          ),
-          const SizedBox(height: 10),
-          // ── 할 일 목록 ──
-          ...List.generate(_todos.length, (i) {
-            final done = _todos[i].$1;
-            final label = _todos[i].$2;
-            return Padding(
-              padding: EdgeInsets.only(bottom: i < _todos.length - 1 ? 8 : 0),
-              child: GestureDetector(
-                onTap: () => _toggle(i),
-                child: MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: done ? Colors.transparent : _C.coral.withValues(alpha: 0.06),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border(
-                        left: BorderSide(
-                          color: done ? _C.lime.withValues(alpha: 0.35) : _C.coral,
-                          width: 3,
-                        ),
-                      ),
-                    ),
-                    child: Row(children: [
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        width: 18, height: 18,
-                        decoration: BoxDecoration(
-                          color: done ? _C.lime : Colors.transparent,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: done ? _C.lime : _C.coral,
-                            width: 1.5,
-                          ),
-                        ),
-                        child: done
-                            ? const Icon(Icons.check_rounded, color: _C.bg, size: 11)
-                            : null,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(label, style: TextStyle(
-                          color: done ? _C.textMute : _C.textPri,
-                          fontSize: 11,
-                          fontWeight: done ? FontWeight.w400 : FontWeight.w600,
-                          decoration: done ? TextDecoration.lineThrough : null,
-                          decorationColor: _C.textMute,
-                          decorationThickness: 1.5,
-                        )),
-                      ),
-                    ]),
-                  ),
-                ),
-              ),
-            );
-          }),
-          const Divider(color: _C.border, height: 24),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: _C.surface2,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _C.border),
-            ),
-            child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('AI 학습 코치',
-                  style: TextStyle(color: _C.lime, fontSize: 11, fontWeight: FontWeight.w700)),
-              SizedBox(height: 6),
-              Text('파트 3 색보정 구간에서 막힌 것 같아요. 예시 중심형 보충 자료를 확인해보세요.',
-                  style: TextStyle(color: _C.textSec, fontSize: 11, height: 1.6)),
-            ]),
-          ),
         ]),
       ),
     );
@@ -1650,28 +1560,20 @@ class _AiDiagCard extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
           decoration: BoxDecoration(color: _C.lime, borderRadius: BorderRadius.circular(20)),
-          child: const Text('AI 분석 완료',
+          child: const Text('진단 필요',
               style: TextStyle(color: _C.limeDark, fontSize: 10, fontWeight: FontWeight.w700)),
         ),
         const SizedBox(height: 8),
-        const Text('나의 학습 성향',
+        const Text('학습 성향 진단',
             style: TextStyle(color: _C.lavender, fontSize: 12, fontWeight: FontWeight.w700)),
         const SizedBox(height: 8),
-        _row('스타일', pill: '예시 중심형'),
-        _row('집중', val: '30분 단위'),
-        _row('수준', val: '초급'),
-        const SizedBox(height: 10),
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(color: _C.bg, borderRadius: BorderRadius.circular(8)),
-          child: const Text.rich(TextSpan(
+          child: const Text(
+            '진단을 완료하면 VARK, 집중 패턴, 난이도 대응, 이탈 위험을 바탕으로 교안을 맞춤 재해석합니다.',
             style: TextStyle(color: _C.textSec, fontSize: 11, height: 1.6),
-            children: [
-              TextSpan(text: '평균 대비 '),
-              TextSpan(text: '28% 빠른', style: TextStyle(color: _C.lime, fontWeight: FontWeight.w700)),
-              TextSpan(text: ' 실력 향상 예상'),
-            ],
-          )),
+          ),
         ),
         const SizedBox(height: 10),
         GestureDetector(
@@ -1683,7 +1585,7 @@ class _AiDiagCard extends StatelessWidget {
               border: Border.all(color: _C.lavender.withValues(alpha: 0.4)),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Center(child: Text('진단 다시 하기',
+            child: const Center(child: Text('진단하기',
                 style: TextStyle(color: _C.lavender, fontSize: 11, fontWeight: FontWeight.w600))),
           ),
         ),

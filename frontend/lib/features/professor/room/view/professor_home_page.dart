@@ -772,6 +772,61 @@ class _RoomCardState extends State<_RoomCard> {
     }
   }
 
+  Future<void> _openRoomActionDialog() async {
+    final subject = widget.room['subject'] as String? ?? '강의';
+    final roomId = widget.room['room_id'] as String? ?? '';
+    final action = await showDialog<String>(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          width: 360,
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            color: _C.surface,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: _C.border),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(subject,
+                  style: const TextStyle(
+                    color: _C.textPri,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                  )),
+              const SizedBox(height: 8),
+              const Text('진행할 작업을 선택하세요.',
+                  style: TextStyle(color: _C.textSec, height: 1.5)),
+              const SizedBox(height: 20),
+              _RoomActionTile(
+                icon: Icons.play_circle_outline_rounded,
+                title: '내 강의 보기',
+                sub: '학생 강의 보기 화면과 동일한 형태로 확인',
+                onTap: () => Navigator.pop(context, 'view'),
+              ),
+              const SizedBox(height: 10),
+              _RoomActionTile(
+                icon: Icons.tune_rounded,
+                title: '내 강의 수정',
+                sub: '강의 정보와 자료를 편집',
+                onTap: () => Navigator.pop(context, 'edit'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!mounted || action == null || roomId.isEmpty) return;
+    if (action == 'view') {
+      context.push('/professor/room/$roomId');
+    } else {
+      widget.onEdit();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isLoading = widget.room['_loading'] == true;
@@ -786,9 +841,7 @@ class _RoomCardState extends State<_RoomCard> {
         onExit: (_) => setState(() => _hovered = false),
         cursor: SystemMouseCursors.click,
         child: GestureDetector(
-          // ── 기존 라우팅 완전 유지 ─────────────────────────────
-          onTap: () =>
-              context.push('/professor/room/${widget.room['room_id']}'),
+          onTap: _openRoomActionDialog,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
             padding: const EdgeInsets.all(18),
@@ -861,36 +914,6 @@ class _RoomCardState extends State<_RoomCard> {
                   ],
                   const SizedBox(width: 8),
                   const Spacer(),
-                  // 수정 버튼
-                  GestureDetector(
-                    onTap: widget.onEdit,
-                    child: MouseRegion(
-                      cursor: SystemMouseCursors.click,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: _C.limeDark,
-                          borderRadius: BorderRadius.circular(8),
-                          border:
-                              Border.all(color: _C.lime.withValues(alpha: 0.3)),
-                        ),
-                        child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.edit_outlined,
-                                  color: _C.lime, size: 13),
-                              SizedBox(width: 4),
-                              Text('수정',
-                                  style: TextStyle(
-                                      color: _C.lime,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600)),
-                            ]),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
                   // 삭제 버튼
                   GestureDetector(
                     onTap: widget.onDelete,
@@ -927,6 +950,69 @@ class _RoomCardState extends State<_RoomCard> {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RoomActionTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String sub;
+  final VoidCallback onTap;
+
+  const _RoomActionTile({
+    required this.icon,
+    required this.title,
+    required this.sub,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: _C.surface2,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _C.border),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: _C.limeDark,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, color: _C.lime, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: const TextStyle(
+                        color: _C.textPri,
+                        fontWeight: FontWeight.w800,
+                      )),
+                  const SizedBox(height: 4),
+                  Text(sub,
+                      style: const TextStyle(
+                        color: _C.textSec,
+                        fontSize: 12,
+                        height: 1.35,
+                      )),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
