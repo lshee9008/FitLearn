@@ -611,9 +611,9 @@ async def assist_video_segment(room_id: str, lecture_id: str, body: VideoAssistR
     try:
         answer = await generate_gemini_text(
             prompt,
-            temperature=0.25,
-            max_output_tokens=1600,
-            timeout=42.0,
+            temperature=0.7,
+            max_output_tokens=2048,
+            timeout=60.0,
             feature="video_assist",
         )
     except Exception as e:
