@@ -285,28 +285,25 @@ class FileService:
             return await self._analyze_image_inner(image_bytes, ext)
 
     async def _analyze_image_inner(self, image_bytes: bytes, ext: str = "png") -> str:
-        try:
-            from google import genai as _genai
-            from google.genai import types as _gtypes
-            api_key = os.environ.get("GEMINI_API_KEY")
-            if not api_key:
-                return ""
-            global _VISION_QUOTA_COOLDOWN_UNTIL
-            if time.monotonic() < _VISION_QUOTA_COOLDOWN_UNTIL:
-                logger.info("[FileService] Vision quota cooldown 중 — 이미지 OCR 스킵")
-                return ""
+        import httpx
 
-            _vision_client = _genai.Client(api_key=api_key)
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            return ""
 
-            mime_map = {
-                "jpg": "image/jpeg", "jpeg": "image/jpeg",
-                "png": "image/png", "webp": "image/webp",
-            }
-            mime_type = mime_map.get(ext.lower(), "image/png")
+        global _VISION_QUOTA_COOLDOWN_UNTIL
+        if time.monotonic() < _VISION_QUOTA_COOLDOWN_UNTIL:
+            logger.info("[FileService] Vision quota cooldown 중 — 이미지 OCR 스킵")
+            return ""
 
-            image_part = _gtypes.Part.from_bytes(data=image_bytes, mime_type=mime_type)
+        mime_map = {
+            "jpg": "image/jpeg", "jpeg": "image/jpeg",
+            "png": "image/png", "webp": "image/webp",
+        }
+        mime_type = mime_map.get(ext.lower(), "image/png")
+        b64_data = base64.b64encode(image_bytes).decode("utf-8")
 
-            prompt = """이 이미지를 분석하여 학생이 수업 중 그대로 따라갈 수 있는 교안 재료로 정확하게 변환하세요.
+        prompt = """이 이미지를 분석하여 학생이 수업 중 그대로 따라갈 수 있는 교안 재료로 정확하게 변환하세요.
 
 [판단 기준 및 처리 방법]
 
@@ -337,45 +334,53 @@ class FileService:
 - 원본 슬라이드의 텍스트, 코드, 그림 의미를 임의로 요약하지 말고 보존 중심으로 출력.
 - 한국어 설명은 유지, 코드는 원어 그대로 보존."""
 
-            # 모델 폴백 체인. 업로드 화면을 막지 않도록 429 장기 대기는 하지 않는다.
-            for model_name in _VISION_MODELS:
-                for attempt in range(_VISION_RETRIES):
-                    try:
-                        response = await asyncio.wait_for(
-                            asyncio.to_thread(
-                                _vision_client.models.generate_content,
-                                model=model_name,
-                                contents=[prompt, image_part],
-                                config=_gtypes.GenerateContentConfig(
-                                    thinking_config=_gtypes.ThinkingConfig(thinking_budget=0),
-                                ),
-                            ),
-                            timeout=_VISION_TIMEOUT_SECONDS,
+        body = {
+            "contents": [{
+                "role": "user",
+                "parts": [
+                    {"text": prompt},
+                    {"inline_data": {"mime_type": mime_type, "data": b64_data}},
+                ],
+            }],
+            "generationConfig": {
+                "temperature": 0.1,
+                "maxOutputTokens": 2048,
+                "thinkingConfig": {"thinkingBudget": 0},
+            },
+        }
+
+        # 모델 폴백 체인. 업로드 화면을 막지 않도록 429 장기 대기는 하지 않는다.
+        for model_name in _VISION_MODELS:
+            url = (
+                f"https://generativelanguage.googleapis.com/v1beta/models"
+                f"/{model_name}:generateContent?key={api_key}"
+            )
+            for attempt in range(_VISION_RETRIES):
+                try:
+                    async with httpx.AsyncClient(timeout=_VISION_TIMEOUT_SECONDS) as client:
+                        resp = await client.post(url, json=body)
+
+                    if resp.status_code == 429:
+                        _VISION_QUOTA_COOLDOWN_UNTIL = time.monotonic() + _VISION_QUOTA_COOLDOWN_SECONDS
+                        logger.warning(
+                            f"[FileService] Vision 429 ({model_name} attempt {attempt+1}) — 업로드 지연 방지를 위해 스킵"
                         )
-                        result = response.text.strip()
-                        if result.lower() in ("", "없음", "none", "n/a"):
-                            return ""
-                        return result
+                        return ""
 
-                    except asyncio.TimeoutError:
-                        logger.warning(f"[FileService] Vision OCR 타임아웃 ({model_name})")
-                        break  # 타임아웃은 다음 모델로
+                    resp.raise_for_status()
+                    data = resp.json()
+                    result = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+                    if result.lower() in ("", "없음", "none", "n/a"):
+                        return ""
+                    return result
 
-                    except Exception as e:
-                        err = str(e)
-                        if "429" in err or "quota" in err.lower():
-                            _VISION_QUOTA_COOLDOWN_UNTIL = time.monotonic() + _VISION_QUOTA_COOLDOWN_SECONDS
-                            logger.warning(
-                                f"[FileService] Vision 429 ({model_name} attempt {attempt+1}) — 업로드 지연 방지를 위해 스킵"
-                            )
-                            return ""
-                        else:
-                            logger.warning(f"[FileService] Vision OCR 실패 ({model_name}): {e}")
-                            break  # 다른 에러는 다음 모델로
+                except asyncio.TimeoutError:
+                    logger.warning(f"[FileService] Vision OCR 타임아웃 ({model_name})")
+                    break  # 타임아웃은 다음 모델로
 
-            logger.error("[FileService] 모든 Vision 모델 실패 — 이미지 OCR 건너뜀")
-            return ""
+                except Exception as e:
+                    logger.warning(f"[FileService] Vision OCR 실패 ({model_name}): {e}")
+                    break  # 다른 에러는 다음 모델로
 
-        except Exception as e:
-            logger.warning(f"[FileService] Vision OCR 전체 실패: {e}")
-            return ""
+        logger.error("[FileService] 모든 Vision 모델 실패 — 이미지 OCR 건너뜀")
+        return ""
