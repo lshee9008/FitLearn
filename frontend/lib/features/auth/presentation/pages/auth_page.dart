@@ -64,12 +64,19 @@ class _AuthPageState extends ConsumerState<AuthPage>
     try {
       final prefs = await SharedPreferences.getInstance();
       final pendingCourseId = prefs.getString('pendingCourseId');
+      var enrolledPendingCourse = false;
       if (pendingCourseId != null && pendingCourseId.isNotEmpty) {
         await ApiService().enrollCourse(
           courseId: pendingCourseId,
           userId: profile.userId,
         );
+        enrolledPendingCourse = true;
         await prefs.remove('pendingCourseId');
+      }
+
+      if (enrolledPendingCourse) {
+        if (mounted) context.go('/student/home');
+        return;
       }
 
       final paid = await FirebaseFirestore.instance

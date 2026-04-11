@@ -30,7 +30,7 @@ class CourseModel {
   final String instructor;
   final int price;
   final String roomId;
-  final String roomType;
+  final bool enrolled;
 
   const CourseModel({
     required this.id,
@@ -40,7 +40,7 @@ class CourseModel {
     required this.instructor,
     required this.price,
     required this.roomId,
-    required this.roomType,
+    this.enrolled = false,
   });
 
   factory CourseModel.fromJson(Map<String, dynamic> data) {
@@ -55,13 +55,22 @@ class CourseModel {
           '',
       price: (data['price'] as num?)?.toInt() ?? 0,
       roomId: data['roomId'] as String? ?? data['room_id'] as String? ?? '',
-      roomType: data['room_type'] as String? ?? 'online',
+    );
+  }
+
+  CourseModel copyWith({bool? enrolled}) {
+    return CourseModel(
+      id: id,
+      title: title,
+      description: description,
+      thumbnail: thumbnail,
+      instructor: instructor,
+      price: price,
+      roomId: roomId,
+      enrolled: enrolled ?? this.enrolled,
     );
   }
 }
-
-// ── 카테고리 탭 ───────────────────────────────────────────────────
-const _kCategories = ['전체', '온라인', '오프라인'];
 
 // ══════════════════════════════════════════════════════════════════
 // LandingPage
@@ -74,23 +83,42 @@ class LandingPage extends ConsumerStatefulWidget {
 }
 
 class _LandingPageState extends ConsumerState<LandingPage> {
-  String _activeCategory = '전체';
   String _searchQuery = '';
   late Future<List<CourseModel>> _coursesFuture;
+  String? _loadedForUserId;
 
   @override
   void initState() {
     super.initState();
-    _coursesFuture = _loadCourses();
+    _loadedForUserId = ref.read(authNotifierProvider)?.userId;
+    _coursesFuture = _loadCourses(_loadedForUserId);
   }
 
-  Future<List<CourseModel>> _loadCourses() async {
+  Future<List<CourseModel>> _loadCourses(String? userId) async {
     final items = await ApiService().getCourses();
-    return items
+    final courses = items
         .cast<Map<String, dynamic>>()
         .map(CourseModel.fromJson)
         .where((course) => course.id.isNotEmpty)
         .toList();
+    if (userId == null || userId.isEmpty) return courses;
+    try {
+      final hub = await ApiService().getStudentServiceHub(userId);
+      final enrolledRooms = (hub['enrolled_rooms'] as List<dynamic>? ?? const [])
+          .cast<Map<String, dynamic>>();
+      final enrolledRoomIds = enrolledRooms
+          .map((room) => room['room_id'] as String? ?? '')
+          .where((id) => id.isNotEmpty)
+          .toSet();
+      return courses
+          .map((course) => course.copyWith(
+                enrolled: enrolledRoomIds.contains(course.roomId) ||
+                    enrolledRoomIds.contains(course.id),
+              ))
+          .toList();
+    } catch (_) {
+      return courses;
+    }
   }
 
   List<CourseModel> _filterCourses(List<CourseModel> courses) {
@@ -99,24 +127,28 @@ class _LandingPageState extends ConsumerState<LandingPage> {
       final matchQuery = q.isEmpty ||
           c.title.toLowerCase().contains(q) ||
           c.instructor.toLowerCase().contains(q);
-      final matchCategory = switch (_activeCategory) {
-        '온라인' => c.roomType == 'online',
-        '오프라인' => c.roomType == 'offline',
-        _ => true,
-      };
-      return matchQuery && matchCategory;
+      return matchQuery;
     }).toList();
   }
 
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authNotifierProvider);
+    if (_loadedForUserId != user?.userId) {
+      _loadedForUserId = user?.userId;
+      _coursesFuture = _loadCourses(_loadedForUserId);
+    }
     return Scaffold(
       backgroundColor: _C.bg,
       body: Column(
         children: [
           _Header(
             user: user,
+            hasEnrolledCourseFuture: user == null
+                ? null
+                : _coursesFuture.then(
+                    (courses) => courses.any((course) => course.enrolled),
+                  ),
             onSearch: (v) => setState(() => _searchQuery = v),
             onLogin: () async {
               if (user == null) {
@@ -129,11 +161,6 @@ class _LandingPageState extends ConsumerState<LandingPage> {
             },
           ),
           const Divider(color: _C.border, height: 1),
-          _CategoryBar(
-            categories: _kCategories,
-            active: _activeCategory,
-            onTap: (c) => setState(() => _activeCategory = c),
-          ),
           Expanded(
             child: FutureBuilder<List<CourseModel>>(
               future: _coursesFuture,
@@ -146,7 +173,9 @@ class _LandingPageState extends ConsumerState<LandingPage> {
                 }
                 if (snapshot.hasError) {
                   return _LandingError(
-                    onRetry: () => setState(() => _coursesFuture = _loadCourses()),
+                    onRetry: () => setState(
+                      () => _coursesFuture = _loadCourses(_loadedForUserId),
+                    ),
                   );
                 }
                 final courses = snapshot.data ?? const <CourseModel>[];
@@ -167,11 +196,13 @@ class _LandingPageState extends ConsumerState<LandingPage> {
 // ── 헤더 ─────────────────────────────────────────────────────────
 class _Header extends StatelessWidget {
   final UserProfile? user;
+  final Future<bool>? hasEnrolledCourseFuture;
   final ValueChanged<String> onSearch;
   final VoidCallback onLogin;
 
   const _Header({
     required this.user,
+    required this.hasEnrolledCourseFuture,
     required this.onSearch,
     required this.onLogin,
   });
@@ -240,6 +271,39 @@ class _Header extends StatelessWidget {
             ),
           ),
           const Spacer(),
+          if (user != null && hasEnrolledCourseFuture != null)
+            FutureBuilder<bool>(
+              future: hasEnrolledCourseFuture,
+              builder: (context, snapshot) {
+                if (snapshot.data != true) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(right: 10),
+                  child: InkWell(
+                    onTap: () => context.go('/student/home'),
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: _C.limeDark,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: _C.lime.withValues(alpha: 0.35),
+                        ),
+                      ),
+                      child: const Text(
+                        '내 강의함 바로가기',
+                        style: TextStyle(
+                          color: _C.lime,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
           // 로그인 버튼
           GestureDetector(
             onTap: onLogin,
@@ -260,54 +324,6 @@ class _Header extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ── 카테고리 바 ───────────────────────────────────────────────────
-class _CategoryBar extends StatelessWidget {
-  final List<String> categories;
-  final String active;
-  final ValueChanged<String> onTap;
-
-  const _CategoryBar(
-      {required this.categories, required this.active, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: _C.surface,
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 32),
-      child: Row(
-        children: categories.map((c) {
-          final selected = c == active;
-          return GestureDetector(
-            onTap: () => onTap(c),
-            child: Container(
-              margin: const EdgeInsets.only(right: 6),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              decoration: BoxDecoration(
-                color: selected ? _C.lime : Colors.transparent,
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(
-                    color: selected ? _C.lime : _C.border),
-              ),
-              child: Text(
-                c,
-                style: TextStyle(
-                  color: selected ? _C.limeDark : _C.textSec,
-                  fontSize: 13,
-                  fontWeight: selected
-                      ? FontWeight.w700
-                      : FontWeight.w500,
-                ),
-              ),
-            ),
-          );
-        }).toList(),
       ),
     );
   }
@@ -499,6 +515,28 @@ class _CourseCardState extends State<_CourseCard> {
                               fontWeight: FontWeight.w700),
                         ),
                       ),
+                      if (c.enrolled) ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: _C.limeDark,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: _C.lime.withValues(alpha: 0.35),
+                            ),
+                          ),
+                          child: const Text(
+                            '수강중',
+                            style: TextStyle(
+                              color: _C.lime,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 10),
                       // 제목
                       Text(
@@ -525,14 +563,24 @@ class _CourseCardState extends State<_CourseCard> {
                       const Spacer(),
                       // 가격 + 화살표
                       Row(children: [
-                        Text(
-                          '₩${_formatPrice(c.price)}',
-                          style: const TextStyle(
-                            color: _C.lime,
-                            fontSize: 17,
-                            fontWeight: FontWeight.w800,
+                        if (c.enrolled)
+                          const Text(
+                            '학습 이어가기',
+                            style: TextStyle(
+                              color: _C.lime,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          )
+                        else
+                          const Text(
+                            '강의 자세히 보기',
+                            style: TextStyle(
+                              color: _C.lime,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                            ),
                           ),
-                        ),
                         const Spacer(),
                         const Icon(Icons.arrow_forward_ios_rounded,
                             size: 13, color: _C.textMute),
@@ -548,10 +596,6 @@ class _CourseCardState extends State<_CourseCard> {
     );
   }
 
-  String _formatPrice(int price) {
-    return price.toString().replaceAllMapped(
-        RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
-  }
 }
 
 // ── 썸네일 플레이스홀더 ───────────────────────────────────────────

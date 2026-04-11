@@ -52,11 +52,17 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
       final course = await ApiService().getCourse(widget.courseId);
       if (!mounted) return;
       setState(() => _course = course);
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _course = _dummyCourses[widget.courseId] ?? _dummyCourses.values.first;
-      });
+      setState(() => _course = {
+            'title': '강의를 불러오지 못했습니다',
+            'description': '서버의 공개 강의 데이터와 연결되지 않았습니다. 잠시 후 다시 시도해주세요.',
+            'instructor': '',
+            'price': 0,
+            'tags': <String>[],
+            'curriculum': <String>[],
+            'load_error': e.toString(),
+          });
     }
 
     // 이미 등록 여부 확인
@@ -136,7 +142,10 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
     final instructor = course['instructor'] as String? ?? '강사';
     final description = course['description'] as String? ?? '';
     final price = course['price'] as int? ?? 0;
-    final tags = (course['tags'] as List?)?.cast<String>() ?? [];
+    final loadError = (course['load_error'] as String?)?.isNotEmpty == true;
+    final tags = ((course['tags'] as List?)?.cast<String>() ?? [])
+        .where((tag) => tag != 'online' && tag != 'offline' && tag != '온라인' && tag != '오프라인')
+        .toList();
     final curriculum = (course['curriculum'] as List?)?.cast<String>() ??
         ['모듈 1: 기초 개념', '모듈 2: 심화 학습', '모듈 3: 실습 프로젝트'];
 
@@ -224,7 +233,7 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
               price: price,
               enrolled: _enrolled,
               paying: _paying,
-              onPay: _pay,
+              onPay: loadError ? null : _pay,
               onEnter: () {
                 if (_enrolledRoomId != null) {
                   context.go('/student/home');
@@ -293,58 +302,6 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
   }
 }
 
-// ── 더미 데이터 ──────────────────────────────────────────────────
-const _dummyCourses = <String, Map<String, dynamic>>{
-  'course-001': {
-    'id': 'course-001',
-    'title': 'Flutter & Dart 완전 정복',
-    'instructor': '김개발',
-    'description': 'Flutter와 Dart를 처음부터 끝까지 배우는 실전 강의입니다. 기초 문법부터 상태 관리, 배포까지 모든 것을 다룹니다.',
-    'price': 89000,
-    'tags': ['Flutter', 'Dart', '모바일'],
-    'roomId': 'room-001',
-    'curriculum': [
-      '모듈 1: Dart 기초 문법',
-      '모듈 2: Flutter 위젯 시스템',
-      '모듈 3: 상태 관리 (Riverpod)',
-      '모듈 4: Firebase 연동',
-      '모듈 5: 앱 배포',
-    ],
-  },
-  'course-002': {
-    'id': 'course-002',
-    'title': 'Python AI 엔지니어링',
-    'instructor': '이파이썬',
-    'description': 'LangChain과 Claude API를 활용한 AI 애플리케이션 개발을 배웁니다.',
-    'price': 120000,
-    'tags': ['Python', 'AI', 'LangChain'],
-    'roomId': 'room-002',
-    'curriculum': [
-      '모듈 1: Python 심화',
-      '모듈 2: LangChain 기초',
-      '모듈 3: Claude API 연동',
-      '모듈 4: RAG 파이프라인',
-      '모듈 5: 프로덕션 배포',
-    ],
-  },
-  'course-003': {
-    'id': 'course-003',
-    'title': 'UI/UX 디자인 마스터',
-    'instructor': '박디자인',
-    'description': 'Figma부터 실제 구현까지, UI/UX 디자인의 모든 것을 배웁니다.',
-    'price': 75000,
-    'tags': ['Figma', 'UI/UX', '디자인'],
-    'roomId': 'room-003',
-    'curriculum': [
-      '모듈 1: 디자인 원칙',
-      '모듈 2: Figma 마스터',
-      '모듈 3: 프로토타이핑',
-      '모듈 4: 사용자 리서치',
-      '모듈 5: 포트폴리오 제작',
-    ],
-  },
-};
-
 final _gradients = [
   const LinearGradient(
     colors: [Color(0xFF1A2400), Color(0xFF2D4000)],
@@ -374,7 +331,7 @@ class _BottomBar extends StatelessWidget {
   final int price;
   final bool enrolled;
   final bool paying;
-  final VoidCallback onPay;
+  final VoidCallback? onPay;
   final VoidCallback onEnter;
 
   const _BottomBar({
@@ -403,7 +360,11 @@ class _BottomBar extends StatelessWidget {
                   style: TextStyle(color: _C.textMute, fontSize: 11)),
               const SizedBox(height: 2),
               Text(
-                enrolled ? '수강 중' : '₩${_formatPrice(price)}',
+                enrolled
+                    ? '수강 중'
+                    : onPay == null
+                        ? '연결 확인 필요'
+                        : '₩${_formatPrice(price)}',
                 style: TextStyle(
                     color: enrolled ? _C.mint : _C.textPri,
                     fontSize: 20,
