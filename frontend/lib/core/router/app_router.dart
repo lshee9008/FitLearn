@@ -11,6 +11,7 @@ import '../../features/student/room/view/subject_quiz_page.dart';
 import '../../features/student/lecture/view/lecture_view_page.dart';
 import '../../features/professor/room/view/professor_home_page.dart';
 import '../../features/professor/room/view/room_detail_page.dart';
+import '../../features/professor/room/view/create_room_page.dart';
 import '../../features/professor/lecture/view/upload_page.dart';
 import '../../features/professor/lecture/view/core_point_review_page.dart';
 import '../../features/professor/dashboard/view/dashboard_page.dart';
@@ -72,6 +73,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/professor/home',
       builder: (_, __) => const ProfessorHomePage(),
+    ),
+    GoRoute(
+      path: '/professor/create-room',
+      builder: (_, __) => const CreateRoomPage(),
     ),
     GoRoute(
       path: '/professor/room/:roomId',

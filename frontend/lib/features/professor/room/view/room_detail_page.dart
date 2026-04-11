@@ -408,10 +408,29 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
   Widget _buildLectures(List<dynamic> lectures) {
     if (_showLectureForm) return _buildLectureForm();
 
+    // 강의가 없고 폼이 아직 표시안 된 상태면 신귝c 생성 폼을 바로 보여줄
+    if (lectures.isEmpty) {
+      // 쉬로 이룰 새 세게: 신귝c 생성 폼 (header + form)
+      return Column(children: [
+        _TabHeader(
+          title: '교안 관리',
+          sub: '첫 번째 괕의를 등록해주세요',
+          action: _ActionBtn(
+            label: '교안 업로드',
+            icon: Icons.upload_file_rounded,
+            color: _C.lime,
+            onTap: _openCreateForm,
+          ),
+        ),
+        Expanded(child: _buildLectureFormBody()),
+      ]);
+    }
+
     return Column(children: [
       _TabHeader(
         title: '교안 관리',
         sub: '${lectures.length}개의 강의 항목',
+        // 우측 상단 자료 업로드 버튼 제거
         action: _ActionBtn(
           label: '교안 업로드',
           icon: Icons.upload_file_rounded,
@@ -420,44 +439,39 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
         ),
       ),
       Expanded(
-        child: lectures.isEmpty
-            ? const _EmptyState(
-                icon: '📄',
-                message: '아직 교안이 없습니다',
-                sub: '교안 업로드 버튼을 눌러 시작하세요')
-            : ListView.builder(
-                padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-                itemCount: lectures.length,
-                itemBuilder: (_, i) {
-                  final lec       = lectures[i] as Map<String, dynamic>;
-                  final confirmed = lec['confirmed'] as bool? ?? false;
-                  final order     = lec['order_index'] as int? ?? (i + 1);
-                  final hasVideo  = (lec['video_url'] as String? ?? '').trim().isNotEmpty;
-                  final hasMat    =
-                      (lec['original_file_url'] as String? ?? '').trim().isNotEmpty ||
-                      (lec['material_url'] as String? ?? '').trim().isNotEmpty;
-                  return _LectureCard(
-                    lec: lec,
-                    order: order,
-                    confirmed: confirmed,
-                    hasVideo: hasVideo,
-                    hasMaterial: hasMat,
-                    onEdit: () => _openEditForm(lec),
-                    onDelete: () => _deleteLecture(lec),
-                    onUp: i == 0 ? null : () => _moveLecture(lectures, i, -1),
-                    onDown: i == lectures.length - 1 ? null : () => _moveLecture(lectures, i, 1),
-                  );
-                },
-              ),
+        child: ListView.builder(
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+          itemCount: lectures.length,
+          itemBuilder: (_, i) {
+            final lec       = lectures[i] as Map<String, dynamic>;
+            final confirmed = lec['confirmed'] as bool? ?? false;
+            final order     = lec['order_index'] as int? ?? (i + 1);
+            final hasVideo  = (lec['video_url'] as String? ?? '').trim().isNotEmpty;
+            final hasMat    =
+                (lec['original_file_url'] as String? ?? '').trim().isNotEmpty ||
+                (lec['material_url'] as String? ?? '').trim().isNotEmpty;
+            return _LectureCard(
+              lec: lec,
+              order: order,
+              confirmed: confirmed,
+              hasVideo: hasVideo,
+              hasMaterial: hasMat,
+              onEdit: () => _openEditForm(lec),
+              onDelete: () => _deleteLecture(lec),
+              onUp: i == 0 ? null : () => _moveLecture(lectures, i, -1),
+              onDown: i == lectures.length - 1 ? null : () => _moveLecture(lectures, i, 1),
+            );
+          },
+        ),
       ),
     ]);
   }
 
   // ── 강의 인라인 폼 ────────────────────────────────────────────
+  // 수정 모드 전용 인라인 폼
   Widget _buildLectureForm() {
     final isEditing = _editingLecture != null;
 
-    // 기존 파일 정보 (수정 모드)
     final existingFileUrl =
         ((_editingLecture?['original_file_url'] as String?) ?? '').trim();
     final existingFileName = existingFileUrl.isNotEmpty
@@ -465,7 +479,7 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
         : null;
 
     return Column(children: [
-      // 헤더
+      // 헤더 — 우측 상단에 교안 업로드 버튼
       _TabHeader(
         title: isEditing ? '교안 수정' : '교안 업로드',
         sub: isEditing ? '강의 정보를 수정합니다' : '새 강의를 등록합니다',
@@ -477,84 +491,77 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
         ),
       ),
 
-      // 폼 본문
       Expanded(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(28, 24, 28, 40),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
-            // ── 섹션 01: 강의 정보 ─────────────────────────────
+            // 섭션 01: 강의 정보
             const _SectionHeader(index: '01', title: '강의 정보'),
             const SizedBox(height: 20),
 
-            // 제목
             const _FieldLabel('제목'),
             const SizedBox(height: 8),
             _FormField(ctrl: _lectureTitleCtrl, hint: '강의 제목을 입력하세요'),
             const SizedBox(height: 20),
 
-            // 영상 연결 (URL + 파일 업로드 버튼 한 줄)
-            const _FieldLabel('영상 연결'),
+            // 영상 연결 — 파일 업로드만 (YouTube 링크 제거)
+            const _FieldLabel('영상 파일'),
             const SizedBox(height: 8),
-            Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-              Expanded(
-                child: _FormField(
-                  ctrl: _videoUrlCtrl,
-                  hint: 'YouTube 링크 또는 공개 영상 URL',
-                ),
-              ),
-              const SizedBox(width: 10),
-              GestureDetector(
-                onTap: _uploadingLecture ? null : _pickVideoFile,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  height: 46,
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  decoration: BoxDecoration(
-                    color: _videoFile != null ? _C.lavMid : _C.surface2,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: _videoFile != null
-                          ? _C.lavender.withValues(alpha: 0.5)
-                          : _C.border,
-                    ),
+            GestureDetector(
+              onTap: _uploadingLecture ? null : _pickVideoFile,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                width: double.infinity,
+                height: 48,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                decoration: BoxDecoration(
+                  color: _videoFile != null ? _C.lavMid : _C.surface2,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: _videoFile != null
+                        ? _C.lavender.withValues(alpha: 0.5)
+                        : _C.border,
                   ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(
+                ),
+                child: Row(children: [
+                  Icon(
+                    _videoFile != null
+                        ? Icons.video_file_rounded
+                        : Icons.video_file_outlined,
+                    color: _videoFile != null ? _C.lavender : _C.textMute,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
                       _videoFile != null
-                          ? Icons.video_file_rounded
-                          : Icons.upload_rounded,
-                      color: _videoFile != null ? _C.lavender : _C.textMute,
-                      size: 15,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      _videoFile != null ? '선택됨' : '파일 업로드',
+                          ? _videoFile!.name
+                          : '영상 파일 선택 (mp4, mov, webm)',
                       style: TextStyle(
                         color: _videoFile != null ? _C.lavender : _C.textMute,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        fontWeight: _videoFile != null
+                            ? FontWeight.w600
+                            : FontWeight.w400,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ]),
-                ),
+                  ),
+                  if (_videoFile != null)
+                    GestureDetector(
+                      onTap: () => setState(() => _videoFile = null),
+                      child: const Icon(Icons.close_rounded,
+                          color: _C.lavender, size: 16),
+                    ),
+                ]),
               ),
-            ]),
-
-            // 선택된 영상 파일 미리보기
-            if (_videoFile != null) ...[
-              const SizedBox(height: 8),
-              _FileChip(
-                icon: Icons.video_file_rounded,
-                name: _videoFile!.name,
-                color: _C.lavender,
-                onRemove: () => setState(() => _videoFile = null),
-              ),
-            ],
+            ),
 
             const SizedBox(height: 32),
 
-            // ── 섹션 02: 강의 자료 ─────────────────────────────
+            // 섭션 02: 강의 자료
             const _SectionHeader(index: '02', title: '강의 자료'),
             const SizedBox(height: 16),
 
@@ -578,7 +585,6 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
                   ),
                 ),
                 child: _lectureFile != null
-                    // 신규 파일 선택됨
                     ? _FileRowContent(
                         icon: Icons.insert_drive_file_rounded,
                         iconColor: _C.lime,
@@ -588,7 +594,6 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
                         onRemove: () => setState(() => _lectureFile = null),
                       )
                     : isEditing && existingFileName != null
-                        // 기존 파일 표시 (수정 모드)
                         ? Column(children: [
                             _FileRowContent(
                               icon: Icons.insert_drive_file_rounded,
@@ -621,7 +626,6 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
                               ),
                             ),
                           ])
-                        // 빈 상태
                         : Column(children: [
                             const Icon(Icons.upload_rounded, color: _C.textMute, size: 32),
                             const SizedBox(height: 10),
@@ -682,7 +686,7 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600)),
                         const SizedBox(width: 6),
-                        Text('— ${e.$2}',
+                        Text('\u2014 ${e.$2}',
                             style: const TextStyle(
                                 color: _C.textMute, fontSize: 11)),
                       ]),
@@ -690,7 +694,6 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
               ]),
             ),
 
-            // 에러
             if (_uploadError != null) ...[
               const SizedBox(height: 16),
               Container(
@@ -723,9 +726,7 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
                 decoration: BoxDecoration(
                   color: _canSubmit ? _C.lime : _C.surface2,
                   borderRadius: BorderRadius.circular(14),
-                  border: _canSubmit
-                      ? null
-                      : Border.all(color: _C.border),
+                  border: _canSubmit ? null : Border.all(color: _C.border),
                 ),
                 child: Center(
                   child: _uploadingLecture
@@ -762,6 +763,263 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
         ),
       ),
     ]);
+  }
+
+  // 본문 영역만 (헤더 없이) — 리스트 빈 상태에서 사용
+  Widget _buildLectureFormBody() {
+    final isEditing = _editingLecture != null;
+    final existingFileUrl =
+        ((_editingLecture?['original_file_url'] as String?) ?? '').trim();
+    final existingFileName = existingFileUrl.isNotEmpty
+        ? (_editingLecture!['title'] as String? ?? '기존 파일')
+        : null;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(28, 24, 28, 40),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const _SectionHeader(index: '01', title: '강의 정보'),
+        const SizedBox(height: 20),
+        const _FieldLabel('제목'),
+        const SizedBox(height: 8),
+        _FormField(ctrl: _lectureTitleCtrl, hint: '강의 제목을 입력하세요'),
+        const SizedBox(height: 20),
+
+        const _FieldLabel('영상 파일'),
+        const SizedBox(height: 8),
+        GestureDetector(
+          onTap: _uploadingLecture ? null : _pickVideoFile,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            width: double.infinity,
+            height: 48,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: _videoFile != null ? _C.lavMid : _C.surface2,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: _videoFile != null
+                    ? _C.lavender.withValues(alpha: 0.5)
+                    : _C.border,
+              ),
+            ),
+            child: Row(children: [
+              Icon(
+                _videoFile != null
+                    ? Icons.video_file_rounded
+                    : Icons.video_file_outlined,
+                color: _videoFile != null ? _C.lavender : _C.textMute,
+                size: 16,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  _videoFile != null
+                      ? _videoFile!.name
+                      : '영상 파일 선택 (mp4, mov, webm)',
+                  style: TextStyle(
+                    color: _videoFile != null ? _C.lavender : _C.textMute,
+                    fontSize: 13,
+                    fontWeight: _videoFile != null
+                        ? FontWeight.w600
+                        : FontWeight.w400,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (_videoFile != null)
+                GestureDetector(
+                  onTap: () => setState(() => _videoFile = null),
+                  child: const Icon(Icons.close_rounded,
+                      color: _C.lavender, size: 16),
+                ),
+            ]),
+          ),
+        ),
+
+        const SizedBox(height: 32),
+        const _SectionHeader(index: '02', title: '강의 자료'),
+        const SizedBox(height: 16),
+
+        GestureDetector(
+          onTap: _uploadingLecture ? null : _pickFile,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: _lectureFile != null
+                  ? _C.limeDark.withValues(alpha: 0.6)
+                  : _C.surface2,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: _lectureFile != null
+                    ? _C.lime.withValues(alpha: 0.35)
+                    : _C.border,
+                width: _lectureFile != null ? 1.5 : 1,
+              ),
+            ),
+            child: _lectureFile != null
+                ? _FileRowContent(
+                    icon: Icons.insert_drive_file_rounded,
+                    iconColor: _C.lime,
+                    iconBg: _C.lime.withValues(alpha: 0.12),
+                    name: _lectureFile!.name,
+                    sub: '${(_lectureFile!.size / 1024).toStringAsFixed(1)} KB',
+                    onRemove: () => setState(() => _lectureFile = null),
+                  )
+                : isEditing && existingFileName != null
+                    ? Column(children: [
+                        _FileRowContent(
+                          icon: Icons.insert_drive_file_rounded,
+                          iconColor: _C.textSec,
+                          iconBg: _C.surface,
+                          name: existingFileName,
+                          sub: '기존 파일 · 새 파일 선택 시 교체됩니다',
+                          onRemove: null,
+                        ),
+                        const SizedBox(height: 12),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          decoration: BoxDecoration(
+                            color: _C.surface,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: _C.border),
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.add_rounded, color: _C.textMute, size: 14),
+                              SizedBox(width: 4),
+                              Text('새 파일로 교체',
+                                  style: TextStyle(
+                                      color: _C.textMute, fontSize: 12, fontWeight: FontWeight.w500)),
+                            ],
+                          ),
+                        ),
+                      ])
+                    : Column(children: [
+                        const Icon(Icons.upload_rounded, color: _C.textMute, size: 32),
+                        const SizedBox(height: 10),
+                        const Text('파일을 선택하세요',
+                            style: TextStyle(
+                                color: _C.textSec, fontSize: 14, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 4),
+                        const Text('PDF · PPT · DOCX · HWP · 코드파일 · 이미지',
+                            style: TextStyle(color: _C.textMute, fontSize: 11)),
+                      ]),
+          ),
+        ),
+
+        const SizedBox(height: 6),
+        const Text('* 이미지 파일은 OCR로, 코드 파일은 텍스트로 읽습니다',
+            style: TextStyle(color: _C.textMute, fontSize: 11)),
+
+        const SizedBox(height: 24),
+
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: _C.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _C.border),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('AI 분석 파이프라인',
+                style: TextStyle(
+                    color: _C.textMute, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
+            const SizedBox(height: 12),
+            ...[
+              ('텍스트 추출', '다형식 파싱 — PDF·PPT·HWP·코드·이미지'),
+              ('전처리',     '노이즈 제거 · 구조 정규화'),
+              ('핵심 추출',  'RAG 기반 핵심 포인트 5개 도출'),
+              ('난이도 분류', 'Sweller CLT 기반 인지부하 추정'),
+              ('학습 목표',  '학습 목표 및 검토 질문 자동 생성'),
+            ].map((e) => Padding(
+                  padding: const EdgeInsets.only(bottom: 7),
+                  child: Row(children: [
+                    Container(
+                      width: 5, height: 5,
+                      decoration: const BoxDecoration(
+                          color: _C.lime, shape: BoxShape.circle),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(e.$1,
+                        style: const TextStyle(
+                            color: _C.textSec, fontSize: 11, fontWeight: FontWeight.w600)),
+                    const SizedBox(width: 6),
+                    Text('— ${e.$2}',
+                        style: const TextStyle(color: _C.textMute, fontSize: 11)),
+                  ]),
+                )),
+          ]),
+        ),
+
+        if (_uploadError != null) ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: _C.coral.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _C.coral.withValues(alpha: 0.25)),
+            ),
+            child: Row(children: [
+              const Icon(Icons.warning_amber_rounded, color: _C.coral, size: 15),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(_uploadError!,
+                    style: const TextStyle(color: _C.coral, fontSize: 12)),
+              ),
+            ]),
+          ),
+        ],
+
+        const SizedBox(height: 28),
+
+        GestureDetector(
+          onTap: _canSubmit ? _submitLecture : null,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            width: double.infinity,
+            height: 50,
+            decoration: BoxDecoration(
+              color: _canSubmit ? _C.lime : _C.surface2,
+              borderRadius: BorderRadius.circular(14),
+              border: _canSubmit ? null : Border.all(color: _C.border),
+            ),
+            child: Center(
+              child: _uploadingLecture
+                  ? const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 15, height: 15,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: _C.limeDark),
+                        ),
+                        SizedBox(width: 10),
+                        Text('AI 분석 중...',
+                            style: TextStyle(
+                                color: _C.limeDark, fontSize: 14, fontWeight: FontWeight.w700)),
+                      ],
+                    )
+                  : Text(
+                      isEditing && _lectureFile == null
+                          ? '수정사항 저장'
+                          : '분석 시작 — 핵심 포인트 추출',
+                      style: TextStyle(
+                        color: _canSubmit ? _C.limeDark : _C.textMute,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+            ),
+          ),
+        ),
+      ]),
+    );
   }
 
   // ── 공지 탭 ───────────────────────────────────────────────────
@@ -1500,47 +1758,7 @@ class _FileRowContent extends StatelessWidget {
   }
 }
 
-// ── 파일 칩 (영상 파일 선택 표시) ─────────────────────────────────
-class _FileChip extends StatelessWidget {
-  final IconData icon;
-  final String name;
-  final Color color;
-  final VoidCallback onRemove;
-  const _FileChip({
-    required this.icon,
-    required this.name,
-    required this.color,
-    required this.onRemove,
-  });
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
-      ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 13, color: color),
-        const SizedBox(width: 6),
-        Flexible(
-          child: Text(name,
-              style: TextStyle(
-                  color: color, fontSize: 11, fontWeight: FontWeight.w600),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis),
-        ),
-        const SizedBox(width: 8),
-        GestureDetector(
-          onTap: onRemove,
-          child: Icon(Icons.close_rounded, size: 13, color: color),
-        ),
-      ]),
-    );
-  }
-}
 
 // ── 화살표 버튼 ───────────────────────────────────────────────────
 class _ArrowBtn extends StatelessWidget {

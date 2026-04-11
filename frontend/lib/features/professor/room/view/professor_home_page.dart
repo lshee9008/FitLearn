@@ -63,70 +63,9 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
   }
 
   Future<void> _createRoom() async {
-    final user = ref.read(authNotifierProvider);
-    if (user == null) return;
-    final messenger = ScaffoldMessenger.of(context);
-    final result = await showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (_) => const _CreateRoomDialog(),
-    );
-    if (result == null) return;
-
-    final lectures = result['lectures'] as List<LectureItem>? ?? [];
-
-    try {
-      final coreConcepts = (result['core_concepts'] as String? ?? '')
-          .split('\n')
-          .map((s) => s.trim())
-          .where((s) => s.isNotEmpty)
-          .toList();
-
-      final roomData = await ApiService().createRoom(
-        professorUid: user.userId,
-        subject: result['subject'] as String? ?? '',
-        description: result['description'] as String? ?? '',
-        roomType: result['room_type'] as String? ?? 'offline',
-        synopsis: result['synopsis'] as String? ?? '',
-        coreConcepts: coreConcepts,
-        youtubeUrl: result['youtube_url'] as String? ?? '',
-      );
-
-      final roomId = roomData['room_id'] as String? ?? '';
-      final lectureSeeds = <Map<String, dynamic>>[];
-      for (var i = 0; i < lectures.length; i++) {
-        final lec = lectures[i];
-        if (lec.title.trim().isEmpty) continue;
-        lectureSeeds.add({
-          'title': lec.title.trim(),
-          'order': i + 1,
-          'video_url': lec.videoUrl.trim(),
-          'material_url': lec.materialUrl.trim(),
-        });
-      }
-      if (roomId.isNotEmpty && lectureSeeds.isNotEmpty) {
-        await ApiService().createLectureShells(roomId, lectureSeeds);
-      }
-
-      await Future.delayed(const Duration(milliseconds: 500));
-      await _refreshRooms();
-
-      if (mounted) {
-        final inviteCode = roomData['room_code'] as String? ?? '';
-        if (inviteCode.isNotEmpty) {
-          _showInviteCodeDialog(
-            code: inviteCode,
-            subject: result['subject'] as String? ?? '',
-          );
-        }
-      }
-    } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('방 생성 오류: $e'),
-          duration: const Duration(seconds: 6),
-        ),
-      );
-    }
+    await context.push('/professor/create-room');
+    // 돌아왔을 때 목록 갱신
+    await _refreshRooms();
   }
 
   Future<void> _deleteRoom(Map<String, dynamic> room) async {
@@ -190,12 +129,6 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
     }
   }
 
-  void _showInviteCodeDialog({required String code, required String subject}) {
-    showDialog(
-      context: context,
-      builder: (_) => _InviteCodeDialog(code: code, subject: subject),
-    );
-  }
 
   Future<void> _logout() async {
     await ref.read(authNotifierProvider.notifier).logout();
