@@ -8,6 +8,7 @@ from langchain_community.vectorstores import FAISS
 # langchain_google_genai 제거됨 — _RestEmbeddings 사용
 
 
+
 class RAGService:
     def __init__(self):
         self.splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
