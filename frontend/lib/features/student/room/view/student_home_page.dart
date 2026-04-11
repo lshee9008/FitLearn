@@ -1753,7 +1753,15 @@ class _AiDiagCard extends StatelessWidget {
             child: Text(pill, style: const TextStyle(color: _C.lavMid, fontSize: 10, fontWeight: FontWeight.w600)),
           )
         else
-          Text(val ?? '', style: const TextStyle(color: _C.textPri, fontSize: 12, fontWeight: FontWeight.w600)),
+          Expanded(
+            child: Text(
+              val ?? '',
+              maxLines: 2,
+              softWrap: true,
+              overflow: TextOverflow.visible,
+              style: const TextStyle(color: _C.textPri, fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ),
       ]),
     );
   }
