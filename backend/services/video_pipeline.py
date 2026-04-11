@@ -16,7 +16,8 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 from .reforge_service import generate_gemini_text
 
@@ -226,14 +227,16 @@ class VideoPipeline:
                 temp.write(video_bytes)
                 temp_path = temp.name
 
-            genai.configure(api_key=os.getenv("GEMINI_API_KEY"), transport="rest")
+            _vp_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
             uploaded = await asyncio.to_thread(
-                genai.upload_file,
-                path=temp_path,
-                mime_type=mime_type or "video/mp4",
-                display_name=filename or title or "lecture-video",
+                _vp_client.files.upload,
+                file=temp_path,
+                config=types.UploadFileConfig(
+                    mime_type=mime_type or "video/mp4",
+                    display_name=filename or title or "lecture-video",
+                ),
             )
-            uploaded = await self._wait_until_ready(uploaded)
+            uploaded = await self._wait_until_ready(uploaded, _vp_client)
 
             core_text = "\n".join(
                 f"- {point.get('content', '')}"
@@ -287,7 +290,7 @@ class VideoPipeline:
         finally:
             if uploaded is not None:
                 try:
-                    await asyncio.to_thread(genai.delete_file, uploaded.name)
+                    await asyncio.to_thread(_vp_client.files.delete, name=uploaded.name)
                 except Exception as e:
                     logger.info(f"[VideoPipeline] Gemini 파일 삭제 스킵: {e}")
             if temp_path:
@@ -296,7 +299,7 @@ class VideoPipeline:
                 except OSError:
                     pass
 
-    async def _wait_until_ready(self, uploaded):
+    async def _wait_until_ready(self, uploaded, client: genai.Client):
         name = uploaded.name
         for _ in range(300):
             state = getattr(getattr(uploaded, "state", None), "name", "")
@@ -305,7 +308,7 @@ class VideoPipeline:
             if state == "FAILED":
                 raise RuntimeError("Gemini File API 영상 처리 실패")
             await asyncio.sleep(2)
-            uploaded = await asyncio.to_thread(genai.get_file, name)
+            uploaded = await asyncio.to_thread(client.files.get, name=name)
         raise TimeoutError("Gemini File API 영상 처리 대기 시간 초과")
 
     async def _summarize_transcript(

@@ -8,7 +8,8 @@ import logging
 import os
 import threading
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
@@ -71,7 +72,7 @@ def _build_prompt(content: str, types: list[str]) -> str:
 6. 반드시 한국어로만 작성하세요. 영어 인사말·설명 없이 마크다운 교안 내용만 바로 출력하세요"""
 
 
-async def _stream_sse(content: str, types: list[str]):
+async def _stream_sse(content: str, learning_types: list[str]):
     """Gemini 스트리밍 → SSE 이벤트"""
     loop = asyncio.get_event_loop()
     q: asyncio.Queue = asyncio.Queue()
@@ -83,15 +84,17 @@ async def _stream_sse(content: str, types: list[str]):
                 asyncio.run_coroutine_threadsafe(q.put(("error", "GEMINI_API_KEY 미설정")), loop)
                 return
 
-            genai.configure(api_key=api_key, transport="rest")
-            model = genai.GenerativeModel(
-                model_name=MODEL,
-                generation_config=genai.GenerationConfig(
-                    temperature=0.7, max_output_tokens=2048
+            _client = genai.Client(api_key=api_key)
+            prompt = _build_prompt(content, learning_types)
+            for chunk in _client.models.generate_content_stream(
+                model=MODEL,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    temperature=0.7,
+                    max_output_tokens=2048,
+                    thinking_config=types.ThinkingConfig(thinking_budget=0),
                 ),
-            )
-            prompt = _build_prompt(content, types)
-            for chunk in model.generate_content(prompt, stream=True):
+            ):
                 if chunk.text:
                     asyncio.run_coroutine_threadsafe(q.put(("data", chunk.text)), loop)
             asyncio.run_coroutine_threadsafe(q.put(("done", None)), loop)
@@ -101,7 +104,7 @@ async def _stream_sse(content: str, types: list[str]):
     threading.Thread(target=_sync, daemon=True).start()
 
     # 먼저 태그 전송
-    tags = [_TAGS.get(t, t) for t in types]
+    tags = [_TAGS.get(t, t) for t in learning_types]
     yield f"data: {json.dumps({'tags': tags}, ensure_ascii=False)}\n\n"
 
     while True:

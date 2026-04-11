@@ -11,7 +11,8 @@ import re
 import time
 
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 from .rag_pipeline.knowledge_base import PAPER_CHUNKS
 
@@ -137,18 +138,16 @@ class LecturePipeline:
     def __init__(self):
         api_key = os.getenv("GEMINI_API_KEY")
         if api_key:
-            genai.configure(api_key=api_key, transport="rest")
+            self._client = genai.Client(api_key=api_key)
         else:
             logger.warning("[LecturePipeline] GEMINI_API_KEY 미설정 — 분석 기능 동작 보장 불가")
+            self._client = None
 
-    def _model(self, temp: float = 0.2) -> genai.GenerativeModel:
-        return genai.GenerativeModel(
-            model_name=MODEL,
-            generation_config={
-                "temperature": temp,
-                "max_output_tokens": 2048,
-                "thinking_config": {"thinking_budget": 0},
-            },
+    def _config(self, temp: float = 0.2) -> types.GenerateContentConfig:
+        return types.GenerateContentConfig(
+            temperature=temp,
+            max_output_tokens=2048,
+            thinking_config=types.ThinkingConfig(thinking_budget=0),
         )
 
     # ── Stage 3+4+5+6: 핵심 추출 + 분류 + 난이도 + 학습목표 (단일 프롬프트 병렬화) ──
@@ -201,7 +200,12 @@ class LecturePipeline:
 - JSON만 출력하세요"""
 
         response = await asyncio.wait_for(
-            asyncio.to_thread(self._model(temp=0.2).generate_content, prompt),
+            asyncio.to_thread(
+                self._client.models.generate_content,
+                model=MODEL,
+                contents=prompt,
+                config=self._config(temp=0.2),
+            ),
             timeout=55.0,
         )
         return _extract_json(response.text)
@@ -243,7 +247,12 @@ class LecturePipeline:
 
         try:
             response = await asyncio.wait_for(
-                asyncio.to_thread(self._model(temp=0.4).generate_content, prompt),
+                asyncio.to_thread(
+                    self._client.models.generate_content,
+                    model=MODEL,
+                    contents=prompt,
+                    config=self._config(temp=0.4),
+                ),
                 timeout=25.0,
             )
             data = _extract_json(response.text)

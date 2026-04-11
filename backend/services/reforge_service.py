@@ -9,7 +9,8 @@ import os
 import re
 import time
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 from .rag_pipeline.knowledge_base import PAPER_CHUNKS
 from .gemini_service import STYLE_GUIDES
@@ -29,32 +30,17 @@ _working_model = MODEL
 _quota_cooldown_until = 0.0
 
 
-_thinking_support_cache: bool | None = None
+_gemini_client: genai.Client | None = None
 
 
-def _check_thinking_support() -> bool:
-    """google-generativeai SDK가 generation_config에서 thinking_config를 지원하는지 감지."""
-    global _thinking_support_cache
-    if _thinking_support_cache is not None:
-        return _thinking_support_cache
-    try:
-        import google.generativeai as _genai
-        test_model = _genai.GenerativeModel(
-            model_name="gemini-2.0-flash",
-            generation_config={
-                "temperature": 0.7,
-                "max_output_tokens": 16,
-                "thinking_config": {"thinking_budget": 0},
-            },
-        )
-        # 모델 객체 생성만으로 config 파싱 에러가 발생하면 미지원
-        _ = test_model
-        _thinking_support_cache = True
-        print("[Gemini] thinking_config SDK 지원 감지 → 활성화")
-    except Exception as e:
-        _thinking_support_cache = False
-        print(f"[Gemini] thinking_config SDK 미지원 → 비활성화 (이유: {e})")
-    return _thinking_support_cache
+def _get_client() -> genai.Client:
+    global _gemini_client
+    if _gemini_client is None:
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            raise RuntimeError("GEMINI_API_KEY가 설정되지 않았습니다.")
+        _gemini_client = genai.Client(api_key=api_key)
+    return _gemini_client
 
 
 def _is_quota_error(error: Exception) -> bool:
@@ -83,20 +69,14 @@ async def generate_gemini_text(
     """
     global _working_model
 
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY가 설정되지 않았습니다.")
     if time.monotonic() < _quota_cooldown_until:
         raise RuntimeError("Gemini quota cooldown active")
 
-    genai.configure(api_key=api_key, transport="rest")
+    client = _get_client()
     candidates = []
     for model_name in [_working_model, MODEL, *MODEL_FALLBACKS]:
         if model_name and model_name not in candidates:
             candidates.append(model_name)
-
-    # thinking_config SDK 지원 여부 1회 감지 (모듈 레벨 캐시)
-    thinking_supported = _check_thinking_support()
 
     loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout
@@ -106,23 +86,18 @@ async def generate_gemini_text(
         if remaining <= 0:
             raise asyncio.TimeoutError(f"{feature} 전체 생성 시간 초과 ({timeout}s)")
         try:
-            base_config = {
-                "temperature": temperature,
-                "max_output_tokens": max_output_tokens,
-            }
-            if thinking_supported:
-                base_config["thinking_config"] = {"thinking_budget": 0}
-
-            model = genai.GenerativeModel(
-                model_name=model_name,
-                generation_config=base_config,
-            )
-            print(
-                f"[Gemini] model={model_name} | "
-                f"thinking_config={'활성(budget=0)' if thinking_supported else '비활성(SDK 미지원)'}"
+            config = types.GenerateContentConfig(
+                temperature=temperature,
+                max_output_tokens=max_output_tokens,
+                thinking_config=types.ThinkingConfig(thinking_budget=0),
             )
             response = await asyncio.wait_for(
-                asyncio.to_thread(model.generate_content, contents),
+                asyncio.to_thread(
+                    client.models.generate_content,
+                    model=model_name,
+                    contents=contents,
+                    config=config,
+                ),
                 timeout=remaining,
             )
             text = (response.text or "").strip()
@@ -575,29 +550,53 @@ class ReforgeService:
         prompt = self._build_reforge_prompt(text, profile)
         
         try:
-            api_key = os.getenv("GEMINI_API_KEY")
-            if not api_key:
-                yield {"error": "GEMINI_API_KEY가 설정되지 않았습니다. .env 파일을 확인해주세요."}
-                return
+            client = _get_client()
+            config = types.GenerateContentConfig(
+                max_output_tokens=2048,
+                temperature=0.7,
+                thinking_config=types.ThinkingConfig(thinking_budget=0),
+            )
 
-            genai.configure(api_key=api_key, transport="rest")
-            model = genai.GenerativeModel(
-                MODEL,
-                generation_config={
-                    "thinking_config": {"thinking_budget": 0},
-                }
-            )
-            
-            response = await asyncio.to_thread(
-                model.generate_content, 
-                prompt, 
-                stream=True
-            )
-            
-            for chunk in response:
-                if chunk.text:
-                    yield {"text": chunk.text}
-                    
+            def _sync_stream():
+                for chunk in client.models.generate_content_stream(
+                    model=MODEL,
+                    contents=prompt,
+                    config=config,
+                ):
+                    if chunk.text:
+                        chunks_out.append(chunk.text)
+
+            chunks_out: list[str] = []
+            loop = asyncio.get_running_loop()
+            q: asyncio.Queue = asyncio.Queue()
+
+            def _run_in_thread():
+                import threading
+                def _worker():
+                    try:
+                        for chunk in client.models.generate_content_stream(
+                            model=MODEL,
+                            contents=prompt,
+                            config=config,
+                        ):
+                            if chunk.text:
+                                asyncio.run_coroutine_threadsafe(q.put(("text", chunk.text)), loop)
+                        asyncio.run_coroutine_threadsafe(q.put(("done", None)), loop)
+                    except Exception as exc:
+                        asyncio.run_coroutine_threadsafe(q.put(("error", str(exc))), loop)
+                threading.Thread(target=_worker, daemon=True).start()
+
+            _run_in_thread()
+            while True:
+                kind, value = await asyncio.wait_for(q.get(), timeout=120)
+                if kind == "text":
+                    yield {"text": value}
+                elif kind == "done":
+                    break
+                elif kind == "error":
+                    yield {"error": value}
+                    return
+
             yield "DONE"
         except Exception as e:
             logger.error(f"[ReforgeService] 스트리밍 실패: {e}")

@@ -3,7 +3,8 @@ import json
 import os
 from typing import AsyncGenerator
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 MODEL = "gemma-4-31b-it"
 LEARNING_TYPES = ["요약형", "상세형", "예시형"]
@@ -12,8 +13,14 @@ LEARNING_TYPES = ["요약형", "상세형", "예시형"]
 class ClaudeService:
     def __init__(self):
         api_key = os.getenv("GEMINI_API_KEY")
-        if api_key:
-            genai.configure(api_key=api_key)
+        self._client = genai.Client(api_key=api_key) if api_key else None
+
+    def _config(self, temperature: float = 0.2, max_tokens: int = 100) -> types.GenerateContentConfig:
+        return types.GenerateContentConfig(
+            temperature=temperature,
+            max_output_tokens=max_tokens,
+            thinking_config=types.ThinkingConfig(thinking_budget=0),
+        )
 
     async def classify_learning_type(self, answers: list[str]) -> str:
         """Few-shot + Self-consistency로 학습 유형 분류 (temperature=0.2)"""
@@ -25,15 +32,12 @@ class ClaudeService:
         return max(set(results), key=results.count)
 
     async def _classify_once(self, prompt: str) -> str:
-        model = genai.GenerativeModel(
-            model_name=MODEL,
-            generation_config={
-                "temperature": 0.2,
-                "max_output_tokens": 100,
-                "thinking_config": {"thinking_budget": 0},
-            },
+        response = await asyncio.to_thread(
+            self._client.models.generate_content,
+            model=MODEL,
+            contents=prompt,
+            config=self._config(temperature=0.2, max_tokens=100),
         )
-        response = await asyncio.to_thread(model.generate_content, prompt)
         text = response.text.strip()
         for t in LEARNING_TYPES:
             if t in text:
@@ -55,15 +59,12 @@ class ClaudeService:
 
     async def _reforge_one(self, lecture_content: str, learning_type: str) -> str:
         prompt = self._build_reforge_prompt(lecture_content, learning_type)
-        model = genai.GenerativeModel(
-            model_name=MODEL,
-            generation_config={
-                "temperature": 0.7,
-                "max_output_tokens": 2048,
-                "thinking_config": {"thinking_budget": 0},
-            },
+        response = await asyncio.to_thread(
+            self._client.models.generate_content,
+            model=MODEL,
+            contents=prompt,
+            config=self._config(temperature=0.7, max_tokens=2048),
         )
-        response = await asyncio.to_thread(model.generate_content, prompt)
         return response.text
 
     def _build_diagnosis_prompt(self, answers: list[str]) -> str:
@@ -77,7 +78,7 @@ class ClaudeService:
             f"{examples}\n"
             f"다음 수강생 응답을 분석해 학습 유형(요약형/상세형/예시형) 중 하나만 JSON으로 반환하세요.\n"
             f"응답: {joined}\n"
-            f'형식: {{"learning_type": "요약형"}}'
+            f'{{"learning_type": "요약형"}}'
         )
 
     def _build_reforge_prompt(self, lecture_content: str, learning_type: str) -> str:
