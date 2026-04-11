@@ -23,6 +23,21 @@ _cache = RedisService()
 _CACHE_TTL = 60 * 5
 
 
+def _storage_bucket_name() -> str:
+    """Resolve Firebase Storage bucket even when Render env omits the bucket variable."""
+    explicit = os.getenv("FIREBASE_STORAGE_BUCKET") or os.getenv("FIREBASE_STORAGE_BUCKET_NAME")
+    if explicit:
+        return explicit
+    try:
+        cred_json = os.getenv("FIREBASE_CREDENTIALS")
+        if not cred_json:
+            return ""
+        project_id = json.loads(cred_json).get("project_id", "")
+        return f"{project_id}.firebasestorage.app" if project_id else ""
+    except Exception:
+        return ""
+
+
 def _normalize_firestore_value(value):
     if isinstance(value, dict):
         return {k: _normalize_firestore_value(v) for k, v in value.items()}
@@ -51,8 +66,9 @@ def _init_firebase() -> bool:
             logger.warning("[Firebase] FIREBASE_CREDENTIALS 미설정 — no-op 모드")
             return False
 
-        cred = credentials.Certificate(json.loads(cred_json))
-        bucket_name = os.getenv("FIREBASE_STORAGE_BUCKET")
+        cred_data = json.loads(cred_json)
+        cred = credentials.Certificate(cred_data)
+        bucket_name = _storage_bucket_name()
         options = {}
         if bucket_name:
             options["storageBucket"] = bucket_name
@@ -1155,7 +1171,7 @@ class FirebaseService:
         self, room_id: str, lecture_id: str, file_bytes: bytes, filename: str, content_type: str
     ) -> Optional[str]:
         db = self._safe_db()
-        bucket_name = os.getenv("FIREBASE_STORAGE_BUCKET")
+        bucket_name = _storage_bucket_name()
         if db is None or not bucket_name:
             return None
             
@@ -1164,7 +1180,7 @@ class FirebaseService:
             import uuid
             
             def _upload():
-                bucket = storage.bucket()
+                bucket = storage.bucket(bucket_name)
                 unique_name = f"rooms/{room_id}/lectures/{lecture_id}/{uuid.uuid4().hex}_{filename}"
                 blob = bucket.blob(unique_name)
                 
@@ -1198,7 +1214,7 @@ class FirebaseService:
         kind: str,
     ) -> Optional[str]:
         db = self._safe_db()
-        bucket_name = os.getenv("FIREBASE_STORAGE_BUCKET")
+        bucket_name = _storage_bucket_name()
         if db is None or not bucket_name:
             return None
 
@@ -1207,7 +1223,7 @@ class FirebaseService:
             import uuid
 
             def _upload():
-                bucket = storage.bucket()
+                bucket = storage.bucket(bucket_name)
                 unique_name = (
                     f"rooms/{room_id}/lectures/{lecture_id}/{kind}/"
                     f"{uuid.uuid4().hex}_{filename}"

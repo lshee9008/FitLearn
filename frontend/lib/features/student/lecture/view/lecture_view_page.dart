@@ -1603,7 +1603,8 @@ class _VideoStage extends StatelessWidget {
   Widget build(BuildContext context) {
     final viewType = 'fitlearn-video-${videoUrl.hashCode.abs()}';
     final embedUrl = _embedUrl(videoUrl, videoType);
-    final canEmbed = embedUrl.isNotEmpty;
+    final isTemporaryBackendAsset = videoUrl.contains('/api/v1/lectures/assets/');
+    final canEmbed = embedUrl.isNotEmpty && !isTemporaryBackendAsset;
     if (canEmbed && !_registeredViewTypes.contains(viewType)) {
       _registeredViewTypes.add(viewType);
       ui_web.platformViewRegistry.registerViewFactory(viewType, (_) {
@@ -1654,7 +1655,9 @@ class _VideoStage extends StatelessWidget {
                   ? HtmlElementView(viewType: viewType)
                   : _VideoFallback(
                       videoUrl: videoUrl,
-                      videoStatus: videoStatus,
+                      videoStatus: isTemporaryBackendAsset
+                          ? 'temporary_expired'
+                          : videoStatus,
                     ),
             ),
           ),
@@ -1754,6 +1757,8 @@ class _VideoFallback extends StatelessWidget {
           Text(
             videoStatus == 'processing'
                 ? '영상 업로드 처리 중입니다'
+                : videoStatus == 'temporary_expired'
+                    ? '임시 영상 URL이 만료되었습니다'
                 : '앱 안에서 재생할 수 없는 영상입니다',
             style: const TextStyle(
               color: AppColors.textPrimary,
@@ -1761,9 +1766,12 @@ class _VideoFallback extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
-            '새 탭으로 열면 원본 영상 페이지에서 확인할 수 있습니다.',
-            style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+          Text(
+            videoStatus == 'temporary_expired'
+                ? '이 영상은 서버 임시 저장소에 연결되어 재배포 후 사라졌을 수 있습니다. 같은 강의에 영상을 다시 업로드해주세요.'
+                : '새 탭으로 열면 원본 영상 페이지에서 확인할 수 있습니다.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
           ),
           const SizedBox(height: 16),
           OutlinedButton.icon(
