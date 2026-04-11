@@ -1,5 +1,8 @@
 import 'package:go_router/go_router.dart';
 import '../../features/auth/view/welcome_page.dart';
+import '../../features/auth/presentation/pages/auth_page.dart';
+import '../../features/landing/presentation/pages/landing_page.dart';
+import '../../features/landing/presentation/pages/course_detail_page.dart';
 import '../../features/student/diagnosis/view/diagnosis_page.dart';
 import '../../features/student/diagnosis/view/diagnosis_result_page.dart';
 import '../../features/student/diagnosis/provider/diagnosis_provider.dart';
@@ -16,9 +19,22 @@ import '../../features/lecture/presentation/pages/lecture_page.dart';
 final appRouter = GoRouter(
   initialLocation: '/',
   routes: [
-    // ── Auth ──────────────────────────────────────────────────────
+    // ── Landing / Auth ────────────────────────────────────────────
     GoRoute(
       path: '/',
+      builder: (_, __) => const LandingPage(),
+    ),
+    GoRoute(
+      path: '/auth',
+      builder: (_, __) => const AuthPage(),
+    ),
+    GoRoute(
+      path: '/course/:courseId',
+      builder: (_, state) =>
+          CourseDetailPage(courseId: state.pathParameters['courseId']!),
+    ),
+    GoRoute(
+      path: '/welcome',
       builder: (_, __) => const WelcomePage(),
     ),
 

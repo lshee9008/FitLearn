@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -618,6 +619,15 @@ class _DiagnosisPageState extends ConsumerState<DiagnosisPage>
               'success_reason': _s15Ctrl.text.trim(),
             },
           );
+      // Firestore diagnosis 플래그 업데이트
+      try {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.userId)
+            .update({'diagnosis': true});
+        await ref.read(authNotifierProvider.notifier).updateDiagnosis();
+      } catch (_) {}
+
       if (mounted) {
         context.push('/student/diagnosis/result', extra: result);
       }

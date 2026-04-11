@@ -13,12 +13,14 @@ class UserProfile {
   final String name;
   final String email;
   final UserRole role;
+  final bool diagnosis;
 
   const UserProfile({
     required this.userId,
     required this.name,
     required this.email,
     required this.role,
+    this.diagnosis = false,
   });
 
   String get roleLabel => role == UserRole.student ? '학생' : '교수';
@@ -30,6 +32,7 @@ class UserProfile {
       name: data['name'] as String? ?? '',
       email: data['email'] as String? ?? '',
       role: data['role'] == 'professor' ? UserRole.professor : UserRole.student,
+      diagnosis: data['diagnosis'] as bool? ?? false,
     );
   }
 }
@@ -274,6 +277,23 @@ class AuthNotifier extends _$AuthNotifier {
       await _saveToPrefs(profile);
       state = profile;
     }
+  }
+
+  // ── diagnosis 업데이트 ─────────────────────────────────────────
+  Future<void> updateDiagnosis() async {
+    if (state == null) return;
+    state = UserProfile(
+      userId: state!.userId,
+      name: state!.name,
+      email: state!.email,
+      role: state!.role,
+      diagnosis: true,
+    );
+  }
+
+  // ── 외부에서 프로필 직접 설정 (auth_page 등) ──────────────────
+  void setProfile(UserProfile profile) {
+    state = profile;
   }
 
   // ── 로그아웃 ──────────────────────────────────────────────────
