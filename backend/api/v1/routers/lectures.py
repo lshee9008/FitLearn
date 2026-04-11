@@ -601,14 +601,19 @@ async def assist_video_segment(room_id: str, lecture_id: str, body: VideoAssistR
 - 학생 프로필에 맞춘 쉬운 설명
 - 지금 바로 확인할 질문 2개
 - 교안 근거상 주의할 점
+
+[품질 규칙]
+- 답변은 반드시 완결된 마크다운 문서로 끝내세요.
+- 마지막 문장이 잘리지 않도록 핵심만 밀도 있게 쓰고, 답변 끝에 "완료" 같은 별도 표시는 쓰지 마세요.
+- 코드/수식이 아닌 설명은 코드블록으로 감싸지 마세요.
 """
 
     try:
         answer = await generate_gemini_text(
             prompt,
             temperature=0.25,
-            max_output_tokens=900,
-            timeout=28.0,
+            max_output_tokens=1600,
+            timeout=42.0,
             feature="video_assist",
         )
     except Exception as e:
