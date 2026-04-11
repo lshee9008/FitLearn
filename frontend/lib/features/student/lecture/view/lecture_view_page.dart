@@ -925,7 +925,13 @@ class _AIQuestionTab extends StatelessWidget {
               child: Column(
                 children: [
                   if (answer == null)
-                    const _EmptyChatView()
+                    _EmptyChatView(
+                      onSelectPrompt: (value) {
+                        questionController.text = value;
+                        questionController.selection =
+                            TextSelection.collapsed(offset: value.length);
+                      },
+                    )
                   else
                     _ChatMessage(
                       isAi: true,
@@ -1143,7 +1149,9 @@ class _StuckPointCard extends StatelessWidget {
 }
 
 class _EmptyChatView extends StatelessWidget {
-  const _EmptyChatView();
+  final ValueChanged<String> onSelectPrompt;
+
+  const _EmptyChatView({required this.onSelectPrompt});
 
   @override
   Widget build(BuildContext context) {
@@ -1168,9 +1176,18 @@ class _EmptyChatView extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          const _PromptHint(text: "0~5분 구간에서 GAN의 생성자와 판별자 관계를 쉽게 설명해줘"),
-          const _PromptHint(text: "이 구간에서 시험에 나올 만한 핵심 개념을 3개만 뽑아줘"),
-          const _PromptHint(text: "실습이나 수식이 있으면 따라 할 순서대로 정리해줘"),
+          _PromptHint(
+            text: "0~5분 구간에서 GAN의 생성자와 판별자 관계를 쉽게 설명해줘",
+            onTap: onSelectPrompt,
+          ),
+          _PromptHint(
+            text: "이 구간에서 시험에 나올 만한 핵심 개념을 3개만 뽑아줘",
+            onTap: onSelectPrompt,
+          ),
+          _PromptHint(
+            text: "실습이나 수식이 있으면 따라 할 순서대로 정리해줘",
+            onTap: onSelectPrompt,
+          ),
           const SizedBox(height: 12),
           Text(
             "대답이 길어도 구간, 대본, 교안 근거를 기준으로 완결된 형태로 보여줍니다.",
@@ -1188,25 +1205,43 @@ class _EmptyChatView extends StatelessWidget {
 
 class _PromptHint extends StatelessWidget {
   final String text;
-  const _PromptHint({required this.text});
+  final ValueChanged<String> onTap;
+
+  const _PromptHint({required this.text, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
-      decoration: BoxDecoration(
-        color: const Color(0xFF05070C),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.primaryLight.withValues(alpha: 0.12)),
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(
-          color: AppColors.textSecondary,
-          fontSize: 13,
-          height: 1.35,
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: () => onTap(text),
+        child: Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+          decoration: BoxDecoration(
+            color: const Color(0xFF05070C),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+                color: AppColors.primaryLight.withValues(alpha: 0.12)),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  text,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Icon(Icons.north_west_rounded,
+                  color: AppColors.primaryLight, size: 15),
+            ],
+          ),
         ),
       ),
     );
