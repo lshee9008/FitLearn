@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../features/auth/provider/auth_provider.dart';
 import '../../../../shared/services/api_service.dart';
+import '../../../../shared/widgets/fitlearn_logo.dart';
 
 // ── 컬러 ─────────────────────────────────────────────────────────
 class _C {
@@ -200,21 +201,9 @@ class _AuthPageState extends ConsumerState<AuthPage>
                   child: Column(children: [
                     // 로고
                     Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      Container(
-                        width: 36, height: 36,
-                        decoration: BoxDecoration(
-                          color: _C.lime,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(Icons.auto_awesome_mosaic_rounded,
-                            color: _C.limeDark, size: 20),
-                      ),
+                      const FitLearnLogo(iconOnly: true, height: 40),
                       const SizedBox(width: 10),
-                      const Text('FitLearn',
-                          style: TextStyle(
-                              color: _C.textPri,
-                              fontSize: 22,
-                              fontWeight: FontWeight.w900)),
+                      const FitLearnLogo(height: 34),
                     ]),
                     const SizedBox(height: 8),
                     const Text('AI 맞춤 학습 플랫폼',

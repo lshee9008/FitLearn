@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../features/auth/provider/auth_provider.dart';
 import '../../../../shared/providers/room_data_providers.dart';
 import '../../../../shared/services/api_service.dart';
+import '../../../../shared/widgets/fitlearn_logo.dart';
 import 'subject_quiz_page.dart';
 
 class _C {
@@ -579,25 +580,16 @@ class _SidebarState extends State<_Sidebar> {
                 Container(
                   width: 36,
                   height: 36,
-                  decoration: BoxDecoration(
-                    color: _C.lime,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(Icons.auto_awesome_mosaic_rounded, color: _C.bg),
+                  alignment: Alignment.center,
+                  child: const FitLearnLogo(iconOnly: true, height: 36),
                 ),
                 const SizedBox(width: 10),
-                const Column(
+                Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'FitLearn',
-                      style: TextStyle(
-                        color: _C.textPri,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    Text(
+                    const FitLearnLogo(height: 21),
+                    const SizedBox(height: 3),
+                    const Text(
                       '학생 학습 포털',
                       style: TextStyle(color: _C.textMute, fontSize: 11),
                     ),

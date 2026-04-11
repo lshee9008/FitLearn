@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../shared/providers/room_data_providers.dart';
 import '../../../../shared/services/api_service.dart';
+import '../../lecture/view/core_point_review_page.dart';
 
 // ── 지원 확장자 ────────────────────────────────────────────────────
 const _allowedExtensions = [
@@ -323,9 +324,10 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
         if (lectureId.isNotEmpty) {
           if (!mounted) return;
           setState(() => _creatingRoom = false);
-          final confirmed = await context.push<bool>(
-            '/professor/lecture/$roomId/$lectureId/review',
-            extra: uploadData,
+          final confirmed = await _openCorePointReviewDialog(
+            roomId: roomId,
+            lectureId: lectureId,
+            uploadData: uploadData,
           );
           if (!mounted) return;
           if (confirmed != true) {
@@ -387,6 +389,36 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
         });
       }
     }
+  }
+
+  Future<bool?> _openCorePointReviewDialog({
+    required String roomId,
+    required String lectureId,
+    required Map<String, dynamic> uploadData,
+  }) {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(20),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 980,
+              maxHeight: MediaQuery.of(dialogContext).size.height * 0.92,
+            ),
+            child: CorePointReviewPage(
+              roomId: roomId,
+              lectureId: lectureId,
+              uploadData: uploadData,
+              embedded: true,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   // ── 업로드 / 저장 ─────────────────────────────────────────────

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../auth/provider/auth_provider.dart';
 import '../../../../shared/services/api_service.dart';
+import '../../../../shared/widgets/fitlearn_logo.dart';
 
 // ── 컬러 ─────────────────────────────────────────────────────────
 class _C {
@@ -216,25 +217,7 @@ class _Header extends StatelessWidget {
       child: Row(
         children: [
           // 로고
-          RichText(
-            text: const TextSpan(
-              style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -0.5),
-              children: [
-                TextSpan(
-                    text: 'Fit',
-                    style: TextStyle(color: _C.textPri)),
-                TextSpan(
-                    text: 'Learn',
-                    style: TextStyle(color: _C.lime)),
-                TextSpan(
-                    text: '.',
-                    style: TextStyle(color: _C.lime)),
-              ],
-            ),
-          ),
+          const FitLearnLogo(height: 28),
           const SizedBox(width: 32),
           // 검색바
           Expanded(
