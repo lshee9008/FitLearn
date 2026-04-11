@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import '../../../../features/auth/provider/auth_provider.dart';
 import '../../../../shared/services/api_service.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -10,12 +9,14 @@ class CorePointReviewPage extends ConsumerStatefulWidget {
   final String roomId;
   final String lectureId;
   final Map<String, dynamic> uploadData;
+  final bool embedded;
 
   const CorePointReviewPage({
     super.key,
     required this.roomId,
     required this.lectureId,
     required this.uploadData,
+    this.embedded = false,
   });
 
   @override
@@ -103,7 +104,7 @@ class _CorePointReviewPageState extends ConsumerState<CorePointReviewPage> {
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ));
-        context.pop(true);
+        Navigator.of(context).pop(true);
       }
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('오류: $e')));
@@ -116,10 +117,8 @@ class _CorePointReviewPageState extends ConsumerState<CorePointReviewPage> {
     final title = widget.uploadData['title'] as String? ?? '교안';
     final activeCount = _points.where((p) => p['confirmed'] as bool).length;
 
-    return Scaffold(
-      backgroundColor: AppColors.bg,
-      body: SafeArea(
-        child: Column(children: [
+    final content = SafeArea(
+      child: Column(children: [
           // ── 헤더 ─────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
@@ -236,8 +235,19 @@ class _CorePointReviewPageState extends ConsumerState<CorePointReviewPage> {
               color: AppColors.accent,
             ),
           ),
-        ]),
-      ),
+      ]),
+    );
+
+    if (widget.embedded) {
+      return Material(
+        color: AppColors.bg,
+        child: content,
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: AppColors.bg,
+      body: content,
     );
   }
 }

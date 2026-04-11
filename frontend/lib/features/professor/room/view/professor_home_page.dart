@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../features/auth/provider/auth_provider.dart';
 import '../../../../shared/providers/room_data_providers.dart';
 import '../../../../shared/services/api_service.dart';
+import '../../../../shared/widgets/fitlearn_logo.dart';
 
 // ─── 컬러 ────────────────────────────────────────────────────
 class _C {
@@ -291,25 +292,14 @@ class _Sidebar extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
           child: Row(children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: _C.lime,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.grid_view, color: _C.bg, size: 18),
-            ),
+            const FitLearnLogo(iconOnly: true, height: 34),
             const SizedBox(width: 10),
-            const Column(
+            Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('FitLearn',
-                    style: TextStyle(
-                        color: _C.textPri,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700)),
-                Text('강사 포털',
+                const FitLearnLogo(height: 20),
+                const SizedBox(height: 3),
+                const Text('강사 포털',
                     style: TextStyle(color: _C.textMute, fontSize: 10)),
               ],
             ),

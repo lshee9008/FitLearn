@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/widgets/fitlearn_logo.dart';
 import '../provider/auth_provider.dart';
 
 // ── 데모 모드 우회 화면 ───────────────────────────────────────────────────────
@@ -236,31 +237,25 @@ class _WelcomePageState extends ConsumerState<WelcomePage> {
   Widget _buildLogo() {
     return Column(children: [
       Container(
-        width: 72,
-        height: 72,
+        width: 78,
+        height: 78,
+        padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: AppColors.primary,
-          borderRadius: BorderRadius.circular(20),
+          color: Colors.black,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.35)),
           boxShadow: [
             BoxShadow(
-              color: AppColors.primary.withValues(alpha: 0.45),
+              color: AppColors.primary.withValues(alpha: 0.3),
               blurRadius: 36,
               offset: const Offset(0, 14),
             ),
           ],
         ),
-        child: const Center(
-          child: Text('FL', style: TextStyle(
-            color: Colors.white, fontSize: 26, fontWeight: FontWeight.w900,
-            letterSpacing: -1,
-          )),
-        ),
+        child: const FitLearnLogo(iconOnly: true, height: 58),
       ),
       const SizedBox(height: 18),
-      const Text('FitLearn', style: TextStyle(
-        color: AppColors.textPrimary, fontSize: 32, fontWeight: FontWeight.w900,
-        letterSpacing: -1.2,
-      )),
+      const FitLearnLogo(height: 40),
       const SizedBox(height: 6),
       const Text('나의 학습 성향에 맞춘 AI 교안 학습', style: TextStyle(
         color: AppColors.textMuted, fontSize: 14,
