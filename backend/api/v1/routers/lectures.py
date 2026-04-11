@@ -96,6 +96,58 @@ def _video_summary_fallback(title: str, original_text: str, core_points: list[di
     )
 
 
+def _local_video_assist_answer(
+    *,
+    segment_label: str,
+    question: str,
+    core_text: str,
+    segment_context: str,
+    transcript_text: str,
+    original_text: str,
+) -> str:
+    query_tokens = [
+        token.lower()
+        for token in re.findall(r"[A-Za-z가-힣0-9_]{2,}", question or "")
+        if token.strip()
+    ]
+    source_lines = [
+        line.strip()
+        for source in (segment_context, transcript_text, core_text, original_text)
+        for line in source.splitlines()
+        if len(line.strip()) >= 6
+    ]
+    matched = []
+    for line in source_lines:
+        lower = line.lower()
+        if query_tokens and not any(token in lower for token in query_tokens):
+            continue
+        if line not in matched:
+            matched.append(line[:260])
+        if len(matched) >= 5:
+            break
+    if not matched:
+        for line in source_lines:
+            if line not in matched:
+                matched.append(line[:260])
+            if len(matched) >= 5:
+                break
+
+    evidence = "\n".join(f"- {line}" for line in matched) or "- 현재 교안에서 직접 매칭되는 문장을 찾지 못했습니다."
+    return f"""## {segment_label} 이해 가이드
+
+- 질문: {question or "이 구간의 핵심을 다시 설명해주세요."}
+- 현재 AI 응답이 지연되어, 확보된 영상 대본·교안·교수 핵심 포인트를 기준으로 먼저 답변합니다.
+
+### 확인된 근거
+{evidence}
+
+### 바로 이해하기
+- 위 근거에서 반복되는 용어와 교수 핵심 포인트를 먼저 연결해보세요.
+- 영상 대본이 비어 있으면 화면·음성 내용을 단정하지 않고 교안 기준으로만 설명합니다.
+- 더 정확한 답을 원하면 대본에 해당 구간 발화를 붙여넣고 다시 질문해주세요.
+"""
+
+
 def _public_backend_url() -> str:
     return (
         os.getenv("PUBLIC_BACKEND_URL")
@@ -517,9 +569,9 @@ async def assist_video_segment(room_id: str, lecture_id: str, body: VideoAssistR
 
     prompt = f"""당신은 온라인 강의 학습 도우미입니다.
 학생이 영상의 특정 구간을 보다가 궁금한 점을 물었습니다.
-반드시 아래 영상 전사, 원본 교안, 교수 핵심 포인트만 근거로 답하세요.
-영상 전사가 비어 있으면 영상 화면·음성 내용을 본 것처럼 말하지 마세요.
-질문이 제공된 근거와 직접 연결되지 않으면 "현재 자료만으로는 확인 어렵습니다"라고 먼저 밝히세요.
+반드시 아래 영상 대본, 원본 교안, 교수 핵심 포인트만 근거로 답하세요.
+영상 대본이 비어 있으면 영상 화면·음성 내용을 본 것처럼 말하지 말고 교안 근거로 답하세요.
+질문이 영상 대본과 직접 연결되지 않아도 원본 교안이나 교수 핵심 포인트에 근거가 있으면 답하세요.
 원본에 없는 사실을 꾸며내지 말고, 불확실하면 "교안 근거상 확인 가능한 범위"라고 표시하세요.
 
 [학생 프로필]
@@ -534,11 +586,11 @@ async def assist_video_segment(room_id: str, lecture_id: str, body: VideoAssistR
 [교수 핵심 포인트]
 {core_text}
 
-[영상 전사]
-{transcript_text or "영상 전사가 아직 없습니다. 교안과 교수 핵심 포인트만 근거로 답해야 합니다."}
+[영상 대본]
+{transcript_text or "영상 대본이 아직 없습니다. 교안과 교수 핵심 포인트만 근거로 답해야 합니다."}
 
-[요청 구간과 겹치는 전사 세그먼트]
-{segment_context or "요청 구간과 직접 매칭되는 전사 세그먼트가 없습니다."}
+[요청 구간과 겹치는 대본 세그먼트]
+{segment_context or "요청 구간과 직접 매칭되는 대본 세그먼트가 없습니다."}
 
 [원본 교안]
 {original_text}
@@ -561,16 +613,14 @@ async def assist_video_segment(room_id: str, lecture_id: str, body: VideoAssistR
         )
     except Exception as e:
         logger.warning(f"[video_assist] AI 생성 실패 fallback: {e}")
-        answer = f"""## {segment_label} 이해 가이드
-
-- 현재 영상 전사가 없어 영상 화면·음성 내용을 직접 확인한 답변은 제공할 수 없습니다.
-- 아래 내용은 교수 핵심 포인트와 원본 교안 기준의 기본 안내입니다.
-- 질문: {question or "핵심 내용이 이해되지 않습니다."}
-- 핵심 포인트:
-{core_text or "- 교수 핵심 포인트가 아직 비어 있습니다."}
-
-> 영상 구간별 정확한 답변을 위해서는 업로드 영상 전사 또는 자막 추출 파이프라인이 필요합니다.
-"""
+        answer = _local_video_assist_answer(
+            segment_label=segment_label,
+            question=question,
+            core_text=core_text,
+            segment_context=segment_context,
+            transcript_text=transcript_text,
+            original_text=original_text,
+        )
 
     return {
         "segment": {"start_minute": start, "end_minute": end},

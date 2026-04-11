@@ -364,7 +364,8 @@ class _LearningExperienceShell extends StatelessWidget {
             _VideoStage(
                 videoUrl: videoUrl,
                 videoType: videoType,
-                videoStatus: videoStatus),
+                videoStatus: videoStatus,
+                title: title),
             const SizedBox(height: 16),
           ] else ...[
             _NotionDocument(style: activeStyle, title: title, content: content),
@@ -415,6 +416,7 @@ class _LearningExperienceShell extends StatelessWidget {
                       videoUrl: videoUrl,
                       videoType: videoType,
                       videoStatus: videoStatus,
+                      title: title,
                     )
                   else
                     _NotionDocument(
@@ -1600,6 +1602,7 @@ class _VideoStage extends StatelessWidget {
   final String videoUrl;
   final String videoType;
   final String videoStatus;
+  final String title;
 
   static final Set<String> _registeredViewTypes = {};
 
@@ -1607,6 +1610,7 @@ class _VideoStage extends StatelessWidget {
     required this.videoUrl,
     required this.videoType,
     required this.videoStatus,
+    required this.title,
   });
 
   @override
@@ -1677,25 +1681,45 @@ class _VideoStage extends StatelessWidget {
               color: Color(0xFF0A0A0F),
               borderRadius: BorderRadius.vertical(bottom: Radius.circular(22)),
             ),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(Icons.emergency_recording_rounded,
-                    color: AppColors.rose, size: 16),
-                SizedBox(width: 8),
-                Text(
-                  'LIVE RECORDING',
-                  style: TextStyle(
-                    color: AppColors.rose,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.play_arrow_rounded,
+                      color: AppColors.primaryLight, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '영상 강의',
+                        style: TextStyle(
+                          color: AppColors.primaryLight,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                Spacer(),
-                Icon(Icons.closed_caption_rounded,
-                    color: AppColors.textMuted, size: 18),
-                SizedBox(width: 12),
-                Icon(Icons.settings_rounded,
-                    color: AppColors.textMuted, size: 18),
               ],
             ),
           ),
@@ -1851,13 +1875,27 @@ class _MarkdownText extends StatelessWidget {
     final codeBuffer = <String>[];
     var inCodeBlock = false;
 
-    for (final line in lines) {
+    for (var index = 0; index < lines.length; index++) {
+      final line = lines[index];
       if (line.trim().startsWith('```')) {
+        final fence = line.trim().toLowerCase();
         if (inCodeBlock) {
           widgets.add(_CodeBlock(code: codeBuffer.join('\n')));
           codeBuffer.clear();
           inCodeBlock = false;
         } else {
+          if (fence.contains('markdown') ||
+              fence == '```md' ||
+              fence == '```text' ||
+              fence == '```txt') {
+            continue;
+          }
+          final hasClosingFence = lines
+              .skip(index + 1)
+              .any((nextLine) => nextLine.trim().startsWith('```'));
+          if (!hasClosingFence) {
+            continue;
+          }
           inCodeBlock = true;
         }
         continue;
