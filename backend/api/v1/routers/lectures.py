@@ -58,6 +58,30 @@ def _as_int(value, default: int = 0) -> int:
         return default
 
 
+def _video_summary_fallback(title: str, original_text: str, core_points: list[dict], reason: str) -> str:
+    point_lines = [
+        f"- {str(point.get('content', '')).strip()}"
+        for point in core_points[:8]
+        if str(point.get("content", "")).strip()
+    ]
+    if not point_lines and original_text:
+        point_lines = [
+            f"- {line.strip()}"
+            for line in re.split(r"[\n.]", original_text[:1200])
+            if line.strip()
+        ][:8]
+    return (
+        f"## {title or '영상 강의'} 요약\n\n"
+        "> 유튜브 자막/영상 전사가 지연되어 현재는 교안과 교수 핵심 포인트 기준으로 먼저 제공합니다.\n\n"
+        "### 핵심 포인트\n"
+        f"{chr(10).join(point_lines) if point_lines else '- 아직 요약 가능한 텍스트 근거가 충분하지 않습니다.'}\n\n"
+        "### 다음 확인\n"
+        "- 영상 자막이 있는 링크라면 잠시 후 다시 전사 확인을 눌러주세요.\n"
+        "- 실습/코드 장면은 영상 화면을 기준으로 그대로 따라 하며 교안의 핵심 포인트와 대조하세요.\n\n"
+        f"> 처리 메모: {reason}"
+    )
+
+
 def _public_backend_url() -> str:
     return (
         os.getenv("PUBLIC_BACKEND_URL")
@@ -164,10 +188,22 @@ async def _process_youtube_transcript(
         logger.info(f"[youtube_transcript] 완료 room={room_id} lecture={lecture_id}")
     except Exception as e:
         logger.warning(f"[youtube_transcript] 실패 room={room_id} lecture={lecture_id}: {e}")
+        fallback_summary = _video_summary_fallback(title, original_text, core_points, str(e)[:240])
         await firebase.update_lecture_meta(room_id, lecture_id, {
-            "transcription_status": "failed",
+            "video_transcript": "",
+            "video_segments": [],
+            "chapters": [],
+            "video_summary": fallback_summary,
+            "video_key_moments": [],
+            "video_study_tips": [
+                "유튜브 자막이 열리면 전사 기반 요약으로 다시 갱신됩니다.",
+                "현재는 교안과 교수 핵심 포인트를 기준으로 학습하세요.",
+            ],
+            "video_stuck_points": [],
+            "summary_cache": {"default": fallback_summary},
+            "transcription_status": "partial",
             "transcription_error": str(e)[:500],
-            "summary_status": "failed",
+            "summary_status": "ready",
         })
 
 _DEMO_LECTURE = """

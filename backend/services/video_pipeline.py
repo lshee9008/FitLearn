@@ -67,6 +67,91 @@ def _fallback_video_analysis(original_text: str, core_points: list[dict]) -> dic
     }
 
 
+def _row_value(row: Any, key: str, default: Any = None) -> Any:
+    if isinstance(row, dict):
+        return row.get(key, default)
+    return getattr(row, key, default)
+
+
+def _fallback_youtube_analysis(
+    *,
+    title: str,
+    transcript_text: str,
+    segments: list[dict[str, Any]],
+    original_text: str,
+    core_points: list[dict],
+    reason: str = "",
+) -> dict[str, Any]:
+    points = [
+        str(point.get("content", "")).strip()
+        for point in core_points
+        if str(point.get("content", "")).strip()
+    ]
+    transcript_lines = [
+        segment.get("text", "").strip()
+        for segment in segments
+        if isinstance(segment, dict) and segment.get("text")
+    ]
+    basis = transcript_lines[:8] or points[:8]
+    bullets = "\n".join(f"- {line}" for line in basis if line)
+    if not bullets and original_text:
+        bullets = "\n".join(
+            f"- {line.strip()}"
+            for line in re.split(r"[\n.]", original_text[:1200])
+            if line.strip()
+        )[:1400]
+
+    return {
+        "transcript": transcript_text,
+        "segments": segments[:180],
+        "chapters": _segments_to_chapters(segments),
+        "summary_markdown": (
+            f"## {title or '영상 강의'} 요약\n\n"
+            "> AI 정밀 요약이 지연되어, 현재 확보된 유튜브 자막과 교수 핵심 포인트를 기준으로 먼저 제공합니다.\n\n"
+            "### 핵심 흐름\n"
+            f"{bullets or '- 영상 자막이 없어 교안 핵심 포인트 기준으로만 확인할 수 있습니다.'}\n\n"
+            "### 학습 팁\n"
+            "- 영상에서 사용한 용어를 교안의 핵심 포인트와 나란히 확인하세요.\n"
+            "- 코드나 실습 장면은 영상 화면을 멈춘 뒤 그대로 따라 입력하고 결과를 비교하세요."
+            + (f"\n\n> 처리 메모: {reason}" if reason else "")
+        ),
+        "key_moments": [
+            {
+                "minute": item.get("start_minute", 0),
+                "label": "다시 볼 구간",
+                "reason": item.get("text", "")[:120],
+            }
+            for item in segments[:5]
+        ],
+        "study_tips": [
+            "자막 기반 요약이므로 영상 화면의 그림과 함께 확인하세요.",
+            "실습/코드 장면은 그대로 따라하며 결과를 비교하세요.",
+        ],
+        "stuck_points": [],
+    }
+
+
+def _segments_to_chapters(segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if not segments:
+        return []
+    chapters: list[dict[str, Any]] = []
+    for bucket_start in range(0, min(60, max(int(s.get("end_minute", 0) or 0) for s in segments) + 1), 5):
+        bucket = [
+            s for s in segments
+            if bucket_start <= int(s.get("start_minute", 0) or 0) < bucket_start + 5
+        ]
+        if not bucket:
+            continue
+        summary = " ".join(str(item.get("text", "")) for item in bucket[:4]).strip()
+        chapters.append({
+            "start_minute": bucket_start,
+            "end_minute": bucket_start + 5,
+            "title": f"{bucket_start}~{bucket_start + 5}분 핵심",
+            "summary": summary[:450],
+        })
+    return chapters
+
+
 class VideoPipeline:
     async def transcribe_youtube_url(
         self,
@@ -88,48 +173,92 @@ class VideoPipeline:
                 return YouTubeTranscriptApi.get_transcript(video_id, languages=["ko", "en"])
             except Exception:
                 transcripts = YouTubeTranscriptApi.list_transcripts(video_id)
-                transcript = transcripts.find_transcript(["ko", "en"])
+                transcript = None
+                for finder in ("find_transcript", "find_generated_transcript"):
+                    try:
+                        transcript = getattr(transcripts, finder)(["ko", "en"])
+                        break
+                    except Exception:
+                        continue
+                if transcript is None:
+                    for candidate in transcripts:
+                        transcript = candidate
+                        break
+                if transcript is None:
+                    raise RuntimeError("사용 가능한 YouTube 자막 트랙이 없습니다.")
+                try:
+                    if getattr(transcript, "is_translatable", False):
+                        transcript = transcript.translate("ko")
+                except Exception:
+                    pass
                 return transcript.fetch()
 
         try:
             rows = await asyncio.to_thread(_fetch)
         except Exception as e:
             logger.warning(f"[VideoPipeline] YouTube 자막 추출 실패 — 영상 다운로드 전사 폴백: {e}")
-            return await self._transcribe_youtube_by_download(
-                video_url=video_url,
-                title=title,
-                original_text=original_text,
-                core_points=core_points,
-            )
+            try:
+                return await self._transcribe_youtube_by_download(
+                    video_url=video_url,
+                    title=title,
+                    original_text=original_text,
+                    core_points=core_points,
+                )
+            except Exception as download_error:
+                logger.warning(f"[VideoPipeline] YouTube 다운로드 전사 실패 — 교안 기반 요약 폴백: {download_error}")
+                return _fallback_youtube_analysis(
+                    title=title,
+                    transcript_text="",
+                    segments=[],
+                    original_text=original_text,
+                    core_points=core_points,
+                    reason="유튜브 자막과 다운로드 전사를 모두 사용할 수 없어 교안 기준으로 제공됩니다.",
+                )
         if not rows:
-            return await self._transcribe_youtube_by_download(
-                video_url=video_url,
+            return _fallback_youtube_analysis(
                 title=title,
+                transcript_text="",
+                segments=[],
                 original_text=original_text,
                 core_points=core_points,
+                reason="유튜브 자막이 비어 있어 교안 기준으로 제공됩니다.",
             )
 
-        segments = [
-            {
-                "start_minute": max(0, int(float(row.get("start", 0)) // 60)),
-                "end_minute": max(0, int((float(row.get("start", 0)) + float(row.get("duration", 0))) // 60) + 1),
-                "text": str(row.get("text", "")).replace("\n", " ").strip(),
-            }
-            for row in rows
-            if str(row.get("text", "")).strip()
-        ]
+        segments = []
+        for row in rows:
+            text = str(_row_value(row, "text", "")).replace("\n", " ").strip()
+            if not text:
+                continue
+            start = float(_row_value(row, "start", 0) or 0)
+            duration = float(_row_value(row, "duration", 0) or 0)
+            segments.append({
+                "start_minute": max(0, int(start // 60)),
+                "end_minute": max(0, int((start + duration) // 60) + 1),
+                "text": text,
+            })
         transcript_text = "\n".join(
             f"[{item['start_minute']}~{item['end_minute']}분] {item['text']}"
             for item in segments
         )
-        return await self._summarize_transcript(
-            transcript_text=transcript_text[:14000],
-            segments=segments,
-            title=title,
-            original_text=original_text,
-            core_points=core_points,
-            source="youtube",
-        )
+        try:
+            return await self._summarize_transcript(
+                transcript_text=transcript_text[:14000],
+                segments=segments,
+                title=title,
+                original_text=original_text,
+                core_points=core_points,
+                source="youtube",
+            )
+        except Exception as e:
+            logger.warning(f"[VideoPipeline] YouTube 자막 요약 실패 — 자막 기반 로컬 요약 폴백: {e}")
+            return _fallback_youtube_analysis(
+                title=title,
+                transcript_text=transcript_text,
+                segments=segments,
+                original_text=original_text,
+                core_points=core_points,
+                reason="AI 요약 생성이 지연되어 자막 기반 요약으로 제공됩니다.",
+            )
 
     async def _transcribe_youtube_by_download(
         self,

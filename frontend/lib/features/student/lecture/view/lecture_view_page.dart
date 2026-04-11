@@ -1132,14 +1132,16 @@ class _TranscriptStatusPill extends StatelessWidget {
         : switch (status) {
             'ready' => '전사 완료',
             'processing' || 'queued' => '전사 중',
+            'partial' => '교안 기준 요약',
             'failed' => '전사 확인',
             _ => '교안 기준',
           };
-    final color = status == 'ready'
-        ? AppColors.primaryLight
-        : status == 'failed'
-            ? AppColors.accent
-            : AppColors.textMuted;
+    final color = switch (status) {
+      'ready' => AppColors.primaryLight,
+      'failed' => AppColors.accent,
+      'partial' => AppColors.primary,
+      _ => AppColors.textMuted,
+    };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
