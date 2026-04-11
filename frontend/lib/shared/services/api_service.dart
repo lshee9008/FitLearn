@@ -39,6 +39,29 @@ class ApiService {
     await _dio.post('/api/v1/auth/active/$userId');
   }
 
+  // ── Courses ────────────────────────────────────────────────────
+
+  Future<List<dynamic>> getCourses() async {
+    final res = await _dio.get('/api/v1/courses');
+    final data = res.data as Map<String, dynamic>;
+    return data['courses'] as List<dynamic>? ?? const [];
+  }
+
+  Future<Map<String, dynamic>> getCourse(String courseId) async {
+    final res = await _dio.get('/api/v1/courses/$courseId');
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> enrollCourse({
+    required String courseId,
+    required String userId,
+  }) async {
+    final res = await _dio.post('/api/v1/courses/$courseId/enroll', data: {
+      'user_id': userId,
+    });
+    return res.data as Map<String, dynamic>;
+  }
+
   // ── Rooms ─────────────────────────────────────────────────────
 
   Future<Map<String, dynamic>> createRoom({
@@ -49,6 +72,7 @@ class ApiService {
     String synopsis = '',
     List<String> coreConcepts = const [],
     String youtubeUrl = '',
+    int price = 0,
   }) async {
     final res = await _dio.post(ApiConstants.createRoom, data: {
       'professor_uid': professorUid,
@@ -58,6 +82,7 @@ class ApiService {
       'synopsis': synopsis,
       'core_concepts': coreConcepts,
       'youtube_url': youtubeUrl,
+      'price': price,
     });
     return res.data as Map<String, dynamic>;
   }
@@ -103,6 +128,15 @@ class ApiService {
       'note': note,
     });
     return res.data as Map<String, dynamic>;
+  }
+
+  Future<void> enrollRoom({
+    required String roomId,
+    required String userId,
+  }) async {
+    await _dio.post('/api/v1/rooms/$roomId/enroll', data: {
+      'user_id': userId,
+    });
   }
 
   Future<List<dynamic>> getStudentApplications(String userId) async {
@@ -164,6 +198,17 @@ class ApiService {
   Future<List<dynamic>> getRoomLectures(String roomId) async {
     final res = await _dio.get(ApiConstants.roomLectures(roomId));
     return res.data as List<dynamic>;
+  }
+
+  Future<void> markLectureProgress({
+    required String roomId,
+    required String lectureId,
+    required String userId,
+  }) async {
+    await _dio.post(
+      '/api/v1/rooms/$roomId/lectures/$lectureId/progress',
+      data: {'user_id': userId},
+    );
   }
 
   // ── Diagnosis ─────────────────────────────────────────────────
@@ -316,8 +361,9 @@ class ApiService {
       return res.data as Map<String, dynamic>;
     }
     final params = <String, String>{'user_id': userId};
-    if (testStyle != null && testStyle.isNotEmpty)
+    if (testStyle != null && testStyle.isNotEmpty) {
       params['test_style'] = testStyle;
+    }
     final res = await _dio.get(
       ApiConstants.reforgedLecture(roomId, lectureId),
       queryParameters: params,

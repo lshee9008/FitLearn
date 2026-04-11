@@ -91,6 +91,7 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
   final _roomNameCtrl = TextEditingController();
   final _roomDescCtrl = TextEditingController();
   final _roomCurriculumCtrl = TextEditingController();
+  final _roomPriceCtrl = TextEditingController();
   PlatformFile? _curriculumFile;
   final List<_LectureDraft> _lectureDrafts = [_LectureDraft()];
   bool _creatingRoom = false;
@@ -104,6 +105,7 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
       _roomNameCtrl,
       _roomDescCtrl,
       _roomCurriculumCtrl,
+      _roomPriceCtrl,
     ]) {
       ctrl.addListener(_refreshFormState);
     }
@@ -117,6 +119,7 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
     _roomNameCtrl.dispose();
     _roomDescCtrl.dispose();
     _roomCurriculumCtrl.dispose();
+    _roomPriceCtrl.dispose();
     for (final draft in _lectureDrafts) {
       draft.dispose();
     }
@@ -277,6 +280,10 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
           .map((value) => value.trim())
           .where((value) => value.isNotEmpty)
           .toList();
+      final price = int.tryParse(
+            _roomPriceCtrl.text.replaceAll(RegExp(r'[^0-9]'), ''),
+          ) ??
+          0;
       final roomData = await ApiService().createRoom(
         professorUid: user.userId,
         subject: _roomNameCtrl.text.trim(),
@@ -284,6 +291,7 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
         roomType: 'online',
         synopsis: _roomDescCtrl.text.trim(),
         coreConcepts: concepts,
+        price: price,
       );
       final roomId = roomData['room_id'] as String? ?? '';
       if (roomId.isEmpty) throw Exception('생성된 강의실 ID가 없습니다.');
@@ -665,6 +673,10 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
             const _FieldLabel('한 줄 소개'),
             const SizedBox(height: 8),
             _FormField(ctrl: _roomDescCtrl, hint: '학생에게 보일 강의 소개를 입력하세요'),
+            const SizedBox(height: 18),
+            const _FieldLabel('강의 결제 비용'),
+            const SizedBox(height: 8),
+            _FormField(ctrl: _roomPriceCtrl, hint: '예: 99000'),
             const SizedBox(height: 18),
             const _FieldLabel('커리큘럼'),
             const SizedBox(height: 8),

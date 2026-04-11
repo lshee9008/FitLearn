@@ -1,8 +1,9 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../features/auth/provider/auth_provider.dart';
+import '../../../../shared/services/api_service.dart';
 
 // ── 컬러 ─────────────────────────────────────────────────────────
 class _C {
@@ -48,21 +49,11 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
 
   Future<void> _loadCourse() async {
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('courses')
-          .doc(widget.courseId)
-          .get();
-      if (doc.exists) {
-        setState(() {
-          _course = {'id': doc.id, ...doc.data()!};
-        });
-      } else {
-        // 더미 데이터 폴백
-        setState(() {
-          _course = _dummyCourses[widget.courseId] ?? _dummyCourses.values.first;
-        });
-      }
+      final course = await ApiService().getCourse(widget.courseId);
+      if (!mounted) return;
+      setState(() => _course = course);
     } catch (_) {
+      if (!mounted) return;
       setState(() {
         _course = _dummyCourses[widget.courseId] ?? _dummyCourses.values.first;
       });
@@ -72,16 +63,17 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
     final profile = ref.read(authNotifierProvider);
     if (profile != null) {
       try {
-        final snap = await FirebaseFirestore.instance
-            .collection('enrollments')
-            .where('userId', isEqualTo: profile.userId)
-            .where('courseId', isEqualTo: widget.courseId)
-            .limit(1)
-            .get();
-        if (snap.docs.isNotEmpty) {
+        final hub = await ApiService().getStudentServiceHub(profile.userId);
+        final enrolled = hub['enrolled_rooms'] as List<dynamic>? ?? const [];
+        final match = enrolled.cast<Map<String, dynamic>>().where((room) {
+          return room['room_id'] == widget.courseId ||
+              room['room_id'] == _course?['roomId'];
+        }).toList();
+        if (match.isNotEmpty) {
+          if (!mounted) return;
           setState(() {
             _enrolled = true;
-            _enrolledRoomId = snap.docs.first.data()['roomId'] as String?;
+            _enrolledRoomId = match.first['room_id'] as String?;
           });
         }
       } catch (_) {}
@@ -93,37 +85,26 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
   Future<void> _pay() async {
     final profile = ref.read(authNotifierProvider);
     if (profile == null) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('pendingCourseId', widget.courseId);
+      if (!mounted) return;
       context.push('/auth');
       return;
     }
     setState(() => _paying = true);
     try {
-      final roomId = _course?['roomId'] as String? ?? widget.courseId;
-      await FirebaseFirestore.instance
-          .collection('enrollments')
-          .doc('${profile.userId}_$roomId')
-          .set({
-        'userId': profile.userId,
-        'studentName': profile.name,
-        'courseId': widget.courseId,
-        'courseTitle': _course?['title'] as String? ?? '강의',
-        'roomId': roomId,
-        'professorUid': _course?['professor_uid'] as String? ?? '',
-        'professorName': (_course?['professor_name'] as String?) ??
-            (_course?['instructor'] as String?) ??
-            '',
-        'paidAt': FieldValue.serverTimestamp(),
-        'fitlearnActivated': true,
-        'status': 'paid',
-      }, SetOptions(merge: true));
-      await FirebaseFirestore.instance.collection('rooms').doc(roomId).set({
-        'students': FieldValue.arrayUnion([profile.userId]),
-        'updated_at': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      final result = await ApiService().enrollCourse(
+        courseId: widget.courseId,
+        userId: profile.userId,
+      );
+      final roomId = result['room_id'] as String? ??
+          _course?['roomId'] as String? ??
+          widget.courseId;
       setState(() {
         _enrolled = true;
         _enrolledRoomId = roomId;
       });
+      if (mounted) context.go('/student/home');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
