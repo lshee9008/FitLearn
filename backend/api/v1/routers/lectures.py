@@ -710,14 +710,16 @@ async def get_reforged(
     if not lecture.get("confirmed"):
         raise HTTPException(status_code=400, detail="교수가 아직 핵심 포인트를 확정하지 않았습니다.")
 
-    logger.info(f"[reforged] 6스타일 병렬 생성 시작 user={user_id} style={profile.get('learning_style')}")
+    primary_style = profile.get("learning_style", "읽기형")
+    logger.info(f"[reforged] 주 스타일 우선 생성 시작 user={user_id} style={primary_style}")
 
     try:
-        styles = await reforge_svc.reforge_with_rag(
+        primary_content = await reforge_svc.reforge_for_student(
             original_content=lecture.get("original_text", ""),
             core_points=lecture.get("core_points", []),
             profile=profile,
         )
+        styles = {primary_style: primary_content}
     except Exception as e:
         logger.error(f"[reforged] 재가공 실패: {e}", exc_info=True)
         raise HTTPException(status_code=502, detail=f"교안 재가공 실패: {e}")
@@ -727,7 +729,7 @@ async def get_reforged(
     else:
         await firebase.save_reforged_all(
             room_id, lecture_id, user_id, styles,
-            profile.get("learning_style", "읽기형"),
+            primary_style,
             profile.get("subject_level", ""),
             cache_version=REFORGED_CACHE_VERSION,
         )
@@ -735,7 +737,7 @@ async def get_reforged(
 
     return {
         "lecture_id": lecture_id,
-        "primary_style": profile.get("learning_style", "읽기형"),
+        "primary_style": primary_style,
         "subject_level": profile.get("subject_level", ""),
         "cache_version": REFORGED_CACHE_VERSION,
         "profile": _public_profile_summary(profile),

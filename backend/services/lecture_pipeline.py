@@ -135,8 +135,9 @@ class LecturePipeline:
 - estimated_difficulty: 전체 난이도 상|중|하
 - JSON만 출력하세요"""
 
-        response = await asyncio.to_thread(
-            self._model(temp=0.2).generate_content, prompt
+        response = await asyncio.wait_for(
+            asyncio.to_thread(self._model(temp=0.2).generate_content, prompt),
+            timeout=55.0,
         )
         return _extract_json(response.text)
 
@@ -176,8 +177,9 @@ class LecturePipeline:
 3. JSON 형식 외 어떠한 텍스트도 출력하지 마세요."""
 
         try:
-            response = await asyncio.to_thread(
-                self._model(temp=0.4).generate_content, prompt
+            response = await asyncio.wait_for(
+                asyncio.to_thread(self._model(temp=0.4).generate_content, prompt),
+                timeout=25.0,
             )
             data = _extract_json(response.text)
             return data.get("questions", [])

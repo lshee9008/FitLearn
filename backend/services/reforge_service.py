@@ -35,7 +35,12 @@ async def generate_gemini_text(
     timeout: float = 35.0,
     feature: str = "gemini",
 ) -> str:
-    """Generate text with model fallback so removed Gemini model IDs do not break UX."""
+    """Generate text with model fallback within one hard deadline.
+
+    The previous behavior applied ``timeout`` to every fallback model candidate.
+    On Render this could keep a single HTTP request open for several minutes,
+    so the caller now gets one total budget regardless of model fallback count.
+    """
     global _working_model
 
     api_key = os.getenv("GEMINI_API_KEY")
@@ -48,8 +53,13 @@ async def generate_gemini_text(
         if model_name and model_name not in candidates:
             candidates.append(model_name)
 
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
     last_error: Exception | None = None
     for model_name in candidates:
+        remaining = deadline - loop.time()
+        if remaining <= 0:
+            raise asyncio.TimeoutError(f"{feature} 전체 생성 시간 초과 ({timeout}s)")
         try:
             model = genai.GenerativeModel(
                 model_name=model_name,
@@ -60,13 +70,16 @@ async def generate_gemini_text(
             )
             response = await asyncio.wait_for(
                 asyncio.to_thread(model.generate_content, contents),
-                timeout=timeout,
+                timeout=remaining,
             )
             text = (response.text or "").strip()
             if not text:
                 raise RuntimeError("Gemini 응답이 비어 있습니다.")
             _working_model = model_name
             return text
+        except asyncio.TimeoutError:
+            logger.warning(f"[{feature}] model={model_name} 전체 생성 시간 초과 ({timeout}s)")
+            raise
         except Exception as e:
             last_error = e
             logger.warning(f"[{feature}] model={model_name} 생성 실패 — fallback 후보 시도: {e}")
