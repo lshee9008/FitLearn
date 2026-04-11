@@ -70,6 +70,8 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
       _loading = true;
       _error = null;
     });
+    debugPrint('[API] lecture URL: /api/v1/lectures/${widget.roomId}/${widget.lectureId}');
+    debugPrint('[API] reforged URL: /api/v1/lectures/${widget.roomId}/${widget.lectureId}/reforged?user_id=${widget.userId}');
     try {
       final results = await Future.wait([
         ApiService().getLecture(widget.roomId, widget.lectureId),
