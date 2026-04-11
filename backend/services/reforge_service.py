@@ -15,13 +15,13 @@ from .rag_pipeline.knowledge_base import PAPER_CHUNKS
 from .gemini_service import STYLE_GUIDES
 
 logger = logging.getLogger(__name__)
-DEFAULT_MODEL = "gemini-2.0-flash"
+DEFAULT_MODEL = "gemini-2.5-flash"
 MODEL = os.getenv("GEMINI_MODEL", DEFAULT_MODEL)
 MODEL_FALLBACKS = [
     model.strip()
     for model in os.getenv(
         "GEMINI_MODEL_FALLBACKS",
-        "gemini-2.0-flash,gemini-2.0-flash-lite,gemini-1.5-flash",
+        "gemini-2.5-flash,gemini-2.5-flash-lite",
     ).split(",")
     if model.strip()
 ]

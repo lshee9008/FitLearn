@@ -2,18 +2,16 @@
 RAG 기반 Gemini 분석 — 논문 근거 + 25문항 + 글쓰기 + 응답시간 + 학습이력 → 8차원 학습 프로파일
 temperature=0.1 (최대 정확도)
 """
-import asyncio
 import json
 import logging
 import os
 import re
 import statistics
 
-from google import genai
-from google.genai import types
+import httpx
 
 logger = logging.getLogger(__name__)
-MODEL = "gemma-4-31b-it"
+MODEL = "gemini-2.5-flash"
 
 
 def _extract_json(text: str) -> dict:
@@ -94,21 +92,6 @@ def _analyze_response_times(response_times: list[int]) -> dict:
 
 
 class RAGAnalyzer:
-    def __init__(self):
-        api_key = os.getenv("GEMINI_API_KEY")
-        if api_key:
-            self._client = genai.Client(api_key=api_key)
-        else:
-            logger.warning("[RAGAnalyzer] GEMINI_API_KEY 미설정 — 분석 기능 사용 불가")
-            self._client = None
-
-    def _config(self) -> types.GenerateContentConfig:
-        return types.GenerateContentConfig(
-            temperature=0.1,
-            max_output_tokens=3000,
-            thinking_config={"thinking_budget": 0},
-        )
-
     def _build_context(self, retrieved: list[dict]) -> str:
         if not retrieved:
             return "논문 컨텍스트 없음"
@@ -259,14 +242,32 @@ class RAGAnalyzer:
 - felder 값: -100~100 (양수=sensing/sequential/active)
 - confidence_score: 0-100"""
 
-        response = await asyncio.to_thread(
-            self._client.models.generate_content,
-            model=MODEL,
-            contents=prompt,
-            config=self._config(),
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            raise RuntimeError("GEMINI_API_KEY가 설정되지 않았습니다.")
+
+        url = (
+            f"https://generativelanguage.googleapis.com/v1beta/models/"
+            f"{MODEL}:generateContent?key={api_key}"
         )
+        body = {
+            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": 0.1,
+                "maxOutputTokens": 3000,
+                "thinkingConfig": {"thinkingBudget": 0},
+            },
+        }
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.post(url, json=body)
+            resp.raise_for_status()
+
+        data = resp.json()
+        raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
+
         try:
-            result = _extract_json(response.text)
+            result = _extract_json(raw_text)
             # 신뢰도는 Python 계산값으로 덮어씀 (LLM 오류 방지)
             result["reliability"] = reliability
             result.setdefault("consistency", reliability_pct)
@@ -274,5 +275,5 @@ class RAGAnalyzer:
                 result["scores"]["consistency"] = reliability_pct
             return result
         except Exception as e:
-            logger.error(f"[RAGAnalyzer] JSON 파싱 실패: {e}\n응답: {response.text[:500]}")
+            logger.error(f"[RAGAnalyzer] JSON 파싱 실패: {e}\n응답: {raw_text[:500]}")
             raise
