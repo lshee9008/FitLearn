@@ -1,3 +1,4 @@
+import 'dart:convert';
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
 // ignore: undefined_prefixed_name
@@ -240,7 +241,7 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
         question: _segmentQuestionCtrl.text.trim(),
       );
       setState(() {
-        _segmentAnswer = data['answer'] as String? ?? '';
+        _segmentAnswer = _normalizeVideoSummary(data['answer'] as String? ?? '');
         _segmentLoading = false;
       });
     } on DioException catch (e) {
@@ -424,12 +425,14 @@ class _LearningExperienceShell extends StatelessWidget {
                       title: title,
                       content: content,
                     ),
-                  const SizedBox(height: 24),
-                  _EpisodeInfo(
-                    title: title,
-                    episode: "AI 맞춤 코스",
-                    category: "학습 진행",
-                  ),
+                  if (!hasVideoStage) ...[
+                    const SizedBox(height: 24),
+                    _EpisodeInfo(
+                      title: title,
+                      episode: "AI 맞춤 코스",
+                      category: "학습 진행",
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -637,7 +640,8 @@ class _VideoAnalysisTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final videoSummary = lecture?['video_summary'] as String? ?? '';
+    final rawVideoSummary = lecture?['video_summary'] as String? ?? '';
+    final videoSummary = _normalizeVideoSummary(rawVideoSummary);
     final studyTips = lecture?['video_study_tips'] as List<dynamic>? ?? [];
     final stuckPoints = lecture?['video_stuck_points'] as List<dynamic>? ?? [];
 
@@ -767,6 +771,78 @@ class _VideoSummaryCard extends StatelessWidget {
       child: _MarkdownText(summary),
     );
   }
+}
+
+String _normalizeVideoSummary(String raw) {
+  var text = raw.trim();
+  if (text.isEmpty) return '';
+
+  if (text.startsWith('```')) {
+    text = text
+        .replaceFirst(RegExp(r'^```(?:json|markdown|md|text)?\s*'), '')
+        .replaceFirst(RegExp(r'\s*```$'), '')
+        .trim();
+  }
+
+  if (!text.startsWith('{') && !text.startsWith('[')) {
+    return raw.trim();
+  }
+
+  try {
+    final decoded = jsonDecode(text);
+    if (decoded is Map<String, dynamic>) {
+      final explicit = decoded['summary_markdown'] ??
+          decoded['summary'] ??
+          decoded['markdown'] ??
+          decoded['answer'];
+      if (explicit is String && explicit.trim().isNotEmpty) {
+        final explicitText = explicit.trim();
+        if (!explicitText.startsWith('{') && !explicitText.startsWith('[')) {
+          return explicitText;
+        }
+      }
+
+      final buffer = StringBuffer('## 영상 요약\n');
+      final transcript = decoded['transcript'];
+      if (transcript is String && transcript.trim().isNotEmpty) {
+        buffer.writeln('\n${transcript.trim()}');
+      }
+
+      final segments = decoded['segments'];
+      if (segments is List && segments.isNotEmpty) {
+        buffer.writeln('\n### 구간별 흐름');
+        for (final item in segments.take(8)) {
+          if (item is Map) {
+            final start = item['start_minute'] ?? item['start'] ?? 0;
+            final end = item['end_minute'] ?? item['end'] ?? '';
+            final body = item['text'] ?? item['summary'] ?? item['topic'] ?? '';
+            if (body.toString().trim().isNotEmpty) {
+              buffer.writeln('- $start~$end분: ${body.toString().trim()}');
+            }
+          } else if (item.toString().trim().isNotEmpty) {
+            buffer.writeln('- ${item.toString().trim()}');
+          }
+        }
+      }
+
+      final tips = decoded['study_tips'];
+      if (tips is List && tips.isNotEmpty) {
+        buffer.writeln('\n### 학습 팁');
+        for (final tip in tips.take(5)) {
+          if (tip.toString().trim().isNotEmpty) {
+            buffer.writeln('- ${tip.toString().trim()}');
+          }
+        }
+      }
+
+      final result = buffer.toString().trim();
+      return result == '## 영상 요약' ? raw.trim() : result;
+    }
+  } catch (_) {
+    return raw.trim();
+  }
+
+  return raw.trim();
 }
 
 class _AIQuestionTab extends StatelessWidget {
@@ -1681,46 +1757,15 @@ class _VideoStage extends StatelessWidget {
               color: Color(0xFF0A0A0F),
               borderRadius: BorderRadius.vertical(bottom: Radius.circular(22)),
             ),
-            child: Row(
-              children: [
-                Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(Icons.play_arrow_rounded,
-                      color: AppColors.primaryLight, size: 20),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        '영상 강의',
-                        style: TextStyle(
-                          color: AppColors.primaryLight,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+            child: Text(
+              '영상 강의 · $title',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ),
         ],
@@ -1875,19 +1920,32 @@ class _MarkdownText extends StatelessWidget {
     final codeBuffer = <String>[];
     var inCodeBlock = false;
 
+    void flushCodeBlock() {
+      final code = codeBuffer.join('\n').trimRight();
+      codeBuffer.clear();
+      if (code.trim().isEmpty) return;
+      if (_shouldRenderAsMarkdown(code)) {
+        for (final markdownLine in code.split('\n')) {
+          widgets.add(_renderLine(markdownLine));
+        }
+      } else {
+        widgets.add(_CodeBlock(code: code));
+      }
+    }
+
     for (var index = 0; index < lines.length; index++) {
       final line = lines[index];
       if (line.trim().startsWith('```')) {
         final fence = line.trim().toLowerCase();
         if (inCodeBlock) {
-          widgets.add(_CodeBlock(code: codeBuffer.join('\n')));
-          codeBuffer.clear();
+          flushCodeBlock();
           inCodeBlock = false;
         } else {
           if (fence.contains('markdown') ||
               fence == '```md' ||
               fence == '```text' ||
-              fence == '```txt') {
+              fence == '```txt' ||
+              fence == '```json') {
             continue;
           }
           final hasClosingFence = lines
@@ -1909,13 +1967,32 @@ class _MarkdownText extends StatelessWidget {
     }
 
     if (codeBuffer.isNotEmpty) {
-      widgets.add(_CodeBlock(code: codeBuffer.join('\n')));
+      flushCodeBlock();
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: widgets,
     );
+  }
+
+  bool _shouldRenderAsMarkdown(String code) {
+    final trimmed = code.trimLeft();
+    if (trimmed.startsWith('# ') ||
+        trimmed.startsWith('## ') ||
+        trimmed.startsWith('### ') ||
+        code.contains('\n## ') ||
+        code.contains('\n### ') ||
+        code.contains('> 학습 프로파일')) {
+      return true;
+    }
+
+    final codeSignals = RegExp(
+      r'(</|=>|def |class |import |from |const |final |var |function |for \(|while \(|print\(|torch\.|tensorflow|npm |pip |python |public |private |void |return |console\.|SELECT |CREATE TABLE|INSERT INTO)',
+      caseSensitive: false,
+    );
+    final hasKorean = RegExp(r'[가-힣]').hasMatch(code);
+    return hasKorean && !codeSignals.hasMatch(code) && code.length > 120;
   }
 
   Widget _renderLine(String line) {
