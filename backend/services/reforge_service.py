@@ -152,38 +152,82 @@ def _clean_markdown(text: str) -> str:
     return text.strip()
 
 
-def _fallback_content(style: str, core_text: str) -> str:
-    """AI 호출 실패 시 템플릿 기반 폴백 콘텐츠"""
-    hints = {
-        "시각형": "표와 흐름도로 개념 관계를 시각화하며 학습하세요.\n\n```\n핵심개념 A → 핵심개념 B → 결론\n```",
-        "청각형": "내용을 소리 내어 읽거나, 스터디 그룹에서 토론하며 습득하세요.\n\n> 자, 이렇게 생각해보세요. 이 개념은 우리 일상에서 이렇게 나타납니다...",
-        "읽기형": "체계적으로 노트를 정리하고 핵심 개념을 목록화하여 학습하세요.\n\n**용어 정의** → **원리 이해** → **적용 사례** 순서로 정리하세요.",
-        "실습형": "직접 예제를 따라 해보며 단계별로 적용해보세요.\n\n**직접 해보기:** 아래 단계를 순서대로 실습하세요.",
-        "요약형": "핵심 키워드 3가지로 압축하세요. 불필요한 세부사항은 제거합니다.",
-        "상세형": "각 개념의 배경·원리·예외까지 빠짐없이 이해한 후 넘어가세요.",
+def _fallback_content(
+    style: str,
+    core_text: str,
+    original_content: str = "",
+    profile_summary: str = "",
+) -> str:
+    """AI 호출 실패 시에도 원본 근거를 살린 노션형 재해석 콘텐츠."""
+    style_hints = {
+        "시각형": "개념 관계를 먼저 보고, 아래 핵심 흐름을 그림처럼 연결해 읽으세요.",
+        "청각형": "각 문장을 소리 내어 설명하듯 읽고, 핵심 용어를 자기 말로 다시 말해보세요.",
+        "읽기형": "정의 → 원리 → 예시 순서로 읽고, 굵게 표시된 키워드를 노트에 옮기세요.",
+        "실습형": "실습/코드 블록을 먼저 따라 한 뒤, 바로 위아래 설명으로 의미를 확인하세요.",
+        "요약형": "먼저 핵심 포인트만 훑고, 막히는 항목만 원본 근거에서 확장하세요.",
+        "상세형": "각 핵심 포인트 아래의 원본 근거를 함께 읽으며 개념 간 연결을 확인하세요.",
     }
-    hint = hints.get(style, "핵심 내용을 반복 학습하세요.")
-    points = "\n".join(
-        f"- {line.split('|')[-1].strip()}"
+    points = [
+        line.split("]", 1)[-1].strip()
         for line in core_text.split("\n")
         if line.strip()
-    )
+    ]
+
+    lines = [
+        re.sub(r"\s+", " ", line.strip(" -•\t"))
+        for line in original_content.splitlines()
+        if len(line.strip()) >= 8
+    ]
+    evidence: list[str] = []
+    code_or_visual: list[str] = []
+    for line in lines:
+        target = code_or_visual if re.search(
+            r"(\[.*(시각자료|코드 캡처|슬라이드|페이지).*\]|```|import |def |class |for |while |npm |pip |python |loss|optimizer|Generator|Discriminator)",
+            line,
+            re.IGNORECASE,
+        ) else evidence
+        if line not in target:
+            target.append(line[:220])
+        if len(evidence) >= 10 and len(code_or_visual) >= 6:
+            break
+
+    if not points:
+        points = evidence[:5] or ["원본 교안의 핵심 개념을 교수 검토 기준으로 확인해야 합니다."]
+
+    point_md = "\n".join(f"- **{point}**" for point in points[:7])
+    evidence_md = "\n".join(f"- {line}" for line in evidence[:10])
+    visual_md = "\n".join(f"- {line}" for line in code_or_visual[:8])
+
     return f"""# {style} 맞춤 교안
 
-> 현재는 교수 핵심 포인트와 원본 교안을 기준으로 구성한 기본 재해석 문서입니다.
+> 학습 프로파일: {profile_summary or style}
+> AI 응답 제한으로 원본 교안과 교수 핵심 포인트를 기반으로 즉시 구성한 근거형 재해석입니다.
+
+---
 
 ## 핵심 포인트
 
-{points}
+{point_md}
+
+---
+
+## 원본 근거로 다시 이해하기
+
+{evidence_md or "- 원본에서 추출된 텍스트가 부족합니다. 원본 파일을 함께 열어 교수 핵심 포인트를 기준으로 보완하세요."}
+
+---
+
+## 실습/코드 따라하기
+
+{visual_md or "- 원본에서 명확한 코드·실습 블록을 찾지 못했습니다. 강의 중 교수님이 실행하는 코드가 있으면 이 섹션에 맞춰 추가 확인하세요."}
+
+---
 
 ## {style} 학습 전략
 
-{hint}
-
-## 확인할 점
-
-- 수업 중 따라 해야 하는 예제와 실습 단계는 원본 자료를 함께 확인하세요.
-- 교수 핵심 포인트를 우선순위로 두고, 부족한 부분은 강의 자료의 해당 구간과 비교해 보세요.
+- {style_hints.get(style, "핵심 개념을 원본 근거와 함께 반복 확인하세요.")}
+- 수업 중 따라 해야 하는 코드, 명령어, 화면 캡처는 요약하지 말고 원본 자료와 나란히 확인하세요.
+- 이해가 안 되는 구간은 오른쪽 AI 질문에서 분 단위로 질문하면 교안 근거 기준으로 다시 설명합니다.
 """
 
 
@@ -592,11 +636,11 @@ Step 4. 코드·실습·시각자료를 보존한 채 위 계획대로 완성된
             return _clean_markdown(raw)
         except asyncio.TimeoutError:
             logger.error(f"[reforge] {style} 타임아웃 (35s 초과)")
-            return _fallback_content(style, core_text)
+            return _fallback_content(style, core_text, original_content, profile_summary)
         except Exception as e:
             err = str(e)
             if "429" in err or "quota" in err.lower():
                 logger.warning(f"[reforge] {style} 429 할당량 초과 — fallback 사용")
             else:
                 logger.error(f"[reforge] {style} 모델 호출 실패: {err}")
-            return _fallback_content(style, core_text)
+            return _fallback_content(style, core_text, original_content, profile_summary)

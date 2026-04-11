@@ -263,7 +263,7 @@ class FirebaseService:
                 except Exception as e:
                     if "requires an index" not in str(e).lower():
                         raise
-                    logger.warning("[Firebase] professor rooms 인덱스 없음 — 메모리 정렬로 폴백")
+                    logger.info("[Firebase] professor rooms 인덱스 없음 — 메모리 정렬로 폴백")
                     docs = list((
                         db.collection("rooms")
                         .where("professor_uid", "==", professor_uid)

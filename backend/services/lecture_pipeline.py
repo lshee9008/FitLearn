@@ -274,6 +274,8 @@ class LecturePipeline:
             if _is_quota_error(e) or "quota cooldown" in str(e).lower():
                 _activate_quota_cooldown()
                 logger.warning(f"[Pipeline] Gemini quota/cooldown — 로컬 분석 fallback 사용: {e}")
+            elif isinstance(e, json.JSONDecodeError):
+                logger.warning("[Pipeline] Gemini JSON 파싱 실패 — 로컬 분석 fallback 사용")
             else:
                 logger.error(f"[Pipeline] 핵심 추출 실패 — 로컬 분석 fallback 사용: {e}", exc_info=True)
             extract_result = _fallback_extract_from_text(text)
