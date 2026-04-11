@@ -55,10 +55,25 @@ class _StyleUtil {
 // ══════════════════════════════════════════════════════════════════
 class RoomDetailPage extends ConsumerStatefulWidget {
   final String roomId;
-  const RoomDetailPage({super.key, required this.roomId});
+  final bool createMode;
+  const RoomDetailPage({
+    super.key,
+    required this.roomId,
+    this.createMode = false,
+  });
 
   @override
   ConsumerState<RoomDetailPage> createState() => _RoomDetailPageState();
+}
+
+class _LectureDraft {
+  final TextEditingController titleCtrl = TextEditingController();
+  PlatformFile? materialFile;
+  PlatformFile? videoFile;
+
+  void dispose() {
+    titleCtrl.dispose();
+  }
 }
 
 class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
@@ -74,12 +89,43 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
   String? _uploadError;
   final _lectureTitleCtrl = TextEditingController();
   final _videoUrlCtrl     = TextEditingController();
+  final _roomNameCtrl = TextEditingController();
+  final _roomDescCtrl = TextEditingController();
+  final _roomCurriculumCtrl = TextEditingController();
+  PlatformFile? _curriculumFile;
+  final List<_LectureDraft> _lectureDrafts = [_LectureDraft()];
+  bool _creatingRoom = false;
+
+  @override
+  void initState() {
+    super.initState();
+    for (final ctrl in [
+      _lectureTitleCtrl,
+      _videoUrlCtrl,
+      _roomNameCtrl,
+      _roomDescCtrl,
+      _roomCurriculumCtrl,
+    ]) {
+      ctrl.addListener(_refreshFormState);
+    }
+    _lectureDrafts.first.titleCtrl.addListener(_refreshFormState);
+  }
 
   @override
   void dispose() {
     _lectureTitleCtrl.dispose();
     _videoUrlCtrl.dispose();
+    _roomNameCtrl.dispose();
+    _roomDescCtrl.dispose();
+    _roomCurriculumCtrl.dispose();
+    for (final draft in _lectureDrafts) {
+      draft.dispose();
+    }
     super.dispose();
+  }
+
+  void _refreshFormState() {
+    if (mounted) setState(() {});
   }
 
   // ── 폼 열기: 신규 ─────────────────────────────────────────────
@@ -136,6 +182,158 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
     }
   }
 
+  Future<void> _pickCurriculumFile() async {
+    final r = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: _allowedExtensions,
+      withData: true,
+    );
+    if (r != null && r.files.isNotEmpty) {
+      setState(() => _curriculumFile = r.files.first);
+    }
+  }
+
+  Future<void> _pickDraftMaterial(_LectureDraft draft) async {
+    final r = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: _allowedExtensions,
+      withData: true,
+    );
+    if (r != null && r.files.isNotEmpty) {
+      final file = r.files.first;
+      setState(() {
+        draft.materialFile = file;
+        if (draft.titleCtrl.text.trim().isEmpty) {
+          draft.titleCtrl.text = file.name.contains('.')
+              ? file.name.substring(0, file.name.lastIndexOf('.'))
+              : file.name;
+        }
+      });
+    }
+  }
+
+  Future<void> _pickDraftVideo(_LectureDraft draft) async {
+    final r = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: _videoExtensions,
+      withData: true,
+    );
+    if (r != null && r.files.isNotEmpty) {
+      setState(() => draft.videoFile = r.files.first);
+    }
+  }
+
+  void _addLectureDraft() {
+    final draft = _LectureDraft();
+    draft.titleCtrl.addListener(_refreshFormState);
+    setState(() => _lectureDrafts.add(draft));
+  }
+
+  void _removeLectureDraft(int index) {
+    if (_lectureDrafts.length == 1) return;
+    final draft = _lectureDrafts.removeAt(index);
+    draft.dispose();
+    setState(() {});
+  }
+
+  bool get _canCreateRoomWithLectures {
+    if (_creatingRoom) return false;
+    if (_roomNameCtrl.text.trim().isEmpty) return false;
+    if (_roomCurriculumCtrl.text.trim().isEmpty && _curriculumFile == null) {
+      return false;
+    }
+    return _lectureDrafts.any((draft) =>
+        draft.titleCtrl.text.trim().isNotEmpty ||
+        draft.materialFile != null ||
+        draft.videoFile != null);
+  }
+
+  Future<void> _submitRoomWithLectures() async {
+    if (!_canCreateRoomWithLectures) return;
+    final user = ref.read(authNotifierProvider);
+    if (user == null) return;
+
+    for (var i = 0; i < _lectureDrafts.length; i++) {
+      final draft = _lectureDrafts[i];
+      final hasAny = draft.titleCtrl.text.trim().isNotEmpty ||
+          draft.materialFile != null ||
+          draft.videoFile != null;
+      if (!hasAny) continue;
+      if (draft.videoFile != null && draft.materialFile == null) {
+        setState(() {
+          _uploadError = '${i + 1}강은 영상 파일과 함께 교안 파일도 선택해야 분석할 수 있습니다.';
+        });
+        return;
+      }
+    }
+
+    setState(() {
+      _creatingRoom = true;
+      _uploadError = null;
+    });
+
+    try {
+      final concepts = _roomCurriculumCtrl.text
+          .split('\n')
+          .map((value) => value.trim())
+          .where((value) => value.isNotEmpty)
+          .toList();
+      final roomData = await ApiService().createRoom(
+        professorUid: user.userId,
+        subject: _roomNameCtrl.text.trim(),
+        description: _roomDescCtrl.text.trim(),
+        roomType: 'online',
+        synopsis: _roomDescCtrl.text.trim(),
+        coreConcepts: concepts,
+      );
+      final roomId = roomData['room_id'] as String? ?? '';
+      if (roomId.isEmpty) throw Exception('생성된 강의실 ID가 없습니다.');
+
+      final shellLectures = <Map<String, dynamic>>[];
+      for (var i = 0; i < _lectureDrafts.length; i++) {
+        final draft = _lectureDrafts[i];
+        final title = draft.titleCtrl.text.trim();
+        if (title.isEmpty && draft.materialFile == null) continue;
+        if (draft.materialFile == null) {
+          shellLectures.add({
+            'title': title.isEmpty ? '${i + 1}강' : title,
+            'order': i + 1,
+            'video_url': '',
+            'material_url': '',
+          });
+          continue;
+        }
+
+        await ApiService().uploadLecture(
+          roomId: roomId,
+          professorUid: user.userId,
+          fileBytes: draft.materialFile!.bytes!,
+          fileName: draft.materialFile!.name,
+          weekNumber: 0,
+          lectureTitle: title.isEmpty ? '${i + 1}강' : title,
+          orderIndex: i + 1,
+          videoFileBytes: draft.videoFile?.bytes,
+          videoFileName: draft.videoFile?.name,
+        );
+      }
+      if (shellLectures.isNotEmpty) {
+        await ApiService().createLectureShells(roomId, shellLectures);
+      }
+
+      ref.invalidate(currentProfessorRoomsProvider);
+      ref.invalidate(professorRoomDetailProvider(roomId));
+      if (!mounted) return;
+      context.go('/professor/room/$roomId');
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _uploadError = '강의 생성 오류: $e';
+          _creatingRoom = false;
+        });
+      }
+    }
+  }
+
   // ── 업로드 / 저장 ─────────────────────────────────────────────
   bool get _canSubmit {
     if (_uploadingLecture) return false;
@@ -164,7 +362,7 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
           lectureTitle:   _lectureTitleCtrl.text.trim(),
           lectureId:      isEditing ? (_editingLecture!['lecture_id'] as String? ?? '') : '',
           orderIndex:     isEditing ? (_editingLecture!['order_index'] as int? ?? 0) : 0,
-          videoUrl:       _videoUrlCtrl.text.trim(),
+          videoUrl:       '',
           materialUrl:    '',
           videoFileBytes: _videoFile?.bytes,
           videoFileName:  _videoFile?.name,
@@ -185,7 +383,6 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
           _editingLecture!['lecture_id'] as String,
           {
             'title':     _lectureTitleCtrl.text.trim(),
-            'video_url': _videoUrlCtrl.text.trim(),
           },
         );
         ref.invalidate(professorRoomDetailProvider(widget.roomId));
@@ -292,6 +489,16 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
   // ══════════════════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
+    if (widget.createMode) {
+      return Scaffold(
+        backgroundColor: _C.bg,
+        body: Column(children: [
+          _buildTopBar('강의 생성', ''),
+          Expanded(child: _buildRoomCreateLectures()),
+        ]),
+      );
+    }
+
     final summaryAsync = ref.watch(professorRoomDetailProvider(widget.roomId));
     final summary      = summaryAsync.valueOrNull;
     final room         = summary?.room;
@@ -393,13 +600,15 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
               ]),
             ),
           ),
-        const SizedBox(width: 12),
-        IconButton(
-          icon: const Icon(Icons.dashboard_rounded, color: _C.textSec, size: 20),
-          onPressed: () => context.push('/professor/dashboard/${widget.roomId}'),
-          splashRadius: 18,
-          tooltip: '대시보드',
-        ),
+        if (!widget.createMode) ...[
+          const SizedBox(width: 12),
+          IconButton(
+            icon: const Icon(Icons.dashboard_rounded, color: _C.textSec, size: 20),
+            onPressed: () => context.push('/professor/dashboard/${widget.roomId}'),
+            splashRadius: 18,
+            tooltip: '대시보드',
+          ),
+        ],
       ]),
     );
   }
@@ -467,6 +676,85 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
     ]);
   }
 
+  Widget _buildRoomCreateLectures() {
+    return Column(children: [
+      _TabHeader(
+        title: '교안 관리',
+        sub: '새 강의실 생성과 강의 자료 등록을 한 번에 진행합니다',
+      ),
+      Expanded(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(28, 24, 28, 40),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const _SectionHeader(index: '01', title: '강의 정보'),
+            const SizedBox(height: 20),
+            const _FieldLabel('강의명'),
+            const SizedBox(height: 8),
+            _FormField(ctrl: _roomNameCtrl, hint: '예: 딥러닝 프레임워크'),
+            const SizedBox(height: 18),
+            const _FieldLabel('한 줄 소개'),
+            const SizedBox(height: 8),
+            _FormField(ctrl: _roomDescCtrl, hint: '학생에게 보일 강의 소개를 입력하세요'),
+            const SizedBox(height: 18),
+            const _FieldLabel('커리큘럼'),
+            const SizedBox(height: 8),
+            _SettingsField(ctrl: _roomCurriculumCtrl, maxLines: 4),
+            const SizedBox(height: 10),
+            _InlineFileButton(
+              label: _curriculumFile == null
+                  ? '커리큘럼 파일 넣기'
+                  : _curriculumFile!.name,
+              icon: Icons.description_rounded,
+              color: _C.lime,
+              onTap: _pickCurriculumFile,
+              onRemove: _curriculumFile == null
+                  ? null
+                  : () => setState(() => _curriculumFile = null),
+            ),
+            const SizedBox(height: 32),
+            _SectionHeader(
+              index: '02',
+              title: '강의 자료',
+              trailing: _ActionBtn(
+                label: '강의 추가',
+                icon: Icons.add_rounded,
+                color: _C.lime,
+                onTap: _addLectureDraft,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ...List.generate(_lectureDrafts.length, (index) {
+              final draft = _lectureDrafts[index];
+              return _LectureDraftCard(
+                index: index,
+                draft: draft,
+                onPickVideo: () => _pickDraftVideo(draft),
+                onPickMaterial: () => _pickDraftMaterial(draft),
+                onRemoveVideo: () => setState(() => draft.videoFile = null),
+                onRemoveMaterial: () => setState(() => draft.materialFile = null),
+                onRemoveLecture: _lectureDrafts.length == 1
+                    ? null
+                    : () => _removeLectureDraft(index),
+              );
+            }),
+            if (_uploadError != null) ...[
+              const SizedBox(height: 10),
+              _InlineError(message: _uploadError!),
+            ],
+            const SizedBox(height: 28),
+            _PrimarySubmitButton(
+              enabled: _canCreateRoomWithLectures,
+              loading: _creatingRoom,
+              label: '분석 시작 — 강의실 생성 및 자료 저장',
+              loadingLabel: '강의실 생성 및 AI 분석 중...',
+              onTap: _submitRoomWithLectures,
+            ),
+          ]),
+        ),
+      ),
+    ]);
+  }
+
   // ── 강의 인라인 폼 ────────────────────────────────────────────
   // 수정 모드 전용 인라인 폼
   Widget _buildLectureForm() {
@@ -505,59 +793,28 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
             _FormField(ctrl: _lectureTitleCtrl, hint: '강의 제목을 입력하세요'),
             const SizedBox(height: 20),
 
-            // 영상 연결 — 파일 업로드만 (YouTube 링크 제거)
+            // 영상 파일
             const _FieldLabel('영상 파일'),
             const SizedBox(height: 8),
-            GestureDetector(
+            _InlineFileButton(
+              label: _videoFile == null ? '영상 파일 넣기' : _videoFile!.name,
+              icon: Icons.video_file_rounded,
+              color: _C.lavender,
               onTap: _uploadingLecture ? null : _pickVideoFile,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                width: double.infinity,
-                height: 48,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  color: _videoFile != null ? _C.lavMid : _C.surface2,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: _videoFile != null
-                        ? _C.lavender.withValues(alpha: 0.5)
-                        : _C.border,
-                  ),
-                ),
-                child: Row(children: [
-                  Icon(
-                    _videoFile != null
-                        ? Icons.video_file_rounded
-                        : Icons.video_file_outlined,
-                    color: _videoFile != null ? _C.lavender : _C.textMute,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      _videoFile != null
-                          ? _videoFile!.name
-                          : '영상 파일 선택 (mp4, mov, webm)',
-                      style: TextStyle(
-                        color: _videoFile != null ? _C.lavender : _C.textMute,
-                        fontSize: 13,
-                        fontWeight: _videoFile != null
-                            ? FontWeight.w600
-                            : FontWeight.w400,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  if (_videoFile != null)
-                    GestureDetector(
-                      onTap: () => setState(() => _videoFile = null),
-                      child: const Icon(Icons.close_rounded,
-                          color: _C.lavender, size: 16),
-                    ),
-                ]),
-              ),
+              onRemove: _videoFile == null
+                  ? null
+                  : () => setState(() => _videoFile = null),
             ),
+
+            // 선택된 영상 파일 미리보기
+            if (isEditing &&
+                _videoFile == null &&
+                ((_editingLecture?['video_url'] as String?) ?? '').trim().isNotEmpty)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text('기존 영상이 연결되어 있습니다. 새 파일을 선택하면 교체됩니다.',
+                    style: TextStyle(color: _C.textMute, fontSize: 11)),
+              ),
 
             const SizedBox(height: 32),
 
@@ -1684,7 +1941,8 @@ class _NoticeCard extends StatelessWidget {
 class _SectionHeader extends StatelessWidget {
   final String index;
   final String title;
-  const _SectionHeader({required this.index, required this.title});
+  final Widget? trailing;
+  const _SectionHeader({required this.index, required this.title, this.trailing});
 
   @override
   Widget build(BuildContext context) {
@@ -1703,6 +1961,10 @@ class _SectionHeader extends StatelessWidget {
               fontWeight: FontWeight.w800)),
       const SizedBox(width: 12),
       Expanded(child: Container(height: 1, color: _C.border)),
+      if (trailing != null) ...[
+        const SizedBox(width: 12),
+        trailing!,
+      ],
     ]);
   }
 }
@@ -1759,6 +2021,250 @@ class _FileRowContent extends StatelessWidget {
 }
 
 
+
+class _InlineFileButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback? onTap;
+  final VoidCallback? onRemove;
+
+  const _InlineFileButton({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+    this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = onRemove != null;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        decoration: BoxDecoration(
+          color: selected ? color.withValues(alpha: 0.1) : _C.surface2,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? color.withValues(alpha: 0.38) : _C.border,
+          ),
+        ),
+        child: Row(children: [
+          Icon(icon, color: selected ? color : _C.textMute, size: 17),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: selected ? color : _C.textSec,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          if (onRemove != null)
+            GestureDetector(
+              onTap: onRemove,
+              child: Icon(Icons.close_rounded, color: color, size: 16),
+            )
+          else
+            Icon(Icons.upload_rounded, color: color, size: 16),
+        ]),
+      ),
+    );
+  }
+}
+
+class _LectureDraftCard extends StatelessWidget {
+  final int index;
+  final _LectureDraft draft;
+  final VoidCallback onPickVideo;
+  final VoidCallback onPickMaterial;
+  final VoidCallback onRemoveVideo;
+  final VoidCallback onRemoveMaterial;
+  final VoidCallback? onRemoveLecture;
+
+  const _LectureDraftCard({
+    required this.index,
+    required this.draft,
+    required this.onPickVideo,
+    required this.onPickMaterial,
+    required this.onRemoveVideo,
+    required this.onRemoveMaterial,
+    required this.onRemoveLecture,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _C.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _C.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.18),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: _C.limeDark,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: _C.lime.withValues(alpha: 0.25)),
+            ),
+            child: Text('${index + 1}강',
+                style: const TextStyle(
+                    color: _C.lime,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900)),
+          ),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text('강의 제목 · 영상 파일 · 교안 파일',
+                style: TextStyle(
+                    color: _C.textMute,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700)),
+          ),
+          if (onRemoveLecture != null)
+            GestureDetector(
+              onTap: onRemoveLecture,
+              child: const Icon(Icons.close_rounded, color: _C.textMute, size: 18),
+            ),
+        ]),
+        const SizedBox(height: 14),
+        _FormField(ctrl: draft.titleCtrl, hint: '강의 제목'),
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(
+            child: _InlineFileButton(
+              label: draft.videoFile == null ? '영상 파일 넣기' : draft.videoFile!.name,
+              icon: Icons.video_file_rounded,
+              color: _C.lavender,
+              onTap: onPickVideo,
+              onRemove: draft.videoFile == null ? null : onRemoveVideo,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _InlineFileButton(
+              label: draft.materialFile == null ? '교안 파일 넣기' : draft.materialFile!.name,
+              icon: Icons.insert_drive_file_rounded,
+              color: _C.lime,
+              onTap: onPickMaterial,
+              onRemove: draft.materialFile == null ? null : onRemoveMaterial,
+            ),
+          ),
+        ]),
+      ]),
+    );
+  }
+}
+
+class _InlineError extends StatelessWidget {
+  final String message;
+  const _InlineError({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: _C.coral.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _C.coral.withValues(alpha: 0.25)),
+      ),
+      child: Row(children: [
+        const Icon(Icons.warning_amber_rounded, color: _C.coral, size: 16),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(message,
+              style: const TextStyle(color: _C.coral, fontSize: 12, height: 1.4)),
+        ),
+      ]),
+    );
+  }
+}
+
+class _PrimarySubmitButton extends StatelessWidget {
+  final bool enabled;
+  final bool loading;
+  final String label;
+  final String loadingLabel;
+  final VoidCallback onTap;
+
+  const _PrimarySubmitButton({
+    required this.enabled,
+    required this.loading,
+    required this.label,
+    required this.loadingLabel,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        width: double.infinity,
+        height: 52,
+        decoration: BoxDecoration(
+          color: enabled ? _C.lime : _C.surface2,
+          borderRadius: BorderRadius.circular(15),
+          border: enabled ? null : Border.all(color: _C.border),
+          boxShadow: enabled
+              ? [
+                  BoxShadow(
+                    color: _C.lime.withValues(alpha: 0.16),
+                    blurRadius: 22,
+                    offset: const Offset(0, 12),
+                  ),
+                ]
+              : null,
+        ),
+        child: Center(
+          child: loading
+              ? Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: _C.limeDark,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(loadingLabel,
+                      style: const TextStyle(
+                          color: _C.limeDark,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800)),
+                ])
+              : Text(label,
+                  style: TextStyle(
+                      color: enabled ? _C.limeDark : _C.textMute,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800)),
+        ),
+      ),
+    );
+  }
+}
 
 // ── 화살표 버튼 ───────────────────────────────────────────────────
 class _ArrowBtn extends StatelessWidget {

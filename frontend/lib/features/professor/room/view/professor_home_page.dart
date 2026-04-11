@@ -63,7 +63,7 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
   }
 
   Future<void> _createRoom() async {
-    await context.push('/professor/create-room');
+    await context.push('/professor/room/new');
     // 돌아왔을 때 목록 갱신
     await _refreshRooms();
   }
