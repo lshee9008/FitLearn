@@ -1,7 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:fitlearn/features/auth/provider/auth_provider.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../shared/providers/room_data_providers.dart';
@@ -493,7 +492,7 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
       return Scaffold(
         backgroundColor: _C.bg,
         body: Column(children: [
-          _buildTopBar('강의 생성', ''),
+          _buildTopBar('강의 생성'),
           Expanded(child: _buildRoomCreateLectures()),
         ]),
       );
@@ -513,12 +512,10 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
         .toList();
 
     final roomName = room?['subject'] as String? ?? '강의 방';
-    final roomCode = room?['room_code'] as String? ?? '';
-
     return Scaffold(
       backgroundColor: _C.bg,
       body: Column(children: [
-        _buildTopBar(roomName, roomCode),
+        _buildTopBar(roomName),
         Expanded(
           child: summaryAsync.isLoading
               ? const Center(child: CircularProgressIndicator(color: _C.lime, strokeWidth: 2))
@@ -545,7 +542,6 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
                             _buildLectures(lectures),
                             _buildNotices(room, notices),
                             _buildStudents(students, pendingApplications),
-                            _buildSettings(room),
                           ],
                         ),
                       ),
@@ -556,7 +552,7 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
   }
 
   // ── 상단 헤더 ─────────────────────────────────────────────────
-  Widget _buildTopBar(String roomName, String roomCode) {
+  Widget _buildTopBar(String roomName) {
     return Container(
       height: 52,
       color: _C.surface,
@@ -574,41 +570,6 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
             style: const TextStyle(
                 color: _C.textPri, fontSize: 15, fontWeight: FontWeight.w700)),
         const Spacer(),
-        if (roomCode.isNotEmpty)
-          GestureDetector(
-            onTap: () {
-              Clipboard.setData(ClipboardData(text: roomCode));
-              ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('방 코드가 복사되었습니다')));
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-              decoration: BoxDecoration(
-                color: _C.limeDark,
-                border: Border.all(color: _C.lime.withValues(alpha: 0.2)),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.key_rounded, size: 12, color: _C.lime),
-                const SizedBox(width: 6),
-                Text(roomCode,
-                    style: const TextStyle(
-                        color: _C.lime,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 3)),
-              ]),
-            ),
-          ),
-        if (!widget.createMode) ...[
-          const SizedBox(width: 12),
-          IconButton(
-            icon: const Icon(Icons.dashboard_rounded, color: _C.textSec, size: 20),
-            onPressed: () => context.push('/professor/dashboard/${widget.roomId}'),
-            splashRadius: 18,
-            tooltip: '대시보드',
-          ),
-        ],
       ]),
     );
   }
@@ -625,7 +586,7 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
           title: '교안 관리',
           sub: '첫 번째 괕의를 등록해주세요',
           action: _ActionBtn(
-            label: '교안 업로드',
+            label: '강의 추가',
             icon: Icons.upload_file_rounded,
             color: _C.lime,
             onTap: _openCreateForm,
@@ -641,7 +602,7 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
         sub: '${lectures.length}개의 강의 항목',
         // 우측 상단 자료 업로드 버튼 제거
         action: _ActionBtn(
-          label: '교안 업로드',
+          label: '강의 추가',
           icon: Icons.upload_file_rounded,
           color: _C.lime,
           onTap: _openCreateForm,
@@ -655,7 +616,9 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
             final lec       = lectures[i] as Map<String, dynamic>;
             final confirmed = lec['confirmed'] as bool? ?? false;
             final order     = lec['order_index'] as int? ?? (i + 1);
-            final hasVideo  = (lec['video_url'] as String? ?? '').trim().isNotEmpty;
+            final hasVideo  =
+                (lec['video_url'] as String? ?? '').trim().isNotEmpty ||
+                (lec['video_asset_url'] as String? ?? '').trim().isNotEmpty;
             final hasMat    =
                 (lec['original_file_url'] as String? ?? '').trim().isNotEmpty ||
                 (lec['material_url'] as String? ?? '').trim().isNotEmpty;
@@ -665,6 +628,13 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
               confirmed: confirmed,
               hasVideo: hasVideo,
               hasMaterial: hasMat,
+              onView: () => context.push('/student/lecture', extra: {
+                'room_id': widget.roomId,
+                'lecture_id': lec['lecture_id'] as String? ?? '',
+                'user_id':
+                    ref.read(authNotifierProvider)?.userId ?? 'professor-preview',
+                'title': lec['title'] as String? ?? '강의',
+              }),
               onEdit: () => _openEditForm(lec),
               onDelete: () => _deleteLecture(lec),
               onUp: i == 0 ? null : () => _moveLecture(lectures, i, -1),
@@ -761,16 +731,29 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
     final isEditing = _editingLecture != null;
 
     final existingFileUrl =
-        ((_editingLecture?['original_file_url'] as String?) ?? '').trim();
+        ((_editingLecture?['original_file_url'] as String?) ??
+                (_editingLecture?['material_url'] as String?) ??
+                '')
+            .trim();
     final existingFileName = existingFileUrl.isNotEmpty
-        ? (_editingLecture!['title'] as String? ?? '기존 파일')
+        ? ((_editingLecture!['original_file_name'] as String?) ??
+            (_editingLecture!['material_name'] as String?) ??
+            '${_editingLecture!['title'] as String? ?? '기존'} 자료')
         : null;
+    final existingVideoUrl =
+        ((_editingLecture?['video_asset_url'] as String?) ??
+                (_editingLecture?['video_url'] as String?) ??
+                '')
+            .trim();
+    final existingVideoName =
+        (_editingLecture?['video_file_name'] as String?) ??
+            (_editingLecture?['video_title'] as String?) ??
+            '기존 영상';
 
     return Column(children: [
-      // 헤더 — 우측 상단에 교안 업로드 버튼
       _TabHeader(
-        title: isEditing ? '교안 수정' : '교안 업로드',
-        sub: isEditing ? '강의 정보를 수정합니다' : '새 강의를 등록합니다',
+        title: isEditing ? '강의 수정' : '강의 추가',
+        sub: isEditing ? '기존 강의 자료와 영상을 확인하고 수정합니다' : '새 강의를 등록합니다',
         action: _ActionBtn(
           label: '목록으로',
           icon: Icons.arrow_back_rounded,
@@ -809,11 +792,11 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
             // 선택된 영상 파일 미리보기
             if (isEditing &&
                 _videoFile == null &&
-                ((_editingLecture?['video_url'] as String?) ?? '').trim().isNotEmpty)
-              const Padding(
-                padding: EdgeInsets.only(top: 8),
-                child: Text('기존 영상이 연결되어 있습니다. 새 파일을 선택하면 교체됩니다.',
-                    style: TextStyle(color: _C.textMute, fontSize: 11)),
+                existingVideoUrl.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text('$existingVideoName · 새 파일을 선택하면 교체됩니다.',
+                    style: const TextStyle(color: _C.textMute, fontSize: 11)),
               ),
 
             const SizedBox(height: 32),
@@ -1601,7 +1584,6 @@ class _LeftPanel extends StatelessWidget {
             _NavItem(icon: Icons.menu_book_rounded,  label: '교안 관리', index: 0, accentColor: _C.lime,     selected: selectedIndex == 0, onTap: onSelect),
             _NavItem(icon: Icons.campaign_rounded,   label: '공지사항', index: 1, accentColor: _C.amber,    selected: selectedIndex == 1, onTap: onSelect),
             _NavItem(icon: Icons.people_rounded,     label: '수강생',   index: 2, accentColor: _C.lavender, selected: selectedIndex == 2, onTap: onSelect),
-            _NavItem(icon: Icons.settings_rounded,   label: '설정',     index: 3, accentColor: _C.textSec,  selected: selectedIndex == 3, onTap: onSelect),
           ]),
         ),
 
@@ -1758,6 +1740,7 @@ class _LectureCard extends StatelessWidget {
   final bool confirmed;
   final bool hasVideo;
   final bool hasMaterial;
+  final VoidCallback onView;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final VoidCallback? onUp;
@@ -1769,6 +1752,7 @@ class _LectureCard extends StatelessWidget {
     required this.confirmed,
     required this.hasVideo,
     required this.hasMaterial,
+    required this.onView,
     required this.onEdit,
     required this.onDelete,
     this.onUp,
@@ -1866,6 +1850,8 @@ class _LectureCard extends StatelessWidget {
                 color: hasMaterial ? _C.mint : _C.textMute,
               ),
               const Spacer(),
+              _ActionBtn(label: '보기', icon: Icons.visibility_rounded, color: _C.lime, onTap: onView),
+              const SizedBox(width: 6),
               _ActionBtn(label: '편집', icon: Icons.edit_rounded,          color: _C.textSec, onTap: onEdit),
               const SizedBox(width: 6),
               _ActionBtn(label: '삭제', icon: Icons.delete_outline_rounded, color: _C.coral,   onTap: onDelete),

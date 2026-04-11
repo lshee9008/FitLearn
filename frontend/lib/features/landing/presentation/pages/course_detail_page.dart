@@ -99,13 +99,27 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
     setState(() => _paying = true);
     try {
       final roomId = _course?['roomId'] as String? ?? widget.courseId;
-      await FirebaseFirestore.instance.collection('enrollments').add({
+      await FirebaseFirestore.instance
+          .collection('enrollments')
+          .doc('${profile.userId}_$roomId')
+          .set({
         'userId': profile.userId,
+        'studentName': profile.name,
         'courseId': widget.courseId,
+        'courseTitle': _course?['title'] as String? ?? '강의',
         'roomId': roomId,
+        'professorUid': _course?['professor_uid'] as String? ?? '',
+        'professorName': (_course?['professor_name'] as String?) ??
+            (_course?['instructor'] as String?) ??
+            '',
         'paidAt': FieldValue.serverTimestamp(),
         'fitlearnActivated': true,
-      });
+        'status': 'paid',
+      }, SetOptions(merge: true));
+      await FirebaseFirestore.instance.collection('rooms').doc(roomId).set({
+        'students': FieldValue.arrayUnion([profile.userId]),
+        'updated_at': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
       setState(() {
         _enrolled = true;
         _enrolledRoomId = roomId;

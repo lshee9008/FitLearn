@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../auth/provider/auth_provider.dart';
 
 // ── 컬러 ─────────────────────────────────────────────────────────
 class _C {
@@ -42,10 +44,13 @@ class CourseModel {
   factory CourseModel.fromFirestore(String id, Map<String, dynamic> data) {
     return CourseModel(
       id: id,
-      title: data['title'] as String? ?? '',
-      description: data['description'] as String? ?? '',
+      title: (data['title'] as String?) ?? (data['subject'] as String?) ?? '',
+      description:
+          (data['description'] as String?) ?? (data['synopsis'] as String?) ?? '',
       thumbnail: data['thumbnail'] as String? ?? '',
-      instructor: data['instructor'] as String? ?? '',
+      instructor: (data['instructor'] as String?) ??
+          (data['professor_name'] as String?) ??
+          '',
       price: (data['price'] as num?)?.toInt() ?? 0,
       roomId: data['roomId'] as String? ?? '',
     );
@@ -89,46 +94,20 @@ const _kCategories = ['전체', '온라인', '오프라인'];
 // ══════════════════════════════════════════════════════════════════
 // LandingPage
 // ══════════════════════════════════════════════════════════════════
-class LandingPage extends StatefulWidget {
+class LandingPage extends ConsumerStatefulWidget {
   const LandingPage({super.key});
 
   @override
-  State<LandingPage> createState() => _LandingPageState();
+  ConsumerState<LandingPage> createState() => _LandingPageState();
 }
 
-class _LandingPageState extends State<LandingPage> {
+class _LandingPageState extends ConsumerState<LandingPage> {
   String _activeCategory = '전체';
   String _searchQuery = '';
-  List<CourseModel> _firestoreCourses = [];
-  bool _firestoreLoaded = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadFirestoreCourses();
-  }
-
-  Future<void> _loadFirestoreCourses() async {
-    try {
-      final snap = await FirebaseFirestore.instance.collection('courses').get();
-      final courses = snap.docs
-          .map((d) => CourseModel.fromFirestore(d.id, d.data()))
-          .toList();
-      if (mounted) {
-        setState(() {
-          _firestoreCourses = courses;
-          _firestoreLoaded = true;
-        });
-      }
-    } catch (_) {
-      if (mounted) setState(() => _firestoreLoaded = true);
-    }
-  }
-
-  List<CourseModel> get _displayCourses {
-    final base = _firestoreCourses.isEmpty ? _kDummyCourses : _firestoreCourses;
+  List<CourseModel> _filterCourses(List<CourseModel> courses) {
     final q = _searchQuery.toLowerCase();
-    return base.where((c) {
+    return courses.where((c) {
       final matchQuery = q.isEmpty ||
           c.title.toLowerCase().contains(q) ||
           c.instructor.toLowerCase().contains(q);
@@ -138,13 +117,22 @@ class _LandingPageState extends State<LandingPage> {
 
   @override
   Widget build(BuildContext context) {
+    final user = ref.watch(authNotifierProvider);
     return Scaffold(
       backgroundColor: _C.bg,
       body: Column(
         children: [
           _Header(
+            user: user,
             onSearch: (v) => setState(() => _searchQuery = v),
-            onLogin: () => context.push('/auth'),
+            onLogin: () async {
+              if (user == null) {
+                context.push('/auth');
+                return;
+              }
+              await ref.read(authNotifierProvider.notifier).logout();
+              if (mounted) context.go('/');
+            },
           ),
           const Divider(color: _C.border, height: 1),
           _CategoryBar(
@@ -153,15 +141,30 @@ class _LandingPageState extends State<LandingPage> {
             onTap: (c) => setState(() => _activeCategory = c),
           ),
           Expanded(
-            child: _firestoreLoaded
-                ? _CourseGrid(
-                    courses: _displayCourses,
-                    onTap: (course) => context.push('/course/${course.id}', extra: course),
-                  )
-                : const Center(
+            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: FirebaseFirestore.instance
+                  .collection('courses')
+                  .orderBy('created_at', descending: true)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
                     child: CircularProgressIndicator(
                         color: _C.lime, strokeWidth: 2),
-                  ),
+                  );
+                }
+                final liveCourses = snapshot.data?.docs
+                        .map((d) => CourseModel.fromFirestore(d.id, d.data()))
+                        .toList() ??
+                    const <CourseModel>[];
+                final courses = liveCourses.isEmpty ? _kDummyCourses : liveCourses;
+                return _CourseGrid(
+                  courses: _filterCourses(courses),
+                  onTap: (course) =>
+                      context.push('/course/${course.id}', extra: course),
+                );
+              },
+            ),
           ),
         ],
       ),
@@ -171,10 +174,15 @@ class _LandingPageState extends State<LandingPage> {
 
 // ── 헤더 ─────────────────────────────────────────────────────────
 class _Header extends StatelessWidget {
+  final UserProfile? user;
   final ValueChanged<String> onSearch;
   final VoidCallback onLogin;
 
-  const _Header({required this.onSearch, required this.onLogin});
+  const _Header({
+    required this.user,
+    required this.onSearch,
+    required this.onLogin,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -250,8 +258,8 @@ class _Header extends StatelessWidget {
                 color: _C.lime,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Text(
-                '로그인',
+              child: Text(
+                user == null ? '로그인' : '로그아웃',
                 style: TextStyle(
                     color: _C.limeDark,
                     fontSize: 13,

@@ -391,11 +391,11 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _TopBar(
-                  user: user,
-                  onSearchChanged: (value) => setState(() => _searchQuery = value),
-                  onJoinByCode: user == null ? null : () => _joinByCode(user.userId),
-                ),
+	                _TopBar(
+	                  user: user,
+	                  onSearchChanged: (value) => setState(() => _searchQuery = value),
+	                  onJoinByCode: null,
+	                ),
                 const SizedBox(height: 20),
                 _WelcomeBanner(
                   name: user?.name ?? '',
@@ -419,12 +419,12 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
                 if (hubAsync.isLoading)
                   const _LoadingPanel()
                 else if (enrolledRooms.isEmpty)
-                  _EmptyStateCard(
-                    title: '아직 수강 중인 강의실이 없습니다',
-                    description: '아래 강의 탐색에서 수강 신청을 하거나 초대 코드로 바로 입장해보세요.',
-                    actionLabel: '초대 코드로 입장',
-                    onAction: user == null ? null : () => _joinByCode(user.userId),
-                  )
+	                  _EmptyStateCard(
+	                    title: '아직 수강 중인 강의실이 없습니다',
+	                    description: '첫 화면에서 원하는 강의를 결제하면 이곳에 학습 공간이 열립니다.',
+	                    actionLabel: '강의 둘러보기',
+	                    onAction: () => context.go('/'),
+	                  )
                 else
                   SizedBox(
                     height: 228,
@@ -748,13 +748,7 @@ class _TopBar extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(width: 12),
-        OutlinedButton.icon(
-          onPressed: onJoinByCode,
-          icon: const Icon(Icons.key_rounded),
-          label: const Text('초대 코드'),
-        ),
-        const SizedBox(width: 12),
+	        const SizedBox(width: 12),
         Container(
           width: 40,
           height: 40,
@@ -987,23 +981,10 @@ class _EnrolledRoomCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              _TinyChip(
-                label: roomType == 'online' ? '온라인' : '오프라인',
-                color: accent,
-              ),
-              const Spacer(),
-              Text(
-                room['room_code'] as String? ?? '',
-                style: const TextStyle(
-                  color: _C.textMute,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 2,
-                ),
-              ),
-            ],
-          ),
+	          _TinyChip(
+	            label: roomType == 'online' ? '온라인' : '오프라인',
+	            color: accent,
+	          ),
           const SizedBox(height: 14),
           Text(
             room['subject'] as String? ?? '강의실',

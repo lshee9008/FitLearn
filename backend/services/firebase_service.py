@@ -220,6 +220,22 @@ class FirebaseService:
                 now = datetime.now(timezone.utc)
                 data = {**base, "room_id": room_ref.id, "created_at": now}
                 room_ref.set(data)
+                db.collection("courses").document(room_ref.id).set({
+                    "id": room_ref.id,
+                    "roomId": room_ref.id,
+                    "title": subject,
+                    "description": description or synopsis,
+                    "thumbnail": "",
+                    "instructor": professor_name or professor_uid,
+                    "professor_uid": professor_uid,
+                    "professor_name": professor_name,
+                    "price": 0,
+                    "tags": [room_type],
+                    "curriculum": core_concepts or [],
+                    "room_type": room_type,
+                    "created_at": now,
+                    "updated_at": now,
+                }, merge=True)
                 data["created_at"] = now.isoformat()
                 return data
             data = await _run(_write)
@@ -594,6 +610,7 @@ class FirebaseService:
             prof_uid = room_data.get("professor_uid") if room_data else None
 
             await _run(lambda: db.collection("rooms").document(room_id).delete())
+            await _run(lambda: db.collection("courses").document(room_id).delete())
             await self._cache_delete_prefix(f"room:{room_id}")
             await self._cache_delete_prefix(f"room_students:{room_id}")
             await self._cache_delete_prefix(f"room_lectures:{room_id}")

@@ -51,6 +51,8 @@ class ProfessorHomePage extends ConsumerStatefulWidget {
 }
 
 class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
+  int _pageIndex = 0;
+
   Future<void> _refreshRooms() async {
     final user = ref.read(authNotifierProvider);
     if (user != null) {
@@ -129,7 +131,6 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
     }
   }
 
-
   Future<void> _logout() async {
     await ref.read(authNotifierProvider.notifier).logout();
     if (mounted) context.go('/');
@@ -144,14 +145,29 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
       0,
       (s, r) => s + ((r['student_count'] as int?) ?? 0),
     );
+    final avgCompletion = rooms.isEmpty
+        ? 0
+        : (rooms.fold<num>(
+                  0,
+                  (s, r) => s + ((r['completion_rate'] as num?) ?? 0),
+                ) /
+                rooms.length)
+            .round();
 
     return Scaffold(
       backgroundColor: _C.bg,
       body: Row(
         children: [
-          _Sidebar(onLogout: _logout, onCreateRoom: _createRoom),
+          _Sidebar(
+            onLogout: _logout,
+            onCreateRoom: _createRoom,
+            selectedIndex: _pageIndex,
+            onSelect: (index) => setState(() => _pageIndex = index),
+          ),
           Expanded(
-            child: RefreshIndicator(
+            child: _pageIndex == 1
+                ? _ProfessorSettingsView(onLogout: _logout)
+                : RefreshIndicator(
               onRefresh: _refreshRooms,
               color: _C.lime,
               backgroundColor: _C.surface,
@@ -165,11 +181,16 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
                         children: [
                           _TopBar(user: user, onLogout: _logout),
                           const SizedBox(height: 20),
-                          _WelcomeBanner(name: user?.name ?? ''),
+                          _WelcomeBanner(
+                            name: user?.name ?? '',
+                            completionRate: avgCompletion,
+                            studentCount: totalStudents,
+                          ),
                           const SizedBox(height: 20),
                           _StatsRow(
                             roomCount: rooms.length,
                             studentCount: totalStudents,
+                            completionRate: avgCompletion,
                           ),
                           const SizedBox(height: 24),
                           _SectionTitle(
@@ -233,7 +254,6 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
               ),
             ),
           ),
-          _RightPanel(rooms: rooms),
         ],
       ),
     );
@@ -243,24 +263,20 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
 // ════════════════════════════════════════════════════════════
 // 사이드바
 // ════════════════════════════════════════════════════════════
-class _Sidebar extends StatefulWidget {
+class _Sidebar extends StatelessWidget {
   final VoidCallback onLogout;
   final VoidCallback onCreateRoom;
-  const _Sidebar({required this.onLogout, required this.onCreateRoom});
-
-  @override
-  State<_Sidebar> createState() => _SidebarState();
-}
-
-class _SidebarState extends State<_Sidebar> {
-  int _idx = 0;
+  final int selectedIndex;
+  final ValueChanged<int> onSelect;
+  const _Sidebar({
+    required this.onLogout,
+    required this.onCreateRoom,
+    required this.selectedIndex,
+    required this.onSelect,
+  });
 
   static const _items = [
     ('홈', Icons.grid_view_rounded),
-    ('수강생 관리', Icons.people_outline_rounded),
-    ('강의 자료', Icons.description_outlined),
-    ('Q&A 관리', Icons.chat_bubble_outline_rounded),
-    ('메시지', Icons.mail_outline_rounded),
     ('설정', Icons.settings_outlined),
   ];
 
@@ -310,15 +326,9 @@ class _SidebarState extends State<_Sidebar> {
             padding: EdgeInsets.zero,
             itemCount: _items.length,
             itemBuilder: (_, i) {
-              final active = _idx == i;
+              final active = selectedIndex == i;
               return GestureDetector(
-                onTap: () {
-                  if (i == 3) {
-                    context.push('/professor/qna');
-                    return;
-                  }
-                  setState(() => _idx = i);
-                },
+                onTap: () => onSelect(i),
                 child: Container(
                   margin:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
@@ -345,24 +355,6 @@ class _SidebarState extends State<_Sidebar> {
                           fontWeight:
                               active ? FontWeight.w600 : FontWeight.w400,
                         )),
-                    if (i == 4) ...[
-                      const Spacer(),
-                      Container(
-                        width: 16,
-                        height: 16,
-                        decoration: const BoxDecoration(
-                          color: _C.coral,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Center(
-                          child: Text('4',
-                              style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w700)),
-                        ),
-                      ),
-                    ],
                   ]),
                 ),
               );
@@ -372,7 +364,7 @@ class _SidebarState extends State<_Sidebar> {
 
         const Divider(color: _C.border, height: 1),
         GestureDetector(
-          onTap: widget.onLogout,
+          onTap: onLogout,
           child: const Padding(
             padding: EdgeInsets.all(16),
             child: Row(children: [
@@ -410,25 +402,31 @@ class _TopBar extends StatelessWidget {
             SizedBox(width: 12),
             Icon(Icons.search, color: _C.textMute, size: 16),
             SizedBox(width: 8),
-            Text('수강생, 강의, Q&A 검색...',
+            Text('수강생과 강의 검색...',
                 style: TextStyle(color: _C.textMute, fontSize: 13)),
           ]),
         ),
       ),
       const SizedBox(width: 14),
-      Stack(children: [
-        const Icon(Icons.notifications_outlined, color: _C.textSec, size: 22),
-        Positioned(
-          right: 0,
-          top: 0,
-          child: Container(
-            width: 8,
-            height: 8,
-            decoration:
-                const BoxDecoration(color: _C.lime, shape: BoxShape.circle),
+      GestureDetector(
+        onTap: () => showDialog<void>(
+          context: context,
+          builder: (_) => AlertDialog(
+            backgroundColor: _C.surface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Text('알림', style: TextStyle(color: _C.textPri)),
+            content: const Text('알림이 없습니다',
+                style: TextStyle(color: _C.textSec, fontSize: 13)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('확인', style: TextStyle(color: _C.lime)),
+              ),
+            ],
           ),
         ),
-      ]),
+        child: const Icon(Icons.notifications_outlined, color: _C.textSec, size: 22),
+      ),
       const SizedBox(width: 12),
       Container(
         width: 32,
@@ -459,7 +457,13 @@ class _TopBar extends StatelessWidget {
 // ════════════════════════════════════════════════════════════
 class _WelcomeBanner extends StatelessWidget {
   final String name;
-  const _WelcomeBanner({required this.name});
+  final int completionRate;
+  final int studentCount;
+  const _WelcomeBanner({
+    required this.name,
+    required this.completionRate,
+    required this.studentCount,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -480,19 +484,19 @@ class _WelcomeBanner extends StatelessWidget {
                       fontSize: 18,
                       fontWeight: FontWeight.w800)),
               const SizedBox(height: 4),
-              const Text.rich(TextSpan(
-                style: TextStyle(color: Color(0xFF3A4A00), fontSize: 12),
+              Text.rich(TextSpan(
+                style: const TextStyle(color: Color(0xFF3A4A00), fontSize: 12),
                 children: [
-                  TextSpan(text: '이번 주 수강생 평균 완강률 '),
+                  const TextSpan(text: '현재 수강생 평균 완강률 '),
                   TextSpan(
-                      text: '72%',
-                      style: TextStyle(fontWeight: FontWeight.w700)),
-                  TextSpan(text: '를 달성했습니다!'),
+                      text: '$completionRate%',
+                      style: const TextStyle(fontWeight: FontWeight.w700)),
+                  const TextSpan(text: '를 기록 중입니다.'),
                 ],
               )),
               const SizedBox(height: 4),
-              const Text('수강생 84명 중 61명이 이번 파트를 완료했어요.',
-                  style: TextStyle(color: Color(0xFF3A4A00), fontSize: 11)),
+              Text('등록 수강생 $studentCount명 기준으로 집계됩니다.',
+                  style: const TextStyle(color: Color(0xFF3A4A00), fontSize: 11)),
             ],
           ),
         ),
@@ -514,7 +518,12 @@ class _WelcomeBanner extends StatelessWidget {
 class _StatsRow extends StatelessWidget {
   final int roomCount;
   final int studentCount;
-  const _StatsRow({required this.roomCount, required this.studentCount});
+  final int completionRate;
+  const _StatsRow({
+    required this.roomCount,
+    required this.studentCount,
+    required this.completionRate,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -539,23 +548,13 @@ class _StatsRow extends StatelessWidget {
         ),
       ),
       const SizedBox(width: 12),
-      const Expanded(
+      Expanded(
         child: _StatCard(
           label: '완강률',
-          value: '72%',
+          value: '$completionRate%',
           icon: Icons.trending_up_rounded,
           color: _C.coral,
           colorBg: _C.coralDark,
-        ),
-      ),
-      const SizedBox(width: 12),
-      const Expanded(
-        child: _StatCard(
-          label: 'AI Q&A 처리',
-          value: '12건',
-          icon: Icons.auto_awesome_rounded,
-          color: _C.amber,
-          colorBg: _C.amberDark,
         ),
       ),
     ]);
@@ -603,6 +602,84 @@ class _StatCard extends StatelessWidget {
                   fontWeight: FontWeight.w800)),
           Text(label, style: const TextStyle(color: _C.textMute, fontSize: 11)),
         ]),
+      ]),
+    );
+  }
+}
+
+class _ProfessorSettingsView extends StatelessWidget {
+  final VoidCallback onLogout;
+  const _ProfessorSettingsView({required this.onLogout});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(28),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('설정',
+            style: TextStyle(
+                color: _C.textPri, fontSize: 24, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 8),
+        const Text('계정과 서비스 사용 상태를 관리합니다.',
+            style: TextStyle(color: _C.textSec, fontSize: 13)),
+        const SizedBox(height: 24),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: _C.surface,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: _C.border),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('계정',
+                style: TextStyle(
+                    color: _C.textPri, fontSize: 16, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            const Text('탈퇴 기능은 결제/수강 데이터 보존 정책과 함께 서버에서 처리되어야 합니다.',
+                style: TextStyle(color: _C.textSec, fontSize: 12, height: 1.5)),
+            const SizedBox(height: 16),
+            Row(children: [
+              OutlinedButton(
+                onPressed: onLogout,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _C.textPri,
+                  side: const BorderSide(color: _C.border),
+                ),
+                child: const Text('로그아웃'),
+              ),
+              const SizedBox(width: 10),
+              OutlinedButton(
+                onPressed: () => showDialog<void>(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    backgroundColor: _C.surface,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16)),
+                    title: const Text('탈퇴하기',
+                        style: TextStyle(color: _C.textPri)),
+                    content: const Text(
+                      '탈퇴 API와 결제 데이터 보존 정책 연결 후 활성화됩니다.',
+                      style: TextStyle(color: _C.textSec, fontSize: 13),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('확인',
+                            style: TextStyle(color: _C.lime)),
+                      ),
+                    ],
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _C.coral,
+                  side: BorderSide(color: _C.coral.withValues(alpha: 0.45)),
+                ),
+                child: const Text('탈퇴하기'),
+              ),
+            ]),
+          ]),
+        ),
       ]),
     );
   }
@@ -735,26 +812,21 @@ class _RoomCardState extends State<_RoomCard> {
                           fontWeight: FontWeight.w700),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  // 방 코드 배지
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _C.limeDark,
-                      borderRadius: BorderRadius.circular(8),
+                  if (isLoading) ...[
+                    const SizedBox(width: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _C.limeDark,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text('생성 중...',
+                          style: TextStyle(
+                              color: _C.lime,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700)),
                     ),
-                    child: Text(
-                      isLoading
-                          ? '생성 중...'
-                          : (widget.room['room_code'] as String? ?? ''),
-                      style: const TextStyle(
-                          color: _C.lime,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 3),
-                    ),
-                  ),
+                  ],
                 ]),
                 if (desc.isNotEmpty) ...[
                   const SizedBox(height: 6),
@@ -788,26 +860,6 @@ class _RoomCardState extends State<_RoomCard> {
                             const TextStyle(color: _C.textMute, fontSize: 11)),
                   ],
                   const SizedBox(width: 8),
-                  // AI 인사이트 배지 (있을 때만)
-                  if (studentCount > 0)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: _C.limeDark,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Row(children: [
-                        Icon(Icons.auto_awesome_rounded,
-                            color: _C.lime, size: 12),
-                        SizedBox(width: 4),
-                        Text('AI 분석 가능',
-                            style: TextStyle(
-                                color: _C.lime,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600)),
-                      ]),
-                    ),
                   const Spacer(),
                   // 수정 버튼
                   GestureDetector(
@@ -904,7 +956,7 @@ class _EmptyRooms extends StatelessWidget {
             style: TextStyle(
                 color: _C.textPri, fontSize: 18, fontWeight: FontWeight.w700)),
         const SizedBox(height: 8),
-        const Text('"방 만들기" 버튼으로 강의를 시작하세요',
+        const Text('"강의 생성" 버튼으로 강의를 시작하세요',
             style: TextStyle(color: _C.textSec, fontSize: 13)),
         const SizedBox(height: 24),
         GestureDetector(
@@ -915,7 +967,7 @@ class _EmptyRooms extends StatelessWidget {
               color: _C.lime,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Text('방 만들기',
+            child: const Text('강의 생성',
                 style: TextStyle(
                     color: _C.limeDark,
                     fontSize: 14,
