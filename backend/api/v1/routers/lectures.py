@@ -1,6 +1,10 @@
 import logging
+import os
 import re
+import uuid
+from pathlib import Path
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from models.lecture import LectureUploadResponse, CorePoint, CorePointConfirmRequest
@@ -17,6 +21,7 @@ reforge_svc = ReforgeService()
 file_svc = FileService()
 firebase = FirebaseService()
 video_pipeline = VideoPipeline()
+LOCAL_ASSET_DIR = Path(os.getenv("FITLEARN_ASSET_DIR", "/tmp/fitlearn_assets"))
 REFORGED_CACHE_VERSION = 2
 FALLBACK_CACHE_MARKERS = (
     "AI 서버 응답 지연",
@@ -49,6 +54,23 @@ def _as_int(value, default: int = 0) -> int:
         return int(value)
     except (TypeError, ValueError):
         return default
+
+
+def _public_backend_url() -> str:
+    return (
+        os.getenv("PUBLIC_BACKEND_URL")
+        or os.getenv("RENDER_EXTERNAL_URL")
+        or "https://fitlearn-backend.onrender.com"
+    ).rstrip("/")
+
+
+async def _save_local_video_asset(file_bytes: bytes, filename: str, content_type: str) -> str:
+    suffix = Path(filename or "video.mp4").suffix or ".mp4"
+    asset_id = f"{uuid.uuid4().hex}{suffix}"
+    LOCAL_ASSET_DIR.mkdir(parents=True, exist_ok=True)
+    path = LOCAL_ASSET_DIR / asset_id
+    path.write_bytes(file_bytes)
+    return f"{_public_backend_url()}/api/v1/lectures/assets/{asset_id}"
 
 
 class VideoAssistRequest(BaseModel):
@@ -87,6 +109,8 @@ async def _process_uploaded_video_transcript(
             "chapters": result.get("chapters", []),
             "video_summary": result.get("summary_markdown", ""),
             "video_key_moments": result.get("key_moments", []),
+            "video_study_tips": result.get("study_tips", []),
+            "video_stuck_points": result.get("stuck_points", []),
             "summary_cache": {"default": result.get("summary_markdown", "")},
             "summary_status": "ready",
             "transcription_status": "ready",
@@ -128,6 +152,8 @@ async def _process_youtube_transcript(
             "chapters": result.get("chapters", []),
             "video_summary": result.get("summary_markdown", ""),
             "video_key_moments": result.get("key_moments", []),
+            "video_study_tips": result.get("study_tips", []),
+            "video_stuck_points": result.get("stuck_points", []),
             "summary_cache": {"default": result.get("summary_markdown", "")},
             "summary_status": "ready",
             "transcription_status": "ready",
@@ -291,7 +317,7 @@ async def upload_lecture(
             if video_content:
                 video_filename = video_file.filename or "video.bin"
                 video_content_type = video_file.content_type or "application/octet-stream"
-                await firebase.upload_lecture_asset(
+                video_public_url = await firebase.upload_lecture_asset(
                     room_id,
                     lecture_id,
                     video_content,
@@ -299,7 +325,16 @@ async def upload_lecture(
                     video_content_type,
                     "video",
                 )
+                if not video_public_url:
+                    video_public_url = await _save_local_video_asset(
+                        video_content,
+                        video_filename,
+                        video_content_type,
+                    )
+                    logger.warning(f"[upload] Firebase Storage 미사용 — 로컬 영상 URL 폴백 lecture={lecture_id}")
                 await firebase.update_lecture_meta(room_id, lecture_id, {
+                    "video_url": video_public_url,
+                    "video_asset_url": video_public_url,
                     "video_status": "ready",
                     "video_type": "upload",
                     "video_source": "uploaded_file",
@@ -372,6 +407,14 @@ async def get_original_file(room_id: str, lecture_id: str):
     if not url:
         raise HTTPException(status_code=404, detail="원본 파일이 없습니다.")
     return {"url": url}
+
+
+@router.get("/lectures/assets/{asset_id}")
+async def get_local_lecture_asset(asset_id: str):
+    path = (LOCAL_ASSET_DIR / asset_id).resolve()
+    if not str(path).startswith(str(LOCAL_ASSET_DIR.resolve())) or not path.exists():
+        raise HTTPException(status_code=404, detail="영상 파일을 찾을 수 없습니다.")
+    return FileResponse(path)
 
 
 @router.post("/lectures/{room_id}/{lecture_id}/video/assist")

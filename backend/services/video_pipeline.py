@@ -12,6 +12,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -39,6 +40,8 @@ def _json_from_markdown(text: str) -> dict[str, Any]:
             "chapters": [],
             "summary_markdown": cleaned,
             "key_moments": [],
+            "study_tips": [],
+            "stuck_points": [],
         }
 
 
@@ -59,6 +62,8 @@ def _fallback_video_analysis(original_text: str, core_points: list[dict]) -> dic
             f"{summary or original_text[:900]}"
         ),
         "key_moments": [],
+        "study_tips": [],
+        "stuck_points": [],
     }
 
 
@@ -86,9 +91,23 @@ class VideoPipeline:
                 transcript = transcripts.find_transcript(["ko", "en"])
                 return transcript.fetch()
 
-        rows = await asyncio.to_thread(_fetch)
+        try:
+            rows = await asyncio.to_thread(_fetch)
+        except Exception as e:
+            logger.warning(f"[VideoPipeline] YouTube 자막 추출 실패 — 영상 다운로드 전사 폴백: {e}")
+            return await self._transcribe_youtube_by_download(
+                video_url=video_url,
+                title=title,
+                original_text=original_text,
+                core_points=core_points,
+            )
         if not rows:
-            raise RuntimeError("YouTube 자막/전사를 찾을 수 없습니다.")
+            return await self._transcribe_youtube_by_download(
+                video_url=video_url,
+                title=title,
+                original_text=original_text,
+                core_points=core_points,
+            )
 
         segments = [
             {
@@ -111,6 +130,46 @@ class VideoPipeline:
             core_points=core_points,
             source="youtube",
         )
+
+    async def _transcribe_youtube_by_download(
+        self,
+        *,
+        video_url: str,
+        title: str,
+        original_text: str,
+        core_points: list[dict],
+    ) -> dict[str, Any]:
+        temp_dir = tempfile.mkdtemp(prefix="fitlearn_youtube_")
+        try:
+            def _download() -> Path:
+                from yt_dlp import YoutubeDL
+
+                outtmpl = str(Path(temp_dir) / "%(id)s.%(ext)s")
+                options = {
+                    "outtmpl": outtmpl,
+                    "format": "best[height<=720][ext=mp4]/best[height<=480]/best",
+                    "quiet": True,
+                    "no_warnings": True,
+                    "noplaylist": True,
+                }
+                with YoutubeDL(options) as ydl:
+                    ydl.download([video_url])
+                files = [p for p in Path(temp_dir).iterdir() if p.is_file()]
+                if not files:
+                    raise RuntimeError("YouTube 영상 다운로드 결과 파일이 없습니다.")
+                return max(files, key=lambda p: p.stat().st_size)
+
+            downloaded = await asyncio.to_thread(_download)
+            return await self.transcribe_uploaded_video(
+                video_bytes=downloaded.read_bytes(),
+                filename=downloaded.name,
+                mime_type="video/mp4",
+                title=title,
+                original_text=original_text,
+                core_points=core_points,
+            )
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
 
     async def transcribe_uploaded_video(
         self,
@@ -176,6 +235,13 @@ class VideoPipeline:
   "summary_markdown": "## 영상 요약\\n- 핵심 요지\\n- 실습 흐름\\n- 주의점",
   "key_moments": [
     {{"minute": 0, "label": "학생이 다시 보면 좋은 지점", "reason": "이유"}}
+  ],
+  "study_tips": [
+    "핵심 개념을 암기하기보다는 원리를 이해하세요.",
+    "실습 코드를 직접 타이핑하며 에러를 겪어보는 것이 중요합니다."
+  ],
+  "stuck_points": [
+    {{"minute": 10, "topic": "주제", "reason": "이유"}}
   ]
 }}"""
             raw = await generate_gemini_text(
@@ -201,7 +267,7 @@ class VideoPipeline:
 
     async def _wait_until_ready(self, uploaded):
         name = uploaded.name
-        for _ in range(45):
+        for _ in range(300):
             state = getattr(getattr(uploaded, "state", None), "name", "")
             if state in ("ACTIVE", "SUCCEEDED", ""):
                 return uploaded
@@ -254,6 +320,10 @@ class VideoPipeline:
   "summary_markdown": "## 영상 요약\\n- 핵심 요지\\n- 실습 흐름\\n- 다시 볼 구간",
   "key_moments": [
     {{"minute": 0, "label": "다시 볼 지점", "reason": "이유"}}
+  ],
+  "study_tips": ["핵심 로직 이해", "실습 결과 확인"],
+  "stuck_points": [
+    {{"minute": 5, "topic": "주제", "reason": "이유"}}
   ]
 }}"""
         raw = await generate_gemini_text(
@@ -278,6 +348,8 @@ class VideoPipeline:
             "chapters": parsed.get("chapters") or [],
             "summary_markdown": str(parsed.get("summary_markdown", "")).strip(),
             "key_moments": parsed.get("key_moments") or [],
+            "study_tips": parsed.get("study_tips") or [],
+            "stuck_points": parsed.get("stuck_points") or [],
         }
 
     @staticmethod

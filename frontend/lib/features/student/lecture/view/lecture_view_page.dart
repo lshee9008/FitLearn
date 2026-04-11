@@ -341,40 +341,19 @@ class _LearningExperienceShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final videoUrl = lecture?['video_url'] as String? ?? '';
+    final videoUrl = (lecture?['video_url'] as String? ?? '').trim().isNotEmpty
+        ? lecture!['video_url'] as String
+        : (lecture?['video_asset_url'] as String? ?? '');
     final videoType = lecture?['video_type'] as String? ?? 'none';
     final videoStatus = lecture?['video_status'] as String? ?? 'none';
     final transcriptionStatus =
         lecture?['transcription_status'] as String? ?? 'idle';
-    final videoSummary = lecture?['video_summary'] as String? ?? '';
     final materialUrl = lecture?['material_url'] as String? ?? '';
     final hasOriginal =
         (lecture?['original_file_url'] as String? ?? '').isNotEmpty;
     final hasVideo = videoUrl.trim().isNotEmpty;
 
-    final document = _NotionDocument(
-      style: activeStyle,
-      title: title,
-      content: content,
-    );
-    final sidePanel = _LearningSidePanel(
-      hasVideo: hasVideo,
-      transcriptionStatus: transcriptionStatus,
-      videoSummary: videoSummary,
-      materialUrl: materialUrl,
-      hasOriginal: hasOriginal,
-      onDownloadOriginal: onDownloadOriginal,
-      profile: profile,
-      activeStyle: activeStyle,
-      subjectLevel: subjectLevel,
-      startController: startController,
-      endController: endController,
-      questionController: questionController,
-      segmentAnswer: segmentAnswer,
-      segmentLoading: segmentLoading,
-      onAskSegment: onAskSegment,
-    );
-
+    // 대시보드 레이아웃 (좌: 비디오 + 제목 / 우: 탭 사이드 패널)
     if (!useSplit) {
       return Column(
         children: [
@@ -383,49 +362,160 @@ class _LearningExperienceShell extends StatelessWidget {
                 videoUrl: videoUrl,
                 videoType: videoType,
                 videoStatus: videoStatus),
-            const SizedBox(height: 14),
+            const SizedBox(height: 16),
           ],
-          sidePanel,
-          const SizedBox(height: 16),
-          document,
+          _DashboardSidePanel(
+            lecture: lecture,
+            profile: profile,
+            activeStyle: activeStyle,
+            transcriptionStatus: transcriptionStatus,
+            materialUrl: materialUrl,
+            hasOriginal: hasOriginal,
+            onDownloadOriginal: onDownloadOriginal,
+            startController: startController,
+            endController: endController,
+            questionController: questionController,
+            segmentAnswer: segmentAnswer,
+            segmentLoading: segmentLoading,
+            onAskSegment: onAskSegment,
+          ),
+          const SizedBox(height: 24),
+          _NotionDocument(
+            style: activeStyle,
+            title: title,
+            content: content,
+          ),
         ],
       );
     }
 
-    return Row(
+    return SizedBox(
+      height: MediaQuery.of(context).size.height - 100,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 좌측: 영상 및 에피소드 정보
+          Expanded(
+            flex: 2,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.only(right: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (hasVideo)
+                    _VideoStage(
+                      videoUrl: videoUrl,
+                      videoType: videoType,
+                      videoStatus: videoStatus,
+                    )
+                  else
+                    _NotionDocument(
+                      style: activeStyle,
+                      title: title,
+                      content: content,
+                    ),
+                  const SizedBox(height: 24),
+                  _EpisodeInfo(
+                    title: title,
+                    episode: "EP 03", // 샘플 데이터, 실제로는 메타데이터에서 가져올 예정
+                    category: "UX 디자인 기초",
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // 우측: 탭 사이드 패널 (교안 / AI 질문)
+          SizedBox(
+            width: 440,
+            child: _DashboardSidePanel(
+              lecture: lecture,
+              profile: profile,
+              activeStyle: activeStyle,
+              transcriptionStatus: transcriptionStatus,
+              materialUrl: materialUrl,
+              hasOriginal: hasOriginal,
+              onDownloadOriginal: onDownloadOriginal,
+              startController: startController,
+              endController: endController,
+              questionController: questionController,
+              segmentAnswer: segmentAnswer,
+              segmentLoading: segmentLoading,
+              onAskSegment: onAskSegment,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EpisodeInfo extends StatelessWidget {
+  final String title;
+  final String episode;
+  final String category;
+
+  const _EpisodeInfo({
+    required this.title,
+    required this.episode,
+    required this.category,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            children: [
-              if (hasVideo) ...[
-                _VideoStage(
-                    videoUrl: videoUrl,
-                    videoType: videoType,
-                    videoStatus: videoStatus),
-                const SizedBox(height: 18),
-              ],
-              document,
-            ],
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                episode,
+                style: const TextStyle(
+                  color: AppColors.primaryLight,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              category,
+              style: const TextStyle(
+                color: AppColors.textMuted,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Text(
+          title,
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 26,
+            fontWeight: FontWeight.w900,
+            letterSpacing: -0.8,
           ),
         ),
-        const SizedBox(width: 18),
-        SizedBox(width: 390, child: sidePanel),
       ],
     );
   }
 }
 
-class _LearningSidePanel extends StatelessWidget {
-  final bool hasVideo;
+class _DashboardSidePanel extends StatelessWidget {
+  final Map<String, dynamic>? lecture;
+  final Map<String, dynamic>? profile;
+  final String activeStyle;
   final String transcriptionStatus;
-  final String videoSummary;
   final String materialUrl;
   final bool hasOriginal;
   final VoidCallback onDownloadOriginal;
-  final Map<String, dynamic>? profile;
-  final String activeStyle;
-  final String? subjectLevel;
   final TextEditingController startController;
   final TextEditingController endController;
   final TextEditingController questionController;
@@ -433,16 +523,14 @@ class _LearningSidePanel extends StatelessWidget {
   final bool segmentLoading;
   final VoidCallback onAskSegment;
 
-  const _LearningSidePanel({
-    required this.hasVideo,
+  const _DashboardSidePanel({
+    required this.lecture,
+    required this.profile,
+    required this.activeStyle,
     required this.transcriptionStatus,
-    required this.videoSummary,
     required this.materialUrl,
     required this.hasOriginal,
     required this.onDownloadOriginal,
-    required this.profile,
-    required this.activeStyle,
-    required this.subjectLevel,
     required this.startController,
     required this.endController,
     required this.questionController,
@@ -453,43 +541,138 @@ class _LearningSidePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _StudyModePanel(
-          hasVideo: hasVideo,
-          transcriptionStatus: transcriptionStatus,
-        ),
-        const SizedBox(height: 14),
-        if (hasVideo) ...[
-          _VideoAssistPanel(
-            startController: startController,
-            endController: endController,
-            questionController: questionController,
-            answer: segmentAnswer,
-            loading: segmentLoading,
-            onAsk: onAskSegment,
+    return DefaultTabController(
+      length: 2,
+      child: Column(
+        children: [
+          Container(
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: Color(0xFF1A1D23))),
+            ),
+            child: const TabBar(
+              dividerColor: Colors.transparent,
+              indicatorColor: AppColors.primaryLight,
+              indicatorWeight: 3,
+              labelColor: AppColors.textPrimary,
+              unselectedLabelColor: AppColors.textMuted,
+              labelStyle: TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+              tabs: [
+                Tab(text: "교안"),
+                Tab(text: "AI 질문"),
+              ],
+            ),
           ),
-          const SizedBox(height: 14),
+          Expanded(
+            child: TabBarView(
+              children: [
+                _MaterialTab(
+                  lecture: lecture,
+                  profile: profile,
+                  activeStyle: activeStyle,
+                  transcriptionStatus: transcriptionStatus,
+                  materialUrl: materialUrl,
+                  hasOriginal: hasOriginal,
+                  onDownloadOriginal: onDownloadOriginal,
+                ),
+                _AIQuestionTab(
+                  startController: startController,
+                  endController: endController,
+                  questionController: questionController,
+                  answer: segmentAnswer,
+                  loading: segmentLoading,
+                  onAsk: onAskSegment,
+                ),
+              ],
+            ),
+          ),
         ],
-        if (hasVideo && videoSummary.trim().isNotEmpty) ...[
-          _VideoSummaryCard(summary: videoSummary),
-          const SizedBox(height: 14),
-        ] else if (hasVideo && transcriptionStatus != 'ready') ...[
-          _VideoSummaryStatusCard(status: transcriptionStatus),
-          const SizedBox(height: 14),
+      ),
+    );
+  }
+}
+
+class _MaterialTab extends StatelessWidget {
+  final Map<String, dynamic>? lecture;
+  final Map<String, dynamic>? profile;
+  final String activeStyle;
+  final String transcriptionStatus;
+  final String materialUrl;
+  final bool hasOriginal;
+  final VoidCallback onDownloadOriginal;
+
+  const _MaterialTab({
+    required this.lecture,
+    required this.profile,
+    required this.activeStyle,
+    required this.transcriptionStatus,
+    required this.materialUrl,
+    required this.hasOriginal,
+    required this.onDownloadOriginal,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final videoSummary = lecture?['video_summary'] as String? ?? '';
+    final studyTips = lecture?['video_study_tips'] as List<dynamic>? ?? [];
+    final stuckPoints = lecture?['video_stuck_points'] as List<dynamic>? ?? [];
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(vertical: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const _SectionLabel(title: "영상 상태"),
+              const Spacer(),
+              _TranscriptStatusPill(
+                status: transcriptionStatus,
+                hasVideo: (lecture?['video_url'] as String? ?? '').isNotEmpty ||
+                    (lecture?['video_asset_url'] as String? ?? '').isNotEmpty,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (videoSummary.isNotEmpty) ...[
+            const _SectionLabel(title: "영상 요약"),
+            _VideoSummaryCard(summary: videoSummary),
+            const SizedBox(height: 24),
+          ] else ...[
+            _VideoSummaryCard(
+              summary: transcriptionStatus == 'failed'
+                  ? '## 영상 요약 대기\n- 영상 자막 또는 업로드 파일 분석에 실패했습니다.\n- 다시 업로드하거나 자막이 있는 유튜브 링크인지 확인해주세요.'
+                  : '## 영상 요약 준비 중\n- 영상 전사와 요약을 생성하고 있습니다.\n- 잠시 후 다시 들어오거나 질문 버튼을 누르면 온디맨드로 다시 시도합니다.',
+            ),
+            const SizedBox(height: 24),
+          ],
+          if (studyTips.isNotEmpty) ...[
+            const _SectionLabel(title: "학습 팁"),
+            ...studyTips.map((tip) => _TipCard(tip: tip.toString())),
+            const SizedBox(height: 24),
+          ],
+          if (stuckPoints.isNotEmpty) ...[
+            const _SectionLabel(title: "자주 막히는 지점"),
+            ...stuckPoints.map((sp) => _StuckPointCard(
+                  minute: sp['minute'] ?? 0,
+                  topic: sp['topic'] ?? "핵심 구간",
+                  reason: sp['reason'] ?? "",
+                )),
+            const SizedBox(height: 24),
+          ],
+          const _SectionLabel(title: "원본 및 보조 자료"),
+          _ResourceDock(
+            materialUrl: materialUrl,
+            hasOriginal: hasOriginal,
+            onDownloadOriginal: onDownloadOriginal,
+          ),
+          const SizedBox(height: 24),
+          _PersonalizationBasisCard(
+            profile: profile,
+            primaryStyle: activeStyle,
+            subjectLevel: lecture?['subject_level'] as String?,
+          ),
         ],
-        _ResourceDock(
-          materialUrl: materialUrl,
-          hasOriginal: hasOriginal,
-          onDownloadOriginal: onDownloadOriginal,
-        ),
-        const SizedBox(height: 14),
-        _PersonalizationBasisCard(
-          profile: profile,
-          primaryStyle: activeStyle,
-          subjectLevel: subjectLevel,
-        ),
-      ],
+      ),
     );
   }
 }
@@ -501,62 +684,115 @@ class _VideoSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
-      borderColor: AppColors.primaryLight.withValues(alpha: 0.18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(Icons.subject_rounded,
-                  color: AppColors.primaryLight, size: 18),
-              SizedBox(width: 8),
-              Text(
-                '영상 요약',
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF101217),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.primaryLight.withValues(alpha: 0.16)),
+      ),
+      child: _MarkdownText(summary),
+    );
+  }
+}
+
+class _AIQuestionTab extends StatelessWidget {
+  final TextEditingController startController;
+  final TextEditingController endController;
+  final TextEditingController questionController;
+  final String? answer;
+  final bool loading;
+  final VoidCallback onAsk;
+
+  const _AIQuestionTab({
+    required this.startController,
+    required this.endController,
+    required this.questionController,
+    required this.answer,
+    required this.loading,
+    required this.onAsk,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 20),
+            child: Column(
+              children: [
+                if (answer == null)
+                  const _EmptyChatView()
+                else
+                  _ChatMessage(
+                    isAi: true,
+                    content: answer!,
+                  ),
+              ],
+            ),
           ),
-          const SizedBox(height: 12),
-          _MarkdownText(summary),
-        ],
+        ),
+        _ChatInputArea(
+          startController: startController,
+          endController: endController,
+          questionController: questionController,
+          loading: loading,
+          onAsk: onAsk,
+        ),
+      ],
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  final String title;
+  const _SectionLabel({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 12),
+      child: Text(
+        title,
+        style: const TextStyle(
+          color: Color(0xFF8A8D98),
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
 }
 
-class _VideoSummaryStatusCard extends StatelessWidget {
-  final String status;
-
-  const _VideoSummaryStatusCard({required this.status});
+class _TipCard extends StatelessWidget {
+  final String tip;
+  const _TipCard({required this.tip});
 
   @override
   Widget build(BuildContext context) {
-    final text = switch (status) {
-      'queued' ||
-      'processing' =>
-        '영상 전사와 요약을 준비 중입니다. 잠시 후 다시 열면 영상 요약이 표시됩니다.',
-      'failed' => '영상 자막을 가져오지 못했습니다. 자막이 없는 유튜브 영상이거나 접근이 제한된 영상일 수 있습니다.',
-      _ => '영상 요약은 전사 완료 후 표시됩니다.',
-    };
-    return AppCard(
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF12141C),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.primaryLight.withValues(alpha: 0.1)),
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.info_outline_rounded,
-              color: AppColors.textMuted, size: 18),
-          const SizedBox(width: 10),
+          const Icon(Icons.lightbulb_outline_rounded,
+              color: AppColors.primaryLight, size: 18),
+          const SizedBox(width: 12),
           Expanded(
             child: Text(
-              text,
+              tip,
               style: const TextStyle(
-                color: AppColors.textMuted,
-                fontSize: 12,
-                height: 1.55,
+                color: AppColors.textPrimary,
+                fontSize: 14,
+                height: 1.5,
               ),
             ),
           ),
@@ -566,66 +802,252 @@ class _VideoSummaryStatusCard extends StatelessWidget {
   }
 }
 
-class _StudyModePanel extends StatelessWidget {
-  final bool hasVideo;
-  final String transcriptionStatus;
+class _StuckPointCard extends StatelessWidget {
+  final int minute;
+  final String topic;
+  final String reason;
 
-  const _StudyModePanel({
-    required this.hasVideo,
-    required this.transcriptionStatus,
+  const _StuckPointCard({
+    required this.minute,
+    required this.topic,
+    required this.reason,
   });
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
-      borderColor: AppColors.primaryLight.withValues(alpha: 0.22),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1212),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.accent.withValues(alpha: 0.1)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Container(
-                width: 38,
-                height: 38,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.13),
-                  borderRadius: BorderRadius.circular(14),
+                  color: AppColors.accent.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(6),
                 ),
-                child: Icon(
-                  hasVideo
-                      ? Icons.ondemand_video_rounded
-                      : Icons.menu_book_rounded,
-                  color: AppColors.primaryLight,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
                 child: Text(
-                  hasVideo ? '영상 학습실' : '교안 학습실',
+                  "${minute.toString().padLeft(2, '0')}:00",
                   style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 16,
+                    color: AppColors.accent,
+                    fontSize: 11,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
               ),
-              _TranscriptStatusPill(
-                  status: transcriptionStatus, hasVideo: hasVideo),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  topic,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 12),
-          Text(
-            hasVideo
-                ? '좌측에서 영상을 따라가고, 우측에서 구간 질문과 맞춤 교안을 함께 확인합니다.'
-                : '원본 교안과 교수 핵심 포인트를 기준으로 재해석된 문서를 읽습니다.',
-            style: const TextStyle(
-              color: AppColors.textMuted,
-              fontSize: 13,
-              height: 1.55,
+          if (reason.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              reason,
+              style: const TextStyle(
+                color: AppColors.textMuted,
+                fontSize: 13,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyChatView extends StatelessWidget {
+  const _EmptyChatView();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        children: [
+          const SizedBox(height: 60),
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: const Color(0xFF101217),
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: const Icon(Icons.auto_awesome_rounded,
+                color: AppColors.primaryLight, size: 24),
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            "무엇이든 물어보세요",
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            "영상 구간을 정하고 궁금한 점을 적으면\nAI가 교안 기반으로 친절하게 답변합니다.",
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChatMessage extends StatelessWidget {
+  final bool isAi;
+  final String content;
+
+  const _ChatMessage({required this.isAi, required this.content});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (isAi)
+            Container(
+              width: 30,
+              height: 30,
+              margin: const EdgeInsets.only(right: 12),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.smart_toy_rounded,
+                  color: AppColors.primaryLight, size: 16),
+            ),
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isAi ? const Color(0xFF101217) : AppColors.primary,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: _MarkdownText(content),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ChatInputArea extends StatelessWidget {
+  final TextEditingController startController;
+  final TextEditingController endController;
+  final TextEditingController questionController;
+  final bool loading;
+  final VoidCallback onAsk;
+
+  const _ChatInputArea({
+    required this.startController,
+    required this.endController,
+    required this.questionController,
+    required this.loading,
+    required this.onAsk,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: const BoxDecoration(
+        color: Color(0xFF030303),
+        border: Border(top: BorderSide(color: Color(0xFF12141C))),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              _ChatMinuteField(label: "시작(분)", controller: startController),
+              const SizedBox(width: 8),
+              _ChatMinuteField(label: "끝(분)", controller: endController),
+              const Expanded(child: SizedBox()),
+            ],
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: questionController,
+            maxLines: 2,
+            style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+            decoration: InputDecoration(
+              hintText: "궁금한 내용을 입력하세요...",
+              hintStyle: const TextStyle(color: AppColors.textMuted),
+              filled: true,
+              fillColor: const Color(0xFF12141C),
+              contentPadding: const EdgeInsets.all(16),
+              suffixIcon: IconButton(
+                icon: loading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.send_rounded,
+                        color: AppColors.primaryLight),
+                onPressed: loading ? null : onAsk,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChatMinuteField extends StatelessWidget {
+  final String label;
+  final TextEditingController controller;
+
+  const _ChatMinuteField({required this.label, required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 70,
+      height: 40,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF12141C),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: TextField(
+        controller: controller,
+        keyboardType: TextInputType.number,
+        textAlign: TextAlign.center,
+        style: const TextStyle(color: AppColors.textPrimary, fontSize: 12),
+        decoration: InputDecoration(
+          hintText: label,
+          hintStyle: const TextStyle(color: Color(0xFF5A5D68), fontSize: 11),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.only(bottom: 12),
+        ),
       ),
     );
   }
@@ -786,14 +1208,14 @@ class _NotionDocument extends StatelessWidget {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: const Color(0xFF121319),
+        color: const Color(0xFF050505),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.border.withValues(alpha: 0.78)),
+        border: Border.all(color: const Color(0xFF16181D)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.22),
-            blurRadius: 26,
-            offset: const Offset(0, 16),
+            color: Colors.black.withValues(alpha: 0.4),
+            blurRadius: 30,
+            offset: const Offset(0, 20),
           ),
         ],
       ),
@@ -1121,7 +1543,7 @@ class _VideoStage extends StatelessWidget {
   Widget build(BuildContext context) {
     final viewType = 'fitlearn-video-${videoUrl.hashCode.abs()}';
     final embedUrl = _embedUrl(videoUrl, videoType);
-    final canEmbed = embedUrl.isNotEmpty && videoStatus != 'processing';
+    final canEmbed = embedUrl.isNotEmpty;
     if (canEmbed && !_registeredViewTypes.contains(viewType)) {
       _registeredViewTypes.add(viewType);
       ui_web.platformViewRegistry.registerViewFactory(viewType, (_) {
@@ -1129,10 +1551,11 @@ class _VideoStage extends StatelessWidget {
           return html.VideoElement()
             ..src = embedUrl
             ..controls = true
+            ..crossOrigin = 'anonymous'
             ..style.width = '100%'
             ..style.height = '100%'
             ..style.objectFit = 'contain'
-            ..style.backgroundColor = '#050509';
+            ..style.backgroundColor = '#000000';
         }
 
         return html.IFrameElement()
@@ -1175,38 +1598,30 @@ class _VideoStage extends StatelessWidget {
             ),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             decoration: const BoxDecoration(
-              color: Color(0xFF0E0E14),
+              color: Color(0xFF0A0A0F),
               borderRadius: BorderRadius.vertical(bottom: Radius.circular(22)),
             ),
-            child: Row(
+            child: const Row(
               children: [
-                Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: const Icon(Icons.play_arrow_rounded,
-                      color: AppColors.primaryLight),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    _videoTypeLabel(videoType),
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.w800,
-                    ),
+                Icon(Icons.emergency_recording_rounded,
+                    color: AppColors.rose, size: 16),
+                SizedBox(width: 8),
+                Text(
+                  'LIVE RECORDING',
+                  style: TextStyle(
+                    color: AppColors.rose,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
-                TextButton.icon(
-                  onPressed: () => html.window.open(videoUrl, '_blank'),
-                  icon: const Icon(Icons.open_in_new_rounded, size: 16),
-                  label: const Text('새 탭'),
-                ),
+                Spacer(),
+                Icon(Icons.closed_caption_rounded,
+                    color: AppColors.textMuted, size: 18),
+                SizedBox(width: 12),
+                Icon(Icons.settings_rounded,
+                    color: AppColors.textMuted, size: 18),
               ],
             ),
           ),
@@ -1255,20 +1670,9 @@ class _VideoStage extends StatelessWidget {
         lower.contains('storage.googleapis.com');
   }
 
-  static String _videoTypeLabel(String type) {
-    switch (type) {
-      case 'youtube':
-        return '온라인 영상 강의';
-      case 'upload':
-        return '업로드 영상 강의';
-      case 'external':
-        return '외부 영상 강의';
-      default:
-        return '영상 강의';
-    }
-  }
 }
 
+// ignore: unused_element
 class _VideoAssistPanel extends StatelessWidget {
   final TextEditingController startController;
   final TextEditingController endController;
@@ -1605,6 +2009,14 @@ class _MarkdownText extends StatelessWidget {
   }
 
   Widget _renderLine(String line) {
+    final trimmed = line.trim();
+    if (trimmed == '---' || trimmed == '***' || trimmed == '___') {
+      return Container(
+        height: 1,
+        margin: const EdgeInsets.symmetric(vertical: 16),
+        color: AppColors.border.withValues(alpha: 0.75),
+      );
+    }
     if (line.startsWith('### ')) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(0, 22, 0, 8),
@@ -1623,22 +2035,38 @@ class _MarkdownText extends StatelessWidget {
         child: _SectionHeading(text: line.substring(2), level: 1),
       );
     }
-    if (line.startsWith('- ') || line.startsWith('* ')) {
+    final ordered = RegExp(r'^\d+\.\s+').firstMatch(line);
+    if (line.startsWith('- ') || line.startsWith('* ') || ordered != null) {
+      final body = ordered == null ? line.substring(2) : line.substring(ordered.end);
+      final marker = ordered == null ? null : line.substring(0, ordered.end).trim();
       return Padding(
         padding: const EdgeInsets.only(bottom: 7),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(2, 10, 12, 0),
-            child: CircleAvatar(
-                radius: 2.5, backgroundColor: AppColors.primaryLight),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(2, 7, 12, 0),
+            child: marker == null
+                ? const CircleAvatar(
+                    radius: 2.5,
+                    backgroundColor: AppColors.primaryLight,
+                  )
+                : Text(
+                    marker,
+                    style: const TextStyle(
+                      color: AppColors.primaryLight,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
           ),
           Expanded(
-            child: SelectableText(
-              line.substring(2),
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 14,
-                height: 1.65,
+            child: SelectableText.rich(
+              _inlineMarkdown(
+                body,
+                const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 14,
+                  height: 1.65,
+                ),
               ),
             ),
           ),
@@ -1659,13 +2087,15 @@ class _MarkdownText extends StatelessWidget {
         ).copyWith(
           color: AppColors.primary.withValues(alpha: 0.06),
         ),
-        child: SelectableText(
-          line.substring(2),
-          style: const TextStyle(
-            color: AppColors.textSecondary,
-            fontSize: 13,
-            fontStyle: FontStyle.italic,
-            height: 1.5,
+        child: SelectableText.rich(
+          _inlineMarkdown(
+            line.substring(2),
+            const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 13,
+              fontStyle: FontStyle.italic,
+              height: 1.5,
+            ),
           ),
         ),
       );
@@ -1673,15 +2103,52 @@ class _MarkdownText extends StatelessWidget {
     if (line.trim().isEmpty) return const SizedBox(height: 8);
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: SelectableText(
-        line,
-        style: const TextStyle(
-          color: AppColors.textSecondary,
-          fontSize: 14,
-          height: 1.7,
+      child: SelectableText.rich(
+        _inlineMarkdown(
+          line,
+          const TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 14,
+            height: 1.7,
+          ),
         ),
       ),
     );
+  }
+
+  TextSpan _inlineMarkdown(String text, TextStyle baseStyle) {
+    final spans = <TextSpan>[];
+    final pattern = RegExp(r'(\*\*[^*]+\*\*|`[^`]+`)');
+    var cursor = 0;
+    for (final match in pattern.allMatches(text)) {
+      if (match.start > cursor) {
+        spans.add(TextSpan(text: text.substring(cursor, match.start)));
+      }
+      final token = match.group(0) ?? '';
+      if (token.startsWith('**')) {
+        spans.add(TextSpan(
+          text: token.substring(2, token.length - 2),
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w900,
+          ),
+        ));
+      } else if (token.startsWith('`')) {
+        spans.add(TextSpan(
+          text: token.substring(1, token.length - 1),
+          style: const TextStyle(
+            color: AppColors.primaryLight,
+            fontFamily: 'monospace',
+            fontWeight: FontWeight.w700,
+          ),
+        ));
+      }
+      cursor = match.end;
+    }
+    if (cursor < text.length) {
+      spans.add(TextSpan(text: text.substring(cursor)));
+    }
+    return TextSpan(style: baseStyle, children: spans);
   }
 }
 
@@ -1709,7 +2176,7 @@ class _SectionHeading extends StatelessWidget {
       child: Padding(
         padding: EdgeInsets.only(left: isTop ? 14 : 12),
         child: SelectableText(
-          text,
+          text.replaceAll('**', ''),
           style: TextStyle(
             color: isTop ? AppColors.textPrimary : AppColors.textSecondary,
             fontSize: isTop ? 24 : (level == 2 ? 19 : 16),
