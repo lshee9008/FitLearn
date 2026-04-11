@@ -51,6 +51,11 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
   Map<String, dynamic>? _profileSummary;
   String? _primaryStyle;
   String? _subjectLevel;
+  String? _segmentAnswer;
+  bool _segmentLoading = false;
+  final _segmentStartCtrl = TextEditingController(text: '0');
+  final _segmentEndCtrl = TextEditingController(text: '5');
+  final _segmentQuestionCtrl = TextEditingController();
   bool _loading = false;
   String? _error;
 
@@ -58,6 +63,14 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  @override
+  void dispose() {
+    _segmentStartCtrl.dispose();
+    _segmentEndCtrl.dispose();
+    _segmentQuestionCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -196,6 +209,37 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
     }
   }
 
+  Future<void> _askVideoSegment() async {
+    setState(() => _segmentLoading = true);
+    try {
+      final data = await ApiService().askVideoSegment(
+        roomId: widget.roomId,
+        lectureId: widget.lectureId,
+        userId: widget.userId,
+        startMinute: int.tryParse(_segmentStartCtrl.text.trim()) ?? 0,
+        endMinute: int.tryParse(_segmentEndCtrl.text.trim()) ?? 0,
+        question: _segmentQuestionCtrl.text.trim(),
+      );
+      setState(() {
+        _segmentAnswer = data['answer'] as String? ?? '';
+        _segmentLoading = false;
+      });
+    } on DioException catch (e) {
+      final detail = e.response?.data is Map<String, dynamic>
+          ? (e.response?.data['detail'] as String?)
+          : null;
+      setState(() {
+        _segmentAnswer = detail ?? '영상 구간 도움말을 불러오지 못했습니다.';
+        _segmentLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _segmentAnswer = '영상 구간 도움말 오류: $e';
+        _segmentLoading = false;
+      });
+    }
+  }
+
   Widget _buildContent() {
     final activeStyle = _primaryStyle ?? '읽기형';
     final content = _styleContents?[activeStyle] ??
@@ -207,22 +251,35 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
     }
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 100),
-      child: Column(children: [
-        _LearningWorkspaceHeader(
-          lecture: _lectureMeta,
-          onDownloadOriginal: _downloadOriginal,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1180),
+          child: Column(children: [
+            _LearningWorkspaceHeader(
+              lecture: _lectureMeta,
+              onDownloadOriginal: _downloadOriginal,
+              startController: _segmentStartCtrl,
+              endController: _segmentEndCtrl,
+              questionController: _segmentQuestionCtrl,
+              segmentAnswer: _segmentAnswer,
+              segmentLoading: _segmentLoading,
+              onAskSegment: _askVideoSegment,
+            ),
+            const SizedBox(height: 16),
+            _PersonalizationBasisCard(
+              profile: _profileSummary,
+              primaryStyle: activeStyle,
+              subjectLevel: _subjectLevel,
+            ),
+            const SizedBox(height: 16),
+            _NotionDocument(
+              style: activeStyle,
+              title: widget.title,
+              content: content,
+            ),
+          ]),
         ),
-        const SizedBox(height: 16),
-        _PersonalizationBasisCard(
-          profile: _profileSummary,
-          primaryStyle: activeStyle,
-          subjectLevel: _subjectLevel,
-        ),
-        const SizedBox(height: 16),
-        _StyleHeader(style: activeStyle),
-        const SizedBox(height: 16),
-        _MarkdownText(content),
-      ]),
+      ),
     );
   }
 }
@@ -252,35 +309,101 @@ class _EmptyView extends StatelessWidget {
   }
 }
 
-// ── 스타일 헤더 ───────────────────────────────────────────────────────────────
-
-class _StyleHeader extends StatelessWidget {
+class _NotionDocument extends StatelessWidget {
   final String style;
-  const _StyleHeader({required this.style});
+  final String title;
+  final String content;
+
+  const _NotionDocument({
+    required this.style,
+    required this.title,
+    required this.content,
+  });
 
   @override
   Widget build(BuildContext context) {
     final color = _styleColors[style] ?? AppColors.primary;
-    final emoji = _styleEmojis[style] ?? '📄';
+    final emoji = _styleEmojis[style] ?? '📚';
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
+        color: const Color(0xFF15151B),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.26),
+            blurRadius: 30,
+            offset: const Offset(0, 18),
+          ),
+        ],
       ),
-      child: Row(children: [
-        Text(emoji, style: const TextStyle(fontSize: 20)),
-        const SizedBox(width: 10),
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('$style 맞춤 교안', style: TextStyle(
-            color: color, fontSize: 14, fontWeight: FontWeight.w800,
-          )),
-          const Text('AI가 학습 성향에 맞게 재가공한 교안입니다',
-              style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
-        ]),
-      ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(34, 30, 34, 26),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  color.withValues(alpha: 0.18),
+                  const Color(0xFF15151B),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: color.withValues(alpha: 0.24)),
+                  ),
+                  child: Text(
+                    '$emoji $style 자동 맞춤 교안',
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 30,
+                    fontWeight: FontWeight.w900,
+                    height: 1.2,
+                    letterSpacing: -0.8,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  '원본 자료와 교수 핵심 포인트를 바탕으로 학생 성향과 과목 수준에 맞게 재해석했습니다.',
+                  style: TextStyle(
+                    color: AppColors.textMuted,
+                    fontSize: 14,
+                    height: 1.55,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(34, 26, 34, 38),
+            child: _MarkdownText(content),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -505,10 +628,22 @@ class _ReliabilityPill extends StatelessWidget {
 class _LearningWorkspaceHeader extends StatelessWidget {
   final Map<String, dynamic>? lecture;
   final VoidCallback onDownloadOriginal;
+  final TextEditingController startController;
+  final TextEditingController endController;
+  final TextEditingController questionController;
+  final String? segmentAnswer;
+  final bool segmentLoading;
+  final VoidCallback onAskSegment;
 
   const _LearningWorkspaceHeader({
     required this.lecture,
     required this.onDownloadOriginal,
+    required this.startController,
+    required this.endController,
+    required this.questionController,
+    required this.segmentAnswer,
+    required this.segmentLoading,
+    required this.onAskSegment,
   });
 
   @override
@@ -565,6 +700,15 @@ class _LearningWorkspaceHeader extends StatelessWidget {
               videoUrl: videoUrl,
               videoType: videoType,
               videoStatus: videoStatus,
+            ),
+            const SizedBox(height: 14),
+            _VideoAssistPanel(
+              startController: startController,
+              endController: endController,
+              questionController: questionController,
+              answer: segmentAnswer,
+              loading: segmentLoading,
+              onAsk: onAskSegment,
             ),
             const SizedBox(height: 14),
           ],
@@ -753,6 +897,160 @@ class _VideoStage extends StatelessWidget {
       default:
         return '영상 강의';
     }
+  }
+}
+
+class _VideoAssistPanel extends StatelessWidget {
+  final TextEditingController startController;
+  final TextEditingController endController;
+  final TextEditingController questionController;
+  final String? answer;
+  final bool loading;
+  final VoidCallback onAsk;
+
+  const _VideoAssistPanel({
+    required this.startController,
+    required this.endController,
+    required this.questionController,
+    required this.answer,
+    required this.loading,
+    required this.onAsk,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF101217),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.primaryLight.withValues(alpha: 0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primaryLight, size: 18),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '영상 구간 요약 · 질문',
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    SizedBox(height: 3),
+                    Text(
+                      '모르는 구간을 적으면 교안과 핵심포인트 근거로 맞춤 설명합니다.',
+                      style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              _MinuteField(label: '시작', controller: startController),
+              const SizedBox(width: 10),
+              _MinuteField(label: '끝', controller: endController),
+              const SizedBox(width: 10),
+              Expanded(
+                child: TextField(
+                  controller: questionController,
+                  style: const TextStyle(color: AppColors.textPrimary),
+                  decoration: InputDecoration(
+                    hintText: '예: 이 구간의 코드 흐름이 이해가 안 돼요',
+                    hintStyle: const TextStyle(color: AppColors.textMuted),
+                    filled: true,
+                    fillColor: AppColors.bg,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppColors.border),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              SizedBox(
+                height: 48,
+                child: ElevatedButton.icon(
+                  onPressed: loading ? null : onAsk,
+                  icon: loading
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.send_rounded, size: 16),
+                  label: Text(loading ? '분석 중' : '요약 확인'),
+                ),
+              ),
+            ],
+          ),
+          if (answer != null && answer!.trim().isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.bgSurface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: _MarkdownText(answer!),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _MinuteField extends StatelessWidget {
+  final String label;
+  final TextEditingController controller;
+
+  const _MinuteField({
+    required this.label,
+    required this.controller,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 74,
+      child: TextField(
+        controller: controller,
+        keyboardType: TextInputType.number,
+        style: const TextStyle(color: AppColors.textPrimary),
+        decoration: InputDecoration(
+          labelText: '$label(분)',
+          labelStyle: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+          filled: true,
+          fillColor: AppColors.bg,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: AppColors.border),
+          ),
+        ),
+      ),
+    );
   }
 }
 

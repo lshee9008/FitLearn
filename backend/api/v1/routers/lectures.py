@@ -1,6 +1,10 @@
 import logging
+import os
 import re
+import asyncio
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from pydantic import BaseModel
+import google.generativeai as genai
 
 from models.lecture import LectureUploadResponse, CorePoint, CorePointConfirmRequest
 from services.lecture_pipeline import LecturePipeline
@@ -14,6 +18,14 @@ pipeline = LecturePipeline()
 reforge_svc = ReforgeService()
 file_svc = FileService()
 firebase = FirebaseService()
+MODEL = "models/gemini-1.5-flash"
+
+
+class VideoAssistRequest(BaseModel):
+    user_id: str
+    start_minute: int = 0
+    end_minute: int = 0
+    question: str = ""
 
 _DEMO_LECTURE = """
 # 학습심리학 기초 — 인지부하이론과 학습 전략
@@ -215,6 +227,87 @@ async def get_original_file(room_id: str, lecture_id: str):
     if not url:
         raise HTTPException(status_code=404, detail="원본 파일이 없습니다.")
     return {"url": url}
+
+
+@router.post("/lectures/{room_id}/{lecture_id}/video/assist")
+async def assist_video_segment(room_id: str, lecture_id: str, body: VideoAssistRequest):
+    lecture = await firebase.get_lecture(room_id, lecture_id)
+    if not lecture:
+        raise HTTPException(status_code=404, detail="교안을 찾을 수 없습니다.")
+
+    profile = await _resolve_student_profile(body.user_id, room_id)
+    start = max(body.start_minute, 0)
+    end = max(body.end_minute, start)
+    question = body.question.strip()
+    segment_label = f"{start}분~{end}분" if end > start else f"{start}분 전후"
+    core_points = lecture.get("core_points", [])
+    core_text = "\n".join(
+        f"- {point.get('content', '')}"
+        for point in core_points[:8]
+        if point.get("content")
+    )
+    original_text = lecture.get("original_text", "")[:4500]
+
+    prompt = f"""당신은 온라인 강의 학습 도우미입니다.
+학생이 영상의 특정 구간을 보다가 궁금한 점을 물었습니다.
+아직 영상 자막이 없는 경우에도 반드시 아래 원본 교안과 교수 핵심 포인트만 근거로 답하세요.
+원본에 없는 사실을 꾸며내지 말고, 불확실하면 "교안 근거상 확인 가능한 범위"라고 표시하세요.
+
+[학생 프로필]
+{_public_profile_summary(profile)}
+
+[요청 구간]
+{segment_label}
+
+[학생 질문]
+{question or "이 구간이 잘 이해되지 않습니다. 핵심을 다시 설명해주세요."}
+
+[교수 핵심 포인트]
+{core_text}
+
+[원본 교안]
+{original_text}
+
+[출력 형식]
+## {segment_label} 이해 가이드
+- 핵심 요지 3개
+- 학생 프로필에 맞춘 쉬운 설명
+- 지금 바로 확인할 질문 2개
+- 교안 근거상 주의할 점
+"""
+
+    try:
+      api_key = os.getenv("GEMINI_API_KEY")
+      if not api_key:
+          raise RuntimeError("GEMINI_API_KEY가 설정되지 않았습니다.")
+      genai.configure(api_key=api_key, transport="rest")
+      model = genai.GenerativeModel(
+          model_name=MODEL,
+          generation_config=genai.GenerationConfig(
+              temperature=0.25,
+              max_output_tokens=900,
+          ),
+      )
+      response = await asyncio.to_thread(model.generate_content, prompt)
+      answer = response.text.strip()
+    except Exception as e:
+      logger.warning(f"[video_assist] AI 생성 실패 fallback: {e}")
+      answer = f"""## {segment_label} 이해 가이드
+
+- 이 구간은 교수 핵심 포인트와 원본 교안 내용을 함께 보며 확인해야 합니다.
+- 질문: {question or "핵심 내용이 이해되지 않습니다."}
+- 핵심 포인트:
+{core_text or "- 교수 핵심 포인트가 아직 비어 있습니다."}
+
+> AI 응답이 지연되어 기본 근거형 안내로 표시됩니다. 잠시 후 다시 시도하면 더 자세한 설명을 받을 수 있습니다.
+"""
+
+    return {
+        "segment": {"start_minute": start, "end_minute": end},
+        "question": question,
+        "answer": answer,
+        "profile": _public_profile_summary(profile),
+    }
 
 
 _TEST_PROFILES = {

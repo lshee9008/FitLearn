@@ -140,12 +140,31 @@ class FirebaseService:
             def _write():
                 db.collection("users").document(user_id).set(
                     {"name": name, "role": role, "email": email,
+                     "is_active": True,
+                     "last_seen_at": datetime.now(timezone.utc),
                      "created_at": datetime.now(timezone.utc)},
                     merge=True,
                 )
             await _run(_write)
         except Exception as e:
             logger.warning(f"[Firebase] save_user 실패: {e}")
+
+    async def touch_user(self, user_id: str) -> None:
+        db = self._safe_db()
+        if db is None:
+            return
+        try:
+            def _write():
+                db.collection("users").document(user_id).set(
+                    {
+                        "is_active": True,
+                        "last_seen_at": datetime.now(timezone.utc),
+                    },
+                    merge=True,
+                )
+            await _run(_write)
+        except Exception as e:
+            logger.warning(f"[Firebase] touch_user 실패: {e}")
 
     async def get_user(self, user_id: str) -> Optional[dict]:
         db = self._safe_db()

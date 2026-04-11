@@ -94,6 +94,16 @@ class AuthNotifier extends _$AuthNotifier {
     await prefs.setString('user_name', profile.name);
     await prefs.setString('user_role', profile.roleValue);
     await prefs.setString('user_email', '');
+    try {
+      await ApiService().register(
+        userId: profile.userId,
+        name: profile.name,
+        role: profile.roleValue,
+        email: '',
+      );
+    } catch (_) {
+      await ApiService().markActive(profile.userId).catchError((_) {});
+    }
     state = profile;
   }
 
@@ -139,6 +149,7 @@ class AuthNotifier extends _$AuthNotifier {
     await prefs.setString('user_name', profile.name);
     await prefs.setString('user_role', profile.roleValue);
     await prefs.setString('user_email', profile.email);
+    await ApiService().markActive(profile.userId).catchError((_) {});
   }
 
   // ── 이메일 로그인 ──────────────────────────────────────────────

@@ -34,6 +34,10 @@ class ApiService {
     return res.data as Map<String, dynamic>;
   }
 
+  Future<void> markActive(String userId) async {
+    await _dio.post('/api/v1/auth/active/$userId');
+  }
+
   // ── Rooms ─────────────────────────────────────────────────────
 
   Future<Map<String, dynamic>> createRoom({
@@ -222,6 +226,23 @@ class ApiService {
 
   Future<Map<String, dynamic>> getLecture(String roomId, String lectureId) async {
     final res = await _dio.get(ApiConstants.lecture(roomId, lectureId));
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> askVideoSegment({
+    required String roomId,
+    required String lectureId,
+    required String userId,
+    required int startMinute,
+    required int endMinute,
+    required String question,
+  }) async {
+    final res = await _dio.post('/api/v1/lectures/$roomId/$lectureId/video/assist', data: {
+      'user_id': userId,
+      'start_minute': startMinute,
+      'end_minute': endMinute,
+      'question': question,
+    });
     return res.data as Map<String, dynamic>;
   }
 

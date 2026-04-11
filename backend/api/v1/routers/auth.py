@@ -39,3 +39,13 @@ async def get_profile(user_id: str):
     except Exception as e:
         logger.error(f"[get_profile] 실패 user_id={user_id} error={type(e).__name__}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"프로필 조회 중 오류가 발생했습니다: {type(e).__name__}")
+
+
+@router.post("/auth/active/{user_id}")
+async def mark_active(user_id: str):
+    try:
+        await firebase.touch_user(user_id)
+        return {"status": "active", "user_id": user_id}
+    except Exception as e:
+        logger.error(f"[mark_active] 실패 user_id={user_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="사용자 활성 상태 저장 실패")
