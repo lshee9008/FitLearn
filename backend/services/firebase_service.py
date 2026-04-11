@@ -875,6 +875,7 @@ class FirebaseService:
         styles: dict[str, str],
         primary_style: str,
         subject_level: str = "",
+        cache_version: int = 1,
     ) -> None:
         db = self._safe_db()
         if db is None:
@@ -888,6 +889,7 @@ class FirebaseService:
                         "styles": styles,
                         "primary_style": primary_style,
                         "subject_level": subject_level,
+                        "cache_version": cache_version,
                         "generated_at": datetime.now(timezone.utc),
                     })
             await _run(_write)
@@ -915,6 +917,7 @@ class FirebaseService:
                     "lecture_id": lecture_id,
                     "primary_style": d.get("primary_style", "읽기형"),
                     "subject_level": d.get("subject_level", ""),
+                    "cache_version": d.get("cache_version", 1),
                     "styles": d.get("styles", {}),
                 }
             return await _run(_read)

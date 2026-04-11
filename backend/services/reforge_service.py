@@ -14,7 +14,64 @@ from .rag_pipeline.knowledge_base import PAPER_CHUNKS
 from .gemini_service import STYLE_GUIDES
 
 logger = logging.getLogger(__name__)
-MODEL = "models/gemini-1.5-flash"  # 안정적인 최신 모델로 유지 (gemma-4-31b-it 등은 유효하지 않은 식별자일 수 있음)
+DEFAULT_MODEL = "gemini-2.5-flash"
+MODEL = os.getenv("GEMINI_MODEL", DEFAULT_MODEL)
+MODEL_FALLBACKS = [
+    model.strip()
+    for model in os.getenv(
+        "GEMINI_MODEL_FALLBACKS",
+        "gemini-2.5-flash,models/gemini-2.5-flash,gemini-2.5-flash-lite,gemini-2.0-flash,models/gemini-2.0-flash",
+    ).split(",")
+    if model.strip()
+]
+_working_model = MODEL
+
+
+async def generate_gemini_text(
+    prompt: str,
+    *,
+    temperature: float = 0.35,
+    max_output_tokens: int = 1200,
+    timeout: float = 35.0,
+    feature: str = "gemini",
+) -> str:
+    """Generate text with model fallback so removed Gemini model IDs do not break UX."""
+    global _working_model
+
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY가 설정되지 않았습니다.")
+
+    genai.configure(api_key=api_key, transport="rest")
+    candidates = []
+    for model_name in [_working_model, MODEL, *MODEL_FALLBACKS]:
+        if model_name and model_name not in candidates:
+            candidates.append(model_name)
+
+    last_error: Exception | None = None
+    for model_name in candidates:
+        try:
+            model = genai.GenerativeModel(
+                model_name=model_name,
+                generation_config=genai.GenerationConfig(
+                    temperature=temperature,
+                    max_output_tokens=max_output_tokens,
+                ),
+            )
+            response = await asyncio.wait_for(
+                asyncio.to_thread(model.generate_content, prompt),
+                timeout=timeout,
+            )
+            text = (response.text or "").strip()
+            if not text:
+                raise RuntimeError("Gemini 응답이 비어 있습니다.")
+            _working_model = model_name
+            return text
+        except Exception as e:
+            last_error = e
+            logger.warning(f"[{feature}] model={model_name} 생성 실패 — fallback 후보 시도: {e}")
+
+    raise RuntimeError(f"Gemini 생성 실패: {last_error}")
 
 
 # ── 마크다운 후처리 ───────────────────────────────────────────────────────────
@@ -479,23 +536,14 @@ Step 4. 위 계획대로 완성된 교안을 노션 스타일 마크다운으로
 
 ━━━ 지금 바로 Step 4 출력만 작성하세요 ━━━"""
 
-        api_key = os.getenv("GEMINI_API_KEY")
-        if api_key:
-            genai.configure(api_key=api_key, transport="rest")
-            
-        model = genai.GenerativeModel(
-            model_name=MODEL,
-            generation_config=genai.GenerationConfig(
+        try:
+            raw = await generate_gemini_text(
+                prompt,
                 temperature=0.45,
                 max_output_tokens=2500,  # 코드/실습 보존을 위해 충분히 확보
-            ),
-        )
-        try:
-            response = await asyncio.wait_for(
-                asyncio.to_thread(model.generate_content, prompt),
                 timeout=35.0,
+                feature=f"reforge:{style}",
             )
-            raw = response.text
             return _clean_markdown(raw)
         except asyncio.TimeoutError:
             logger.error(f"[reforge] {style} 타임아웃 (35s 초과)")

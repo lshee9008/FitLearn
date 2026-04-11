@@ -1,14 +1,11 @@
 import logging
-import os
 import re
-import asyncio
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
-import google.generativeai as genai
 
 from models.lecture import LectureUploadResponse, CorePoint, CorePointConfirmRequest
 from services.lecture_pipeline import LecturePipeline
-from services.reforge_service import ReforgeService
+from services.reforge_service import ReforgeService, generate_gemini_text
 from services.file_service import FileService
 from services.firebase_service import FirebaseService
 
@@ -18,7 +15,31 @@ pipeline = LecturePipeline()
 reforge_svc = ReforgeService()
 file_svc = FileService()
 firebase = FirebaseService()
-MODEL = "models/gemini-1.5-flash"
+REFORGED_CACHE_VERSION = 2
+FALLBACK_CACHE_MARKERS = (
+    "AI 서버 응답 지연",
+    "AI 응답이 지연",
+    "기본 형식으로 제공",
+    "기본 재해석 문서",
+)
+
+
+def _is_stale_reforged_cache(cached: dict | None) -> bool:
+    if not cached:
+        return True
+    if cached.get("cache_version") != REFORGED_CACHE_VERSION:
+        return True
+    styles = cached.get("styles") or {}
+    return _has_fallback_content(styles)
+
+
+def _has_fallback_content(styles: dict) -> bool:
+    return any(
+        marker in content
+        for content in styles.values()
+        if isinstance(content, str)
+        for marker in FALLBACK_CACHE_MARKERS
+    )
 
 
 class VideoAssistRequest(BaseModel):
@@ -247,10 +268,19 @@ async def assist_video_segment(room_id: str, lecture_id: str, body: VideoAssistR
         if point.get("content")
     )
     original_text = lecture.get("original_text", "")[:4500]
+    transcript = (
+        lecture.get("video_transcript")
+        or lecture.get("transcript")
+        or lecture.get("captions")
+        or ""
+    )
+    transcript_text = str(transcript)[:4500] if transcript else ""
 
     prompt = f"""당신은 온라인 강의 학습 도우미입니다.
 학생이 영상의 특정 구간을 보다가 궁금한 점을 물었습니다.
-아직 영상 자막이 없는 경우에도 반드시 아래 원본 교안과 교수 핵심 포인트만 근거로 답하세요.
+반드시 아래 영상 전사, 원본 교안, 교수 핵심 포인트만 근거로 답하세요.
+영상 전사가 비어 있으면 영상 화면·음성 내용을 본 것처럼 말하지 마세요.
+질문이 제공된 근거와 직접 연결되지 않으면 "현재 자료만으로는 확인 어렵습니다"라고 먼저 밝히세요.
 원본에 없는 사실을 꾸며내지 말고, 불확실하면 "교안 근거상 확인 가능한 범위"라고 표시하세요.
 
 [학생 프로필]
@@ -265,6 +295,9 @@ async def assist_video_segment(room_id: str, lecture_id: str, body: VideoAssistR
 [교수 핵심 포인트]
 {core_text}
 
+[영상 전사]
+{transcript_text or "영상 전사가 아직 없습니다. 교안과 교수 핵심 포인트만 근거로 답해야 합니다."}
+
 [원본 교안]
 {original_text}
 
@@ -277,29 +310,24 @@ async def assist_video_segment(room_id: str, lecture_id: str, body: VideoAssistR
 """
 
     try:
-      api_key = os.getenv("GEMINI_API_KEY")
-      if not api_key:
-          raise RuntimeError("GEMINI_API_KEY가 설정되지 않았습니다.")
-      genai.configure(api_key=api_key, transport="rest")
-      model = genai.GenerativeModel(
-          model_name=MODEL,
-          generation_config=genai.GenerationConfig(
-              temperature=0.25,
-              max_output_tokens=900,
-          ),
-      )
-      response = await asyncio.to_thread(model.generate_content, prompt)
-      answer = response.text.strip()
+        answer = await generate_gemini_text(
+            prompt,
+            temperature=0.25,
+            max_output_tokens=900,
+            timeout=28.0,
+            feature="video_assist",
+        )
     except Exception as e:
-      logger.warning(f"[video_assist] AI 생성 실패 fallback: {e}")
-      answer = f"""## {segment_label} 이해 가이드
+        logger.warning(f"[video_assist] AI 생성 실패 fallback: {e}")
+        answer = f"""## {segment_label} 이해 가이드
 
-- 이 구간은 교수 핵심 포인트와 원본 교안 내용을 함께 보며 확인해야 합니다.
+- 현재 영상 전사가 없어 영상 화면·음성 내용을 직접 확인한 답변은 제공할 수 없습니다.
+- 아래 내용은 교수 핵심 포인트와 원본 교안 기준의 기본 안내입니다.
 - 질문: {question or "핵심 내용이 이해되지 않습니다."}
 - 핵심 포인트:
 {core_text or "- 교수 핵심 포인트가 아직 비어 있습니다."}
 
-> 현재는 교수 핵심 포인트와 원본 교안을 기준으로 구성한 기본 구간 안내입니다.
+> 영상 구간별 정확한 답변을 위해서는 업로드 영상 전사 또는 자막 추출 파이프라인이 필요합니다.
 """
 
     return {
@@ -432,7 +460,13 @@ async def post_custom_reforged(body: _CustomReforgeRequest):
 
 
 @router.get("/lectures/{room_id}/{lecture_id}/reforged")
-async def get_reforged(room_id: str, lecture_id: str, user_id: str, test_style: str = ""):
+async def get_reforged(
+    room_id: str,
+    lecture_id: str,
+    user_id: str,
+    test_style: str = "",
+    refresh: bool = False,
+):
     """
     학생 성향에 맞는 6스타일 재가공 교안 반환.
     - test_style 지정 시: Firebase 진단 없이 해당 스타일 프로필로 즉시 재가공 (테스트용)
@@ -458,6 +492,7 @@ async def get_reforged(room_id: str, lecture_id: str, user_id: str, test_style: 
             "lecture_id": lecture_id,
             "primary_style": test_style,
             "subject_level": profile.get("subject_level", ""),
+            "cache_version": REFORGED_CACHE_VERSION,
             "profile": _public_profile_summary(profile),
             "styles": styles,
         }
@@ -465,10 +500,12 @@ async def get_reforged(room_id: str, lecture_id: str, user_id: str, test_style: 
     # ── 정상 모드 ─────────────────────────────────────────────────
     profile = await _resolve_student_profile(user_id, room_id)
     cached = await firebase.get_reforged_all(room_id, lecture_id, user_id)
-    if cached:
+    if cached and not refresh and not _is_stale_reforged_cache(cached):
         logger.info(f"[reforged] 캐시 히트 user={user_id} lecture={lecture_id}")
         cached["profile"] = _public_profile_summary(profile)
         return cached
+    if cached:
+        logger.info(f"[reforged] 캐시 무효화 후 재생성 user={user_id} lecture={lecture_id} refresh={refresh}")
 
     lecture = await firebase.get_lecture(room_id, lecture_id)
     if not lecture:
@@ -488,17 +525,22 @@ async def get_reforged(room_id: str, lecture_id: str, user_id: str, test_style: 
         logger.error(f"[reforged] 재가공 실패: {e}", exc_info=True)
         raise HTTPException(status_code=502, detail=f"교안 재가공 실패: {e}")
 
-    await firebase.save_reforged_all(
-        room_id, lecture_id, user_id, styles,
-        profile.get("learning_style", "읽기형"),
-        profile.get("subject_level", ""),
-    )
+    if _has_fallback_content(styles):
+        logger.warning(f"[reforged] fallback 결과 감지 — 캐시 저장 생략 user={user_id} lecture={lecture_id}")
+    else:
+        await firebase.save_reforged_all(
+            room_id, lecture_id, user_id, styles,
+            profile.get("learning_style", "읽기형"),
+            profile.get("subject_level", ""),
+            cache_version=REFORGED_CACHE_VERSION,
+        )
     logger.info(f"[reforged] 완료 user={user_id}")
 
     return {
         "lecture_id": lecture_id,
         "primary_style": profile.get("learning_style", "읽기형"),
         "subject_level": profile.get("subject_level", ""),
+        "cache_version": REFORGED_CACHE_VERSION,
         "profile": _public_profile_summary(profile),
         "styles": styles,
     }

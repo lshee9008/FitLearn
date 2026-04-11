@@ -20,9 +20,9 @@ _MAX_IMAGES_PER_SLIDE = 3
 
 # Vision OCR 모델 폴백 순서
 _VISION_MODELS = [
-    "gemini-2.0-flash-lite",   # 가장 빠르고 quota 별도
-    "gemini-2.0-flash",        # 폴백 1
-    "gemini-1.5-flash-latest", # 폴백 2
+    "gemini-2.5-flash-lite",  # 가장 빠른 OCR 후보
+    "gemini-2.5-flash",       # 품질 폴백
+    "gemini-2.0-flash",       # 이전 세대 폴백
 ]
 
 
