@@ -158,6 +158,29 @@ async def get_student_service_hub(user_id: str):
     }
 
 
+@router.get("/courses")
+async def list_public_courses():
+    return {"courses": await firebase.get_public_courses()}
+
+
+@router.get("/courses/{course_id}")
+async def get_public_course(course_id: str):
+    course = await firebase.get_public_course(course_id)
+    if not course:
+        raise HTTPException(status_code=404, detail="강의를 찾을 수 없습니다.")
+    return course
+
+
+@router.post("/courses/{course_id}/enroll")
+async def enroll_public_course(course_id: str, body: RoomApplicationCreate):
+    try:
+        return await firebase.enroll_course(course_id, body.user_id)
+    except ValueError as e:
+        if str(e) == "course_not_found":
+            raise HTTPException(status_code=404, detail="강의를 찾을 수 없습니다.")
+        raise
+
+
 @router.get("/rooms/professor/{professor_uid}", response_model=list[Room])
 async def list_rooms(professor_uid: str):
     rooms = await firebase.get_rooms_by_professor(professor_uid)

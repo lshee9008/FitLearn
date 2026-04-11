@@ -1,8 +1,8 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../auth/provider/auth_provider.dart';
+import '../../../../shared/services/api_service.dart';
 
 // ── 컬러 ─────────────────────────────────────────────────────────
 class _C {
@@ -30,6 +30,7 @@ class CourseModel {
   final String instructor;
   final int price;
   final String roomId;
+  final String roomType;
 
   const CourseModel({
     required this.id,
@@ -39,11 +40,12 @@ class CourseModel {
     required this.instructor,
     required this.price,
     required this.roomId,
+    required this.roomType,
   });
 
-  factory CourseModel.fromFirestore(String id, Map<String, dynamic> data) {
+  factory CourseModel.fromJson(Map<String, dynamic> data) {
     return CourseModel(
-      id: id,
+      id: data['id'] as String? ?? data['roomId'] as String? ?? '',
       title: (data['title'] as String?) ?? (data['subject'] as String?) ?? '',
       description:
           (data['description'] as String?) ?? (data['synopsis'] as String?) ?? '',
@@ -52,41 +54,11 @@ class CourseModel {
           (data['professor_name'] as String?) ??
           '',
       price: (data['price'] as num?)?.toInt() ?? 0,
-      roomId: data['roomId'] as String? ?? '',
+      roomId: data['roomId'] as String? ?? data['room_id'] as String? ?? '',
+      roomType: data['room_type'] as String? ?? 'online',
     );
   }
 }
-
-// ── 더미 데이터 ───────────────────────────────────────────────────
-const _kDummyCourses = [
-  CourseModel(
-    id: 'dummy-1',
-    title: '파이썬 기초부터 실전까지',
-    description: '변수·함수·자료구조부터 파일 처리, 미니 프로젝트까지. AI가 내 학습 성향에 맞게 교안을 재해석해드립니다.',
-    thumbnail: '',
-    instructor: '김데이터',
-    price: 99000,
-    roomId: '',
-  ),
-  CourseModel(
-    id: 'dummy-2',
-    title: 'React + Next.js 완성 과정',
-    description: 'React 훅부터 Next.js 14 App Router, 배포까지 한 번에. 예시 중심형·요약형·상세형 중 내 스타일로 배웁니다.',
-    thumbnail: '',
-    instructor: '이개발',
-    price: 129000,
-    roomId: '',
-  ),
-  CourseModel(
-    id: 'dummy-3',
-    title: 'AI 프롬프트 엔지니어링',
-    description: 'ChatGPT·Claude·Gemini를 업무에 바로 적용하는 실전 강의. 나만의 프롬프트 전략을 AI 진단으로 최적화합니다.',
-    thumbnail: '',
-    instructor: '박AI',
-    price: 79000,
-    roomId: '',
-  ),
-];
 
 // ── 카테고리 탭 ───────────────────────────────────────────────────
 const _kCategories = ['전체', '온라인', '오프라인'];
@@ -104,6 +76,22 @@ class LandingPage extends ConsumerStatefulWidget {
 class _LandingPageState extends ConsumerState<LandingPage> {
   String _activeCategory = '전체';
   String _searchQuery = '';
+  late Future<List<CourseModel>> _coursesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _coursesFuture = _loadCourses();
+  }
+
+  Future<List<CourseModel>> _loadCourses() async {
+    final items = await ApiService().getCourses();
+    return items
+        .cast<Map<String, dynamic>>()
+        .map(CourseModel.fromJson)
+        .where((course) => course.id.isNotEmpty)
+        .toList();
+  }
 
   List<CourseModel> _filterCourses(List<CourseModel> courses) {
     final q = _searchQuery.toLowerCase();
@@ -111,7 +99,12 @@ class _LandingPageState extends ConsumerState<LandingPage> {
       final matchQuery = q.isEmpty ||
           c.title.toLowerCase().contains(q) ||
           c.instructor.toLowerCase().contains(q);
-      return matchQuery;
+      final matchCategory = switch (_activeCategory) {
+        '온라인' => c.roomType == 'online',
+        '오프라인' => c.roomType == 'offline',
+        _ => true,
+      };
+      return matchQuery && matchCategory;
     }).toList();
   }
 
@@ -131,7 +124,8 @@ class _LandingPageState extends ConsumerState<LandingPage> {
                 return;
               }
               await ref.read(authNotifierProvider.notifier).logout();
-              if (mounted) context.go('/');
+              if (!context.mounted) return;
+              context.go('/');
             },
           ),
           const Divider(color: _C.border, height: 1),
@@ -141,11 +135,8 @@ class _LandingPageState extends ConsumerState<LandingPage> {
             onTap: (c) => setState(() => _activeCategory = c),
           ),
           Expanded(
-            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: FirebaseFirestore.instance
-                  .collection('courses')
-                  .orderBy('created_at', descending: true)
-                  .snapshots(),
+            child: FutureBuilder<List<CourseModel>>(
+              future: _coursesFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
@@ -153,11 +144,12 @@ class _LandingPageState extends ConsumerState<LandingPage> {
                         color: _C.lime, strokeWidth: 2),
                   );
                 }
-                final liveCourses = snapshot.data?.docs
-                        .map((d) => CourseModel.fromFirestore(d.id, d.data()))
-                        .toList() ??
-                    const <CourseModel>[];
-                final courses = liveCourses.isEmpty ? _kDummyCourses : liveCourses;
+                if (snapshot.hasError) {
+                  return _LandingError(
+                    onRetry: () => setState(() => _coursesFuture = _loadCourses()),
+                  );
+                }
+                final courses = snapshot.data ?? const <CourseModel>[];
                 return _CourseGrid(
                   courses: _filterCourses(courses),
                   onTap: (course) =>
@@ -349,6 +341,57 @@ class _CourseGrid extends StatelessWidget {
       itemBuilder: (_, i) => _CourseCard(
         course: courses[i],
         onTap: () => onTap(courses[i]),
+      ),
+    );
+  }
+}
+
+class _LandingError extends StatelessWidget {
+  final VoidCallback onRetry;
+
+  const _LandingError({required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        width: 360,
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: _C.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: _C.border),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.cloud_off_rounded, color: _C.coral, size: 34),
+            const SizedBox(height: 14),
+            const Text(
+              '강의 목록을 불러오지 못했습니다',
+              style: TextStyle(
+                color: _C.textPri,
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '서버 연결을 다시 확인한 뒤 재시도해주세요.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: _C.textSec, height: 1.5),
+            ),
+            const SizedBox(height: 18),
+            ElevatedButton(
+              onPressed: onRetry,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _C.lime,
+                foregroundColor: _C.limeDark,
+              ),
+              child: const Text('다시 불러오기'),
+            ),
+          ],
+        ),
       ),
     );
   }

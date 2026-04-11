@@ -65,39 +65,11 @@ class _AuthPageState extends ConsumerState<AuthPage>
       final prefs = await SharedPreferences.getInstance();
       final pendingCourseId = prefs.getString('pendingCourseId');
       if (pendingCourseId != null && pendingCourseId.isNotEmpty) {
-        final courseDoc = await FirebaseFirestore.instance
-            .collection('courses')
-            .doc(pendingCourseId)
-            .get();
-        if (courseDoc.exists) {
-          final course = {'id': courseDoc.id, ...courseDoc.data()!};
-          final roomId = course['roomId'] as String? ?? pendingCourseId;
-          await FirebaseFirestore.instance
-              .collection('enrollments')
-              .doc('${profile.userId}_$roomId')
-              .set({
-            'userId': profile.userId,
-            'studentName': profile.name,
-            'courseId': pendingCourseId,
-            'courseTitle': course['title'] as String? ?? '강의',
-            'roomId': roomId,
-            'professorUid': course['professor_uid'] as String? ?? '',
-            'professorName': (course['professor_name'] as String?) ??
-                (course['instructor'] as String?) ??
-                '',
-            'paidAt': FieldValue.serverTimestamp(),
-            'fitlearnActivated': true,
-            'status': 'paid',
-          }, SetOptions(merge: true));
-          await FirebaseFirestore.instance.collection('rooms').doc(roomId).set({
-            'students': FieldValue.arrayUnion([profile.userId]),
-            'updated_at': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
-          try {
-            await ApiService().enrollRoom(roomId: roomId, userId: profile.userId);
-          } catch (_) {}
-          await prefs.remove('pendingCourseId');
-        }
+        await ApiService().enrollCourse(
+          courseId: pendingCourseId,
+          userId: profile.userId,
+        );
+        await prefs.remove('pendingCourseId');
       }
 
       final paid = await FirebaseFirestore.instance
