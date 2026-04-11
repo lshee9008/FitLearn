@@ -9,7 +9,8 @@ import logging
 import os
 import re
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 logger = logging.getLogger(__name__)
 MODEL = "models/gemma-4-31b-it"
@@ -35,20 +36,19 @@ def _extract_json(text: str) -> list | dict:
 
 
 class QuizService:
-    def _model(self):
+    def __init__(self):
         api_key = os.getenv("GEMINI_API_KEY")
         if api_key:
-            genai.configure(api_key=api_key, transport="rest")
+            self._client = genai.Client(api_key=api_key)
         else:
             logger.warning("[QuizService] GEMINI_API_KEY 미설정 — 퀴즈 생성 기능 동작 보장 불가")
-            
-        return genai.GenerativeModel(
-            model_name=MODEL,
-            generation_config={
-                "temperature": 0.3,
-                "max_output_tokens": 2048,
-                "thinking_config": {"thinking_budget": 0},
-            },
+            self._client = None
+
+    def _config(self) -> types.GenerateContentConfig:
+        return types.GenerateContentConfig(
+            temperature=0.3,
+            max_output_tokens=2048,
+            thinking_config=types.ThinkingConfig(thinking_budget=0),
         )
 
     async def generate_quiz(
@@ -90,7 +90,12 @@ class QuizService:
         try:
             try:
                 response = await asyncio.wait_for(
-                    asyncio.to_thread(self._model().generate_content, prompt),
+                    asyncio.to_thread(
+                        self._client.models.generate_content,
+                        model=MODEL,
+                        contents=prompt,
+                        config=self._config(),
+                    ),
                     timeout=40.0,
                 )
                 questions = _extract_json(response.text)

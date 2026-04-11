@@ -286,7 +286,8 @@ class FileService:
 
     async def _analyze_image_inner(self, image_bytes: bytes, ext: str = "png") -> str:
         try:
-            import google.generativeai as genai
+            from google import genai as _genai
+            from google.genai import types as _gtypes
             api_key = os.environ.get("GEMINI_API_KEY")
             if not api_key:
                 return ""
@@ -295,7 +296,7 @@ class FileService:
                 logger.info("[FileService] Vision quota cooldown 중 — 이미지 OCR 스킵")
                 return ""
 
-            genai.configure(api_key=api_key, transport="rest")
+            _vision_client = _genai.Client(api_key=api_key)
 
             mime_map = {
                 "jpg": "image/jpeg", "jpeg": "image/jpeg",
@@ -303,12 +304,7 @@ class FileService:
             }
             mime_type = mime_map.get(ext.lower(), "image/png")
 
-            image_part = {
-                "inline_data": {
-                    "mime_type": mime_type,
-                    "data": base64.b64encode(image_bytes).decode("utf-8"),
-                }
-            }
+            image_part = _gtypes.Part.from_bytes(data=image_bytes, mime_type=mime_type)
 
             prompt = """이 이미지를 분석하여 학생이 수업 중 그대로 따라갈 수 있는 교안 재료로 정확하게 변환하세요.
 
@@ -345,14 +341,15 @@ class FileService:
             for model_name in _VISION_MODELS:
                 for attempt in range(_VISION_RETRIES):
                     try:
-                        model = genai.GenerativeModel(
-                            model_name,
-                            generation_config={
-                                "thinking_config": {"thinking_budget": 0},
-                            }
-                        )
                         response = await asyncio.wait_for(
-                            asyncio.to_thread(model.generate_content, [prompt, image_part]),
+                            asyncio.to_thread(
+                                _vision_client.models.generate_content,
+                                model=model_name,
+                                contents=[prompt, image_part],
+                                config=_gtypes.GenerateContentConfig(
+                                    thinking_config=_gtypes.ThinkingConfig(thinking_budget=0),
+                                ),
+                            ),
                             timeout=_VISION_TIMEOUT_SECONDS,
                         )
                         result = response.text.strip()

@@ -1,16 +1,15 @@
 """
 논문 지식베이스 벡터화 — 서버 시작 시 1회 로드 후 메모리 캐싱
 
-langchain_google_genai의 GoogleGenerativeAIEmbeddings는 내부적으로 gRPC를 사용하여
-Render 같은 환경에서 DNS 타임아웃이 발생. genai.embed_content() REST API를 직접
-사용하는 커스텀 임베딩 클래스를 사용.
+google-genai 신 SDK의 client.models.embed_content() REST API를 사용.
 """
 import asyncio
 import logging
 import os
 from typing import List
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 
@@ -22,30 +21,27 @@ _store: FAISS | None = None  # 서버 전체 공유 싱글톤
 
 
 class _RestEmbeddings:
-    """genai.embed_content() REST 기반 임베딩 — gRPC 없이 동작"""
+    """client.models.embed_content() REST 기반 임베딩 — gRPC 없이 동작"""
 
-    def __init__(self, model: str = "models/text-embedding-004"):
+    def __init__(self, client: genai.Client, model: str = "models/text-embedding-004"):
+        self._client = client
         self.model = model
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
-        result = genai.embed_content(
+        result = self._client.models.embed_content(
             model=self.model,
-            content=texts,
-            task_type="retrieval_document",
+            contents=texts,
+            config=types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT"),
         )
-        emb = result.get("embedding", [])
-        # 단일 텍스트면 중첩 리스트로, 다중이면 그대로
-        if emb and isinstance(emb[0], (int, float)):
-            return [emb]
-        return emb
+        return [e.values for e in result.embeddings]
 
     def embed_query(self, text: str) -> List[float]:
-        result = genai.embed_content(
+        result = self._client.models.embed_content(
             model=self.model,
-            content=text,
-            task_type="retrieval_query",
+            contents=text,
+            config=types.EmbedContentConfig(task_type="RETRIEVAL_QUERY"),
         )
-        return result["embedding"]
+        return result.embeddings[0].values
 
 
 class PaperVectorStore:
@@ -62,7 +58,7 @@ class PaperVectorStore:
             logger.warning("[RAG] GEMINI_API_KEY 미설정 — RAG 비활성화")
             return
 
-        genai.configure(api_key=api_key, transport="rest")
+        client = genai.Client(api_key=api_key)
 
         logger.info("[RAG] 논문 지식베이스 벡터화 시작...")
         splitter = RecursiveCharacterTextSplitter(
@@ -82,7 +78,7 @@ class PaperVectorStore:
                     "title": chunk["title"],
                 })
 
-        embeddings = _RestEmbeddings()
+        embeddings = _RestEmbeddings(client)
         _store = await asyncio.to_thread(
             FAISS.from_texts, texts, embeddings, metadatas=metadatas
         )

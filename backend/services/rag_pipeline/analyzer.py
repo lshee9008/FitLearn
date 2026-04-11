@@ -9,7 +9,8 @@ import os
 import re
 import statistics
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 logger = logging.getLogger(__name__)
 MODEL = "gemma-4-31b-it"
@@ -96,18 +97,16 @@ class RAGAnalyzer:
     def __init__(self):
         api_key = os.getenv("GEMINI_API_KEY")
         if api_key:
-            genai.configure(api_key=api_key, transport="rest")
+            self._client = genai.Client(api_key=api_key)
         else:
             logger.warning("[RAGAnalyzer] GEMINI_API_KEY 미설정 — 분석 기능 사용 불가")
+            self._client = None
 
-    def _model(self) -> genai.GenerativeModel:
-        return genai.GenerativeModel(
-            model_name=MODEL,
-            generation_config={
-                "temperature": 0.1,
-                "max_output_tokens": 3000,
-                "thinking_config": {"thinking_budget": 0},
-            },
+    def _config(self) -> types.GenerateContentConfig:
+        return types.GenerateContentConfig(
+            temperature=0.1,
+            max_output_tokens=3000,
+            thinking_config=types.ThinkingConfig(thinking_budget=0),
         )
 
     def _build_context(self, retrieved: list[dict]) -> str:
@@ -261,7 +260,10 @@ class RAGAnalyzer:
 - confidence_score: 0-100"""
 
         response = await asyncio.to_thread(
-            self._model().generate_content, prompt
+            self._client.models.generate_content,
+            model=MODEL,
+            contents=prompt,
+            config=self._config(),
         )
         try:
             result = _extract_json(response.text)

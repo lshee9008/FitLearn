@@ -6,7 +6,8 @@ import json
 import os
 import re
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 import logging
 
 MODEL = "gemma-4-31b-it"
@@ -72,20 +73,15 @@ class GeminiService:
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
             logger.warning("[GeminiService] GEMINI_API_KEY 미설정 — AI 기능 동작 보장 불가")
-            # 최소한의 설정을 유지하거나 예외를 던지지 않고 로깅만 수행
-            # (main.py에서 임포트 시 전체 로딩이 중단되는 것을 방지하기 위함)
+            self._client: genai.Client | None = None
             return
+        self._client = genai.Client(api_key=api_key)
 
-        genai.configure(api_key=api_key, transport="rest")
-
-    def _model(self, temperature: float = 0.3, max_tokens: int = 2048) -> genai.GenerativeModel:
-        return genai.GenerativeModel(
-            model_name=MODEL,
-            generation_config={
-                "temperature": temperature,
-                "max_output_tokens": max_tokens,
-                "thinking_config": {"thinking_budget": 0},
-            },
+    def _config(self, temperature: float = 0.3, max_tokens: int = 2048) -> types.GenerateContentConfig:
+        return types.GenerateContentConfig(
+            temperature=temperature,
+            max_output_tokens=max_tokens,
+            thinking_config=types.ThinkingConfig(thinking_budget=0),
         )
 
     # ── 6차원 심리 진단 ──────────────────────────────────────────
@@ -145,7 +141,10 @@ class GeminiService:
 - scores 각 값: 0-100 정수"""
 
         response = await asyncio.to_thread(
-            self._model(temperature=0.2, max_tokens=1024).generate_content, prompt
+            self._client.models.generate_content,
+            model=MODEL,
+            contents=prompt,
+            config=self._config(temperature=0.2, max_tokens=1024),
         )
         return _extract_json(response.text)
 
@@ -172,7 +171,10 @@ class GeminiService:
 priority는 중요도 점수입니다 (5=매우중요, 1=보통). JSON만 출력하세요."""
 
         response = await asyncio.to_thread(
-            self._model(temperature=0.2, max_tokens=1024).generate_content, prompt
+            self._client.models.generate_content,
+            model=MODEL,
+            contents=prompt,
+            config=self._config(temperature=0.2, max_tokens=1024),
         )
         data = _extract_json(response.text)
         return data.get("core_points", [])
@@ -211,7 +213,10 @@ priority는 중요도 점수입니다 (5=매우중요, 1=보통). JSON만 출력
 위 지침을 엄격히 따라 마크다운 형식으로 완성된 교안을 작성하세요."""
 
         response = await asyncio.to_thread(
-            self._model(temperature=0.7, max_tokens=2048).generate_content, prompt
+            self._client.models.generate_content,
+            model=MODEL,
+            contents=prompt,
+            config=self._config(temperature=0.7, max_tokens=2048),
         )
         return response.text
 
@@ -249,6 +254,9 @@ priority는 중요도 점수입니다 (5=매우중요, 1=보통). JSON만 출력
 - 주의할 점 (다양성 대응 방법)"""
 
         response = await asyncio.to_thread(
-            self._model(temperature=0.3, max_tokens=400).generate_content, prompt
+            self._client.models.generate_content,
+            model=MODEL,
+            contents=prompt,
+            config=self._config(temperature=0.3, max_tokens=400),
         )
         return response.text
