@@ -82,7 +82,7 @@ def _fallback_content(style: str, core_text: str) -> str:
     )
     return f"""# {style} 맞춤 교안
 
-> ⚠️ AI 서버 응답 지연으로 기본 형식으로 제공됩니다. 재시도하면 AI 맞춤 교안을 받을 수 있습니다.
+> 현재는 교수 핵심 포인트와 원본 교안을 기준으로 구성한 기본 재해석 문서입니다.
 
 ## 핵심 포인트
 
@@ -92,9 +92,10 @@ def _fallback_content(style: str, core_text: str) -> str:
 
 {hint}
 
----
+## 확인할 점
 
-*더 풍부한 맞춤 교안을 원하시면 잠시 후 재시도하세요.*
+- 수업 중 따라 해야 하는 예제와 실습 단계는 원본 자료를 함께 확인하세요.
+- 교수 핵심 포인트를 우선순위로 두고, 부족한 부분은 강의 자료의 해당 구간과 비교해 보세요.
 """
 
 
@@ -392,8 +393,8 @@ class ReforgeService:
 {original_content[:4500]}
 
 ━━━ 출력 형식 ━━━
-# 📚 [강의 제목] — {style} 맞춤 교안
-> 🎯 학습 프로파일: {profile_summary}
+# [강의 제목] — {style} 맞춤 교안
+> 학습 프로파일: {profile_summary}
 
 ---
 
@@ -410,7 +411,7 @@ class ReforgeService:
         """단일 스타일 재가공 — CoT + Few-shot + 환각방지 고급 프롬프트"""
 
         core_text = "\n".join(
-            f"⭐ [중요도 {p.get('priority', 1)}/5] {p['content']}"
+            f"[중요도 {p.get('priority', 1)}/5] {p['content']}"
             for p in sorted(core_points, key=lambda x: x.get("priority", 0), reverse=True)
         )
         paper_strategy = PAPER_STRATEGY.get(style, "")
@@ -436,7 +437,7 @@ class ReforgeService:
 1. 원본 내용을 요약하지 마세요 — 재해석(reinterpretation)이 목표입니다
 2. 코드 블록·수식·예제는 원본 그대로 보존, ``` 코드블록으로 감싸세요
 3. 원본에 없는 내용을 추가하지 마세요 (환각 금지)
-4. 이미지·시각자료 언급이 있으면 [📷 이미지: 원본 설명] 형태로 표시
+4. 이미지·시각자료 언급이 있으면 [이미지: 원본 설명] 형태로 표시
 5. 인사말·역할 설명·"재해석하겠습니다" 같은 메타 문장 절대 금지
 6. 교수 핵심 포인트는 모두 빠짐없이 포함
 7. 순수 마크다운 본문만 출력 (노션 스타일)
@@ -464,12 +465,12 @@ Step 3. 교수 핵심 포인트를 가장 잘 전달하는 섹션 배치를 계�
 Step 4. 위 계획대로 완성된 교안을 노션 스타일 마크다운으로 작성한다
 
 ━━━ 출력 형식 ━━━
-# 📚 [강의 제목] — {style} 맞춤 교안
-> 🎯 학습 프로파일: {profile_summary}
+# [강의 제목] — {style} 맞춤 교안
+> 학습 프로파일: {profile_summary}
 
 ---
 
-## ⭐ 핵심 포인트
+## 핵심 포인트
 [교수가 강조한 핵심 포인트를 {style} 방식으로 전달]
 
 ---

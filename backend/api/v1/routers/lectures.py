@@ -299,7 +299,7 @@ async def assist_video_segment(room_id: str, lecture_id: str, body: VideoAssistR
 - 핵심 포인트:
 {core_text or "- 교수 핵심 포인트가 아직 비어 있습니다."}
 
-> AI 응답이 지연되어 기본 근거형 안내로 표시됩니다. 잠시 후 다시 시도하면 더 자세한 설명을 받을 수 있습니다.
+> 현재는 교수 핵심 포인트와 원본 교안을 기준으로 구성한 기본 구간 안내입니다.
 """
 
     return {
