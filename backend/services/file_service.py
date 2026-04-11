@@ -16,7 +16,8 @@ logger = logging.getLogger(__name__)
 _VISION_SEMAPHORE = asyncio.Semaphore(1)
 
 # 슬라이드당 처리할 최대 이미지 수 (너무 많으면 quota 소진)
-_MAX_IMAGES_PER_SLIDE = 3
+_MAX_IMAGES_PER_PAGE = 4
+_MAX_IMAGES_PER_SLIDE = 4
 
 # Vision OCR 모델 폴백 순서
 _VISION_MODELS = [
@@ -43,7 +44,7 @@ class FileService:
         elif ext in ("ppt", "pptx"):
             return await self._from_pptx(file_bytes)
         elif ext == "docx":
-            return self._from_docx(file_bytes)
+            return await self._from_docx_async(file_bytes)
         elif ext in ("hwp", "hwpx"):
             return self._from_hwp(file_bytes)
         elif ext in ("md", "txt"):
@@ -84,12 +85,16 @@ class FileService:
 
                     combined = "\n\n".join(parts).strip()
 
-                    # 텍스트가 거의 없는 이미지 페이지 → Vision 분석
-                    if len(combined) < 40:
+                    # 텍스트가 거의 없는 페이지 또는 이미지/도식이 포함된 페이지 → Vision 분석
+                    has_visuals = bool(getattr(page, "images", None))
+                    if len(combined) < 40 or has_visuals:
                         try:
                             vision_text = await self._pdf_page_to_vision(data, i - 1)
                             if vision_text:
-                                combined = vision_text
+                                combined = (
+                                    f"{combined}\n\n[페이지 {i} 시각자료/코드 캡처]\n{vision_text}"
+                                    if combined else vision_text
+                                )
                         except Exception as e:
                             logger.warning(f"[FileService] PDF p.{i} Vision 실패: {e}")
 
@@ -126,7 +131,7 @@ class FileService:
             import fitz
             doc = fitz.open(stream=pdf_bytes, filetype="pdf")
             page = doc.load_page(page_index)
-            pix = page.get_pixmap(dpi=150)
+            pix = page.get_pixmap(dpi=200)
             img_bytes = pix.tobytes("png")
             return await self._analyze_image(img_bytes)
         except ImportError:
@@ -157,12 +162,12 @@ class FileService:
                 if texts:
                     slide_parts.append("\n".join(texts))
 
-                # 이미지 순차 처리 (세마포어로 동시 실행 제한, 슬라이드당 최대 3개)
+                # 이미지 순차 처리 (세마포어로 동시 실행 제한, 슬라이드당 최대 4개)
                 limited_blobs = image_blobs[:_MAX_IMAGES_PER_SLIDE]
                 for j, blob in enumerate(limited_blobs):
                     result = await self._analyze_image(blob)
                     if result and result.strip():
-                        slide_parts.append(f"[슬라이드 이미지 {j+1}]\n{result.strip()}")
+                        slide_parts.append(f"[슬라이드 {i} 시각자료/코드 캡처 {j+1}]\n{result.strip()}")
                     # 이미지 사이 짧은 대기 (API rate limit 보호)
                     if j < len(limited_blobs) - 1:
                         await asyncio.sleep(0.5)
@@ -175,12 +180,27 @@ class FileService:
             return "[PPTX 파싱 실패: python-pptx 미설치]"
 
     # ── DOCX ────────────────────────────────────────────────────────────────
-    def _from_docx(self, data: bytes) -> str:
+    async def _from_docx_async(self, data: bytes) -> str:
         try:
             from docx import Document
             doc = Document(io.BytesIO(data))
             paragraphs = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
-            return "\n\n".join(paragraphs)
+            parts = ["\n\n".join(paragraphs)] if paragraphs else []
+
+            image_blobs: list[bytes] = []
+            try:
+                for rel in doc.part.rels.values():
+                    if "image" in rel.reltype:
+                        image_blobs.append(rel.target_part.blob)
+            except Exception as e:
+                logger.debug(f"[FileService] DOCX 이미지 관계 추출 실패: {e}")
+
+            for i, blob in enumerate(image_blobs[:_MAX_IMAGES_PER_PAGE], 1):
+                result = await self._analyze_image(blob)
+                if result and result.strip():
+                    parts.append(f"[DOCX 시각자료/코드 캡처 {i}]\n{result.strip()}")
+
+            return "\n\n".join(part for part in parts if part.strip())
         except ImportError:
             return "[DOCX 파싱 실패: python-docx 미설치]"
 
@@ -261,18 +281,21 @@ class FileService:
                 }
             }
 
-            prompt = """이 이미지를 분석하여 학습 교안에 포함할 수 있는 형태로 정확하게 변환하세요.
+            prompt = """이 이미지를 분석하여 학생이 수업 중 그대로 따라갈 수 있는 교안 재료로 정확하게 변환하세요.
 
 [판단 기준 및 처리 방법]
 
 1. **코드 스크린샷** (프로그래밍 코드, 터미널 출력, 명령어 등):
    - 코드를 100% 정확하게 추출. 들여쓰기, 공백, 특수문자, 주석, 줄 번호 모두 보존.
+   - 코드가 잘려 있거나 흐릿하면 추측하지 말고 `[판독 불확실: ...]`로 표시.
+   - 터미널 명령어와 출력은 각각 별도 코드블록으로 보존.
    - 언어 자동 감지 후 코드블록으로 감싸세요.
    - 형식: ```python\n코드 내용\n```
 
 2. **다이어그램 / 흐름도 / 아키텍처 / 네트워크 도식**:
    - 박스·노드 내 텍스트, 화살표 방향, 연결 레이블을 단계별로 서술.
-   - 형식: [다이어그램]\n- 구성요소1 → 구성요소2 (설명)\n...
+   - 가능하면 Mermaid가 아니라 일반 마크다운 목록으로 작성.
+   - 형식: [시각자료]\n- 구성요소1 → 구성요소2 (설명)\n...
 
 3. **수식 / 공식**:
    - 텍스트 수식으로 정확히 표현. 형식: `수식`
@@ -286,6 +309,7 @@ class FileService:
 출력 규칙:
 - 이미지에 내용이 없으면 빈 문자열 반환.
 - 설명·코멘트 없이 변환 결과만 출력.
+- 원본 슬라이드의 텍스트, 코드, 그림 의미를 임의로 요약하지 말고 보존 중심으로 출력.
 - 한국어 설명은 유지, 코드는 원어 그대로 보존."""
 
             # 모델 폴백 체인 + 429 충분한 대기 (RPM 15 제한 고려)

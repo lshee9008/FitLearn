@@ -14,7 +14,7 @@ import google.generativeai as genai
 from .rag_pipeline.knowledge_base import PAPER_CHUNKS
 
 logger = logging.getLogger(__name__)
-MODEL = "models/gemma-4-31b-it"
+MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
 # ── 교육 이론 기반 난이도 가중치 ────────────────────────────────────────────
 DIFFICULTY_CUES = {
@@ -96,6 +96,7 @@ class LecturePipeline:
         핵심 포인트 추출 + 주제 분류 + 전체 요약 + 학습 목표 — 단일 Gemini 호출
         """
         prompt = f"""당신은 교육 전문가입니다. 교육심리학 이론에 기반하여 다음 교안을 분석하세요.
+이 분석은 이후 학생 맞춤형 '재해석 교안'의 근거가 됩니다. 절대 단순 요약으로 축소하지 마세요.
 
 [참조 이론]
 • {CLT_CONTEXT}
@@ -126,6 +127,9 @@ class LecturePipeline:
 
 규칙:
 - core_points: 5-7개, priority는 5(최중요)~1(보통), difficulty는 상|중|하
+- 코드·명령어·실습 예제·터미널 출력이 있으면 core_points에 반드시 반영
+- [시각자료], [다이어그램], [슬라이드 이미지], [코드 캡처] 블록은 중요 자료로 취급
+- 이미지 속 코드나 실습 흐름은 학생이 그대로 따라해야 하므로 누락 금지
 - topics: 3-5개의 핵심 주제 분류
 - learning_objectives: Bloom 분류 기반 3-5개 (이해/적용/분석/종합/평가)
 - estimated_difficulty: 전체 난이도 상|중|하
