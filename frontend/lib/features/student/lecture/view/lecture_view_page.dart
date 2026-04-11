@@ -690,7 +690,8 @@ class _VideoSummaryCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF101217),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.primaryLight.withValues(alpha: 0.16)),
+        border:
+            Border.all(color: AppColors.primaryLight.withValues(alpha: 0.16)),
       ),
       child: _MarkdownText(summary),
     );
@@ -778,7 +779,8 @@ class _TipCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF12141C),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.primaryLight.withValues(alpha: 0.1)),
+        border:
+            Border.all(color: AppColors.primaryLight.withValues(alpha: 0.1)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1551,7 +1553,9 @@ class _VideoStage extends StatelessWidget {
           return html.VideoElement()
             ..src = embedUrl
             ..controls = true
-            ..crossOrigin = 'anonymous'
+            ..setAttribute(
+                'playsinline', 'true') // [추가] 모바일/iOS Safari 호환성을 위해 추가
+            // ..crossOrigin = 'anonymous'        // [삭제] 이 줄을 완전히 지워주세요! (CORS 충돌 원인)
             ..style.width = '100%'
             ..style.height = '100%'
             ..style.objectFit = 'contain'
@@ -1669,7 +1673,6 @@ class _VideoStage extends StatelessWidget {
         lower.contains('firebasestorage') ||
         lower.contains('storage.googleapis.com');
   }
-
 }
 
 // ignore: unused_element
@@ -2037,8 +2040,10 @@ class _MarkdownText extends StatelessWidget {
     }
     final ordered = RegExp(r'^\d+\.\s+').firstMatch(line);
     if (line.startsWith('- ') || line.startsWith('* ') || ordered != null) {
-      final body = ordered == null ? line.substring(2) : line.substring(ordered.end);
-      final marker = ordered == null ? null : line.substring(0, ordered.end).trim();
+      final body =
+          ordered == null ? line.substring(2) : line.substring(ordered.end);
+      final marker =
+          ordered == null ? null : line.substring(0, ordered.end).trim();
       return Padding(
         padding: const EdgeInsets.only(bottom: 7),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -2257,32 +2262,38 @@ class _LoadingView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text('🤖', style: TextStyle(fontSize: 48)),
-          SizedBox(height: 16),
-          Text(
-            'AI가 6가지 스타일로 교안을 재가공하고 있어요',
-            textAlign: TextAlign.center,
+          // 이모지 대신 세련된 애니메이션 또는 심플한 스피너 사용
+          const SizedBox(
+            width: 40,
+            height: 40,
+            child: CircularProgressIndicator(
+              strokeWidth: 3,
+              valueColor: AlwaysStoppedAnimation(AppColors.primaryLight),
+              backgroundColor: Color(0xFF16181D), // 어두운 배경과 조화
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            '맞춤형 교안을 생성하고 있습니다',
             style: TextStyle(
               color: AppColors.textPrimary,
               fontSize: 16,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
             ),
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Text(
-            '시각형·청각형·읽기형·실습형·요약형·상세형 동시 생성 중',
-            style: TextStyle(color: AppColors.textMuted, fontSize: 13),
-          ),
-          SizedBox(height: 24),
-          SizedBox(
-            width: 200,
-            child: LinearProgressIndicator(
-              backgroundColor: AppColors.bgSurface,
-              valueColor: AlwaysStoppedAnimation(AppColors.primaryLight),
+            '학생님의 학습 성향(VARK)과 과목 수준을 반영하여\n자료를 최적화하는 중입니다. (약 30초 소요)',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: AppColors.textMuted.withValues(alpha: 0.8),
+              fontSize: 13,
+              height: 1.5,
             ),
           ),
         ],

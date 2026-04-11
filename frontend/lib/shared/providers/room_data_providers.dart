@@ -56,13 +56,14 @@ class ProfessorRoomDetailSummary {
   });
 }
 
-final professorRoomsProvider =
-    FutureProvider.autoDispose.family<List<dynamic>, String>((ref, userId) async {
+final professorRoomsProvider = FutureProvider.autoDispose
+    .family<List<dynamic>, String>((ref, userId) async {
   return ApiService().getProfessorRooms(userId);
 });
 
-final studentHomeSummaryProvider =
-    FutureProvider.autoDispose.family<StudentHomeSummary, String>((ref, userId) async {
+final studentHomeSummaryProvider = FutureProvider.autoDispose
+    .family<StudentHomeSummary, String>((ref, userId) async {
+  ref.keepAlive();
   final data = await ApiService().getStudentRoomSummary(userId);
   final room = data['room'] as Map<String, dynamic>?;
   if (room == null) {
@@ -82,29 +83,33 @@ final studentHomeSummaryProvider =
   );
 });
 
-final currentProfessorRoomsProvider = FutureProvider.autoDispose<List<dynamic>>((ref) async {
+final currentProfessorRoomsProvider =
+    FutureProvider.autoDispose<List<dynamic>>((ref) async {
   final user = ref.watch(authNotifierProvider);
   if (user == null) return [];
   return ref.watch(professorRoomsProvider(user.userId).future);
 });
 
-final studentServiceHubProvider =
-    FutureProvider.autoDispose.family<StudentServiceHub, String>((ref, userId) async {
+final studentServiceHubProvider = FutureProvider.autoDispose
+    .family<StudentServiceHub, String>((ref, userId) async {
+  ref.keepAlive();
   final data = await ApiService().getStudentServiceHub(userId);
   return StudentServiceHub(
     enrolledRooms: data['enrolled_rooms'] as List<dynamic>? ?? const [],
     discoverRooms: data['discover_rooms'] as List<dynamic>? ?? const [],
     applications: data['applications'] as List<dynamic>? ?? const [],
     activeRoom: data['active_room'] as Map<String, dynamic>?,
-    activeRoomLectures: data['active_room_lectures'] as List<dynamic>? ?? const [],
-    activeRoomNotices: data['active_room_notices'] as List<dynamic>? ?? const [],
+    activeRoomLectures:
+        data['active_room_lectures'] as List<dynamic>? ?? const [],
+    activeRoomNotices:
+        data['active_room_notices'] as List<dynamic>? ?? const [],
     activeSubjectLevel: data['active_subject_level'] as String?,
     activeSubjectScore: data['active_subject_score'] as int?,
   );
 });
 
-final professorRoomDetailProvider =
-    FutureProvider.autoDispose.family<ProfessorRoomDetailSummary, String>((ref, roomId) async {
+final professorRoomDetailProvider = FutureProvider.autoDispose
+    .family<ProfessorRoomDetailSummary, String>((ref, roomId) async {
   final results = await Future.wait([
     ApiService().getRoom(roomId),
     ApiService().getRoomLectures(roomId),

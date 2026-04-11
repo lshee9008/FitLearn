@@ -8,8 +8,9 @@ class ApiService {
 
   final _dio = Dio(BaseOptions(
     baseUrl: ApiConstants.baseUrl,
-    connectTimeout: const Duration(seconds: 15),
-    receiveTimeout: const Duration(minutes: 5), // AI 파이프라인 대기를 위해 300초로 연장
+    connectTimeout: const Duration(seconds: 60), // 15초 -> 60초로 대폭 연장
+    receiveTimeout: const Duration(minutes: 5), // AI 파이프라인 대기를 위해 5분 유지
+    sendTimeout: const Duration(minutes: 5), // 큰 파일 업로드를 위해 추가
   ));
 
   // ── Auth ──────────────────────────────────────────────────────
@@ -120,7 +121,8 @@ class ApiService {
     required String status,
     String note = '',
   }) async {
-    final res = await _dio.post('/api/v1/rooms/$roomId/applications/$userId/review', data: {
+    final res = await _dio
+        .post('/api/v1/rooms/$roomId/applications/$userId/review', data: {
       'status': status,
       'note': note,
     });
@@ -224,7 +226,8 @@ class ApiService {
     return res.data as Map<String, dynamic>;
   }
 
-  Future<Map<String, dynamic>> getLecture(String roomId, String lectureId) async {
+  Future<Map<String, dynamic>> getLecture(
+      String roomId, String lectureId) async {
     final res = await _dio.get(ApiConstants.lecture(roomId, lectureId));
     return res.data as Map<String, dynamic>;
   }
@@ -237,7 +240,8 @@ class ApiService {
     required int endMinute,
     required String question,
   }) async {
-    final res = await _dio.post('/api/v1/lectures/$roomId/$lectureId/video/assist', data: {
+    final res = await _dio
+        .post('/api/v1/lectures/$roomId/$lectureId/video/assist', data: {
       'user_id': userId,
       'start_minute': startMinute,
       'end_minute': endMinute,
@@ -262,7 +266,8 @@ class ApiService {
     String lectureId,
     Map<String, dynamic> data,
   ) async {
-    final res = await _dio.patch('/api/v1/rooms/$roomId/lectures/$lectureId', data: data);
+    final res = await _dio.patch('/api/v1/rooms/$roomId/lectures/$lectureId',
+        data: data);
     return res.data as Map<String, dynamic>;
   }
 
@@ -270,7 +275,8 @@ class ApiService {
     String roomId,
     List<Map<String, dynamic>> items,
   ) async {
-    final res = await _dio.post('/api/v1/rooms/$roomId/lectures/reorder', data: {
+    final res =
+        await _dio.post('/api/v1/rooms/$roomId/lectures/reorder', data: {
       'items': items,
     });
     return res.data as Map<String, dynamic>;
@@ -308,7 +314,8 @@ class ApiService {
       return res.data as Map<String, dynamic>;
     }
     final params = <String, String>{'user_id': userId};
-    if (testStyle != null && testStyle.isNotEmpty) params['test_style'] = testStyle;
+    if (testStyle != null && testStyle.isNotEmpty)
+      params['test_style'] = testStyle;
     final res = await _dio.get(
       ApiConstants.reforgedLecture(roomId, lectureId),
       queryParameters: params,
@@ -317,8 +324,9 @@ class ApiService {
   }
 
   // ── Quiz & Level ──────────────────────────────────────────────
-  
-  Future<Map<String, dynamic>> updateRoomMeta(String roomId, Map<String, dynamic> data) async {
+
+  Future<Map<String, dynamic>> updateRoomMeta(
+      String roomId, Map<String, dynamic> data) async {
     final res = await _dio.patch('/api/v1/rooms/$roomId/meta', data: data);
     return res.data as Map<String, dynamic>;
   }
@@ -328,7 +336,8 @@ class ApiService {
     return res.data as Map<String, dynamic>;
   }
 
-  Future<Map<String, dynamic>> submitQuiz(String roomId, String userId, List<int> answers) async {
+  Future<Map<String, dynamic>> submitQuiz(
+      String roomId, String userId, List<int> answers) async {
     final res = await _dio.post('/api/v1/rooms/$roomId/quiz/submit', data: {
       'user_id': userId,
       'answers': answers,
@@ -336,7 +345,8 @@ class ApiService {
     return res.data as Map<String, dynamic>;
   }
 
-  Future<Map<String, dynamic>> getQuizResult(String roomId, String userId) async {
+  Future<Map<String, dynamic>> getQuizResult(
+      String roomId, String userId) async {
     final res = await _dio.get('/api/v1/rooms/$roomId/quiz/result/$userId');
     return res.data as Map<String, dynamic>;
   }
@@ -348,7 +358,9 @@ class ApiService {
     return res.data as List<dynamic>;
   }
 
-  Future<Map<String, dynamic>> createNotice(String roomId, String professorUid, String content, {String title = ''}) async {
+  Future<Map<String, dynamic>> createNotice(
+      String roomId, String professorUid, String content,
+      {String title = ''}) async {
     final res = await _dio.post('/api/v1/rooms/$roomId/notices', data: {
       'professor_uid': professorUid,
       'content': content,
@@ -356,14 +368,15 @@ class ApiService {
     });
     return res.data as Map<String, dynamic>;
   }
-  
+
   Future<void> deleteNotice(String roomId, String noticeId) async {
     await _dio.delete('/api/v1/rooms/$roomId/notices/$noticeId');
   }
 
   // ── Original File ──────────────────────────────────────────────
 
-  Future<Map<String, dynamic>> getOriginalLectureUrl(String roomId, String lectureId) async {
+  Future<Map<String, dynamic>> getOriginalLectureUrl(
+      String roomId, String lectureId) async {
     final res = await _dio.get('/api/v1/lectures/$roomId/$lectureId/original');
     return res.data as Map<String, dynamic>;
   }
