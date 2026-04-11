@@ -179,12 +179,6 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
               ]),
           ]),
         ),
-        IconButton(
-          tooltip: '원본 강의자료 다운로드',
-          icon: const Icon(Icons.download_rounded,
-              color: AppColors.textMuted, size: 22),
-          onPressed: _downloadOriginal,
-        ),
       ]),
     );
   }
@@ -839,10 +833,56 @@ String _normalizeVideoSummary(String raw) {
       return result == '## 영상 요약' ? raw.trim() : result;
     }
   } catch (_) {
-    return raw.trim();
+    final recovered = _recoverVideoSummaryFromJsonText(text);
+    return recovered.isNotEmpty ? recovered : raw.trim();
   }
 
   return raw.trim();
+}
+
+String _recoverVideoSummaryFromJsonText(String text) {
+  final buffer = StringBuffer('## 영상 요약\n');
+  final transcriptMatch = RegExp(
+    r'"transcript"\s*:\s*"((?:\\.|[^"\\])*)"',
+    dotAll: true,
+  ).firstMatch(text);
+  final transcript = transcriptMatch == null
+      ? ''
+      : _unescapeJsonText(transcriptMatch.group(1) ?? '').trim();
+  if (transcript.isNotEmpty) {
+    buffer.writeln('\n$transcript');
+  }
+
+  final segmentMatches = RegExp(
+    r'"start_minute"\s*:\s*([0-9]+)\s*,\s*"end_minute"\s*:\s*([0-9]+)[\s\S]*?"text"\s*:\s*"((?:\\.|[^"\\])*)"',
+  ).allMatches(text);
+  final segmentLines = <String>[];
+  for (final match in segmentMatches.take(8)) {
+    final body = _unescapeJsonText(match.group(3) ?? '').trim();
+    if (body.isEmpty) continue;
+    segmentLines.add('- ${match.group(1)}~${match.group(2)}분: $body');
+  }
+  if (segmentLines.isNotEmpty) {
+    buffer.writeln('\n### 구간별 흐름');
+    for (final line in segmentLines) {
+      buffer.writeln(line);
+    }
+  }
+
+  final result = buffer.toString().trim();
+  return result == '## 영상 요약' ? '' : result;
+}
+
+String _unescapeJsonText(String value) {
+  try {
+    return jsonDecode('"${value.replaceAll('"', r'\"')}"') as String;
+  } catch (_) {
+    return value
+        .replaceAll(r'\"', '"')
+        .replaceAll(r'\n', '\n')
+        .replaceAll(r'\t', '\t')
+        .replaceAll(r'\\', '\\');
+  }
 }
 
 class _AIQuestionTab extends StatelessWidget {
