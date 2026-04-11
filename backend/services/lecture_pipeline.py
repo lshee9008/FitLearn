@@ -130,6 +130,7 @@ class LecturePipeline:
                 max_output_tokens=2048,
             ),
         )
+        
 
     # ── Stage 3+4+5+6: 핵심 추출 + 분류 + 난이도 + 학습목표 (단일 프롬프트 병렬화) ──
 
