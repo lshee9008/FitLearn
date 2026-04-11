@@ -66,12 +66,12 @@ def _extract_json(text: str) -> dict:
 
 
 def _preprocess_text(raw_text: str) -> str:
-    """전처리: 불필요한 공백·반복 제거, 최대 6000자 제한"""
+    """전처리: 불필요한 공백·반복 제거, 최대 12000자 제한"""
     lines = [ln.strip() for ln in raw_text.split("\n") if ln.strip()]
     cleaned = "\n".join(lines)
     # 반복 공백 정리
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
-    return cleaned[:6000]
+    return cleaned[:12000]
 
 
 def _count_words(text: str) -> int:

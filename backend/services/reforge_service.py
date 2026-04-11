@@ -231,6 +231,39 @@ def _fallback_content(
 """
 
 
+def _build_source_excerpt(original_content: str, max_chars: int = 16000) -> str:
+    """Long lecture source sampler that keeps beginning/middle/end plus code and visual blocks."""
+    content = (original_content or "").strip()
+    if len(content) <= max_chars:
+        return content
+
+    code_visual_lines = [
+        line
+        for line in content.splitlines()
+        if re.search(
+            r"(\[.*(시각자료|코드 캡처|슬라이드|페이지|다이어그램).*\]|```|import |from |def |class |for |while |return |npm |pip |python |loss|optimizer|Generator|Discriminator|torch|tensorflow|keras)",
+            line,
+            re.IGNORECASE,
+        )
+    ]
+    code_visual = "\n".join(code_visual_lines[:80])
+    budget_for_chunks = max_chars - min(len(code_visual), max_chars // 3) - 300
+    budget_for_chunks = max(budget_for_chunks, max_chars // 2)
+    each = budget_for_chunks // 3
+    middle_start = max((len(content) // 2) - (each // 2), 0)
+    parts = [
+        "[원본 앞부분]",
+        content[:each],
+        "\n[원본 중간부분]",
+        content[middle_start:middle_start + each],
+        "\n[원본 뒷부분]",
+        content[-each:],
+    ]
+    if code_visual:
+        parts.extend(["\n[코드/시각자료/실습 우선 발췌]", code_visual[: max_chars // 3]])
+    return "\n".join(parts)[:max_chars]
+
+
 # ── 5차원 성향 → 프롬프트 지침 변환 ──────────────────────────────────────────
 def _build_profile_instruction(style: str, profile: dict) -> str:
     """
@@ -501,6 +534,7 @@ class ReforgeService:
         subject_level = profile.get("subject_level", "")
         level_label = {"beginner": "초급", "intermediate": "중급", "advanced": "고급"}.get(subject_level, "")
         profile_summary = f"VARK:{vark} / 집중:{focus} / 대응:{diff_resp} / 수준:{level_label}"
+        source_excerpt = _build_source_excerpt(original_content)
 
         return f"""당신은 교육 콘텐츠 재해석 전문가입니다.
 원본 교안을 학생 프로파일에 맞게 재해석하세요. 한국어로만 출력하세요.
@@ -524,7 +558,7 @@ class ReforgeService:
 {profile_instruction}
 
 ━━━ 원본 교안 ━━━
-{original_content[:4500]}
+{source_excerpt}
 
 ━━━ 출력 형식 ━━━
 # [강의 제목] — {style} 맞춤 교안
@@ -563,6 +597,7 @@ class ReforgeService:
                          (f" / 이탈위험:{dropout}" if dropout else "") + \
                          (f" / 신뢰도:{conf}%" if conf else "") + \
                          (f" / 과목수준:{level_label}" if level_label else "")
+        source_excerpt = _build_source_excerpt(original_content)
 
         prompt = f"""당신은 교육 콘텐츠 재해석 전문가입니다.
 원본 교안을 학생 프로파일에 맞게 재해석하세요. 한국어로만 출력하세요.
@@ -577,6 +612,7 @@ class ReforgeService:
 7. 교수 핵심 포인트는 모두 빠짐없이 포함
 8. 인사말·역할 설명·"재해석하겠습니다" 같은 메타 문장 절대 금지
 9. 순수 마크다운 본문만 출력 (노션 스타일)
+10. 너무 짧게 쓰지 마세요. 원본 근거를 최소 10개 이상 살리고, 섹션을 6개 이상 구성하세요
 
 ━━━ 학습 이론 근거 [{style}] ━━━
 {paper_strategy}
@@ -592,13 +628,13 @@ class ReforgeService:
 {core_text}
 
 ━━━ 원본 교안 ━━━
-{original_content[:4500]}
+{source_excerpt}
 
-━━━ Chain of Thought 재해석 절차 ━━━
-Step 1. 원본에서 핵심 개념·사실·코드를 식별한다
-Step 2. '{style}' 학습자에게 최적인 구조·어조·형식을 결정한다
-Step 3. 교수 핵심 포인트를 가장 잘 전달하는 섹션 배치를 계획한다
-Step 4. 코드·실습·시각자료를 보존한 채 위 계획대로 완성된 교안을 노션 스타일 마크다운으로 작성한다
+━━━ 재해석 절차 ━━━
+1. 원본에서 핵심 개념·사실·코드·시각자료를 식별한다
+2. '{style}' 학습자에게 최적인 구조·어조·형식을 결정한다
+3. 교수 핵심 포인트를 가장 잘 전달하는 섹션 배치를 계획한다
+4. 코드·실습·시각자료를 보존한 채 완성된 교안을 노션 스타일 마크다운으로 작성한다
 
 ━━━ 출력 형식 ━━━
 # [강의 제목] — {style} 맞춤 교안
@@ -623,14 +659,14 @@ Step 4. 코드·실습·시각자료를 보존한 채 위 계획대로 완성된
 
 [재해석된 본문 — 노션 스타일 마크다운]
 
-━━━ 지금 바로 Step 4 출력만 작성하세요 ━━━"""
+━━━ 지금 바로 완성본만 작성하세요 ━━━"""
 
         try:
             raw = await generate_gemini_text(
                 prompt,
-                temperature=0.45,
-                max_output_tokens=2500,  # 코드/실습 보존을 위해 충분히 확보
-                timeout=35.0,
+                temperature=0.35,
+                max_output_tokens=6000,
+                timeout=75.0,
                 feature=f"reforge:{style}",
             )
             return _clean_markdown(raw)

@@ -22,7 +22,7 @@ file_svc = FileService()
 firebase = FirebaseService()
 video_pipeline = VideoPipeline()
 LOCAL_ASSET_DIR = Path(os.getenv("FITLEARN_ASSET_DIR", "/tmp/fitlearn_assets"))
-REFORGED_CACHE_VERSION = 3
+REFORGED_CACHE_VERSION = 4
 FALLBACK_CACHE_MARKERS = (
     "AI 서버 응답 지연",
     "AI 응답이 지연",
