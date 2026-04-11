@@ -342,6 +342,7 @@ class FirebaseService:
             await self._cache_delete_prefix(f"room_students:{room_id}")
             await self._cache_delete_prefix(f"student_rooms:{user_id}")
             await self._cache_delete_prefix(f"room_catalog:{user_id}")
+            await self._cache_delete_prefix("professor_rooms:")
         except Exception as e:
             logger.warning(f"[Firebase] add_student_to_room 실패: {e}")
 

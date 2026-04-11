@@ -1,3 +1,4 @@
+import 'package:fitlearn/features/auth/provider/auth_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -38,7 +39,8 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: AppColors.bgSurface,
-        title: const Text('공지 작성', style: TextStyle(color: AppColors.textPrimary)),
+        title:
+            const Text('공지 작성', style: TextStyle(color: AppColors.textPrimary)),
         content: SizedBox(
           width: 460,
           child: Column(
@@ -101,7 +103,8 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
 
   Future<void> _deleteNotice(Map<String, dynamic> notice) async {
     try {
-      await ApiService().deleteNotice(widget.roomId, notice['notice_id'] as String);
+      await ApiService()
+          .deleteNotice(widget.roomId, notice['notice_id'] as String);
       ref.invalidate(professorRoomDetailProvider(widget.roomId));
     } catch (e) {
       if (!mounted) return;
@@ -112,15 +115,20 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
   }
 
   Future<void> _editLecture(Map<String, dynamic> lecture) async {
-    final titleCtrl = TextEditingController(text: lecture['title'] as String? ?? '');
-    final videoCtrl = TextEditingController(text: lecture['video_url'] as String? ?? '');
-    final materialCtrl = TextEditingController(text: lecture['material_url'] as String? ?? '');
-    final weekCtrl = TextEditingController(text: ((lecture['week_number'] as int?) ?? 0).toString());
+    final titleCtrl =
+        TextEditingController(text: lecture['title'] as String? ?? '');
+    final videoCtrl =
+        TextEditingController(text: lecture['video_url'] as String? ?? '');
+    final materialCtrl =
+        TextEditingController(text: lecture['material_url'] as String? ?? '');
+    final weekCtrl = TextEditingController(
+        text: ((lecture['week_number'] as int?) ?? 0).toString());
     final saved = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: AppColors.bgSurface,
-        title: const Text('강의 항목 편집', style: TextStyle(color: AppColors.textPrimary)),
+        title: const Text('강의 항목 편집',
+            style: TextStyle(color: AppColors.textPrimary)),
         content: SizedBox(
           width: 500,
           child: Column(
@@ -129,26 +137,32 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
               TextField(
                 controller: titleCtrl,
                 style: const TextStyle(color: AppColors.textPrimary),
-                decoration: const InputDecoration(labelText: '강의 제목', filled: true, fillColor: AppColors.bg),
+                decoration: const InputDecoration(
+                    labelText: '강의 제목', filled: true, fillColor: AppColors.bg),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: weekCtrl,
                 keyboardType: TextInputType.number,
                 style: const TextStyle(color: AppColors.textPrimary),
-                decoration: const InputDecoration(labelText: '주차', filled: true, fillColor: AppColors.bg),
+                decoration: const InputDecoration(
+                    labelText: '주차', filled: true, fillColor: AppColors.bg),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: videoCtrl,
                 style: const TextStyle(color: AppColors.textPrimary),
-                decoration: const InputDecoration(labelText: '영상 링크', filled: true, fillColor: AppColors.bg),
+                decoration: const InputDecoration(
+                    labelText: '영상 링크', filled: true, fillColor: AppColors.bg),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: materialCtrl,
                 style: const TextStyle(color: AppColors.textPrimary),
-                decoration: const InputDecoration(labelText: '보조 자료 링크', filled: true, fillColor: AppColors.bg),
+                decoration: const InputDecoration(
+                    labelText: '보조 자료 링크',
+                    filled: true,
+                    fillColor: AppColors.bg),
               ),
             ],
           ),
@@ -188,7 +202,8 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
     }
   }
 
-  Future<void> _moveLecture(List<dynamic> lectures, int index, int delta) async {
+  Future<void> _moveLecture(
+      List<dynamic> lectures, int index, int delta) async {
     final nextIndex = index + delta;
     if (nextIndex < 0 || nextIndex >= lectures.length) return;
     final reordered = [...lectures];
@@ -217,7 +232,8 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
 
   Future<void> _deleteLecture(Map<String, dynamic> lecture) async {
     try {
-      await ApiService().deleteLecture(widget.roomId, lecture['lecture_id'] as String);
+      await ApiService()
+          .deleteLecture(widget.roomId, lecture['lecture_id'] as String);
       ref.invalidate(professorRoomDetailProvider(widget.roomId));
     } catch (e) {
       if (!mounted) return;
@@ -227,7 +243,8 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
     }
   }
 
-  Future<void> _reviewApplication(Map<String, dynamic> application, String status) async {
+  Future<void> _reviewApplication(
+      Map<String, dynamic> application, String status) async {
     try {
       await ApiService().reviewRoomApplication(
         roomId: widget.roomId,
@@ -235,6 +252,13 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
         status: status,
       );
       ref.invalidate(professorRoomDetailProvider(widget.roomId));
+
+      // [추가] 홈 화면의 '수강생 수' 등 전체 데이터 업데이트를 위해 홈 프로바이더도 같이 파기!
+      final user = ref.read(authNotifierProvider);
+      if (user != null) {
+        ref.invalidate(professorRoomsProvider(user.userId));
+        ref.invalidate(currentProfessorRoomsProvider);
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -260,8 +284,10 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
         backgroundColor: AppColors.bg,
         actions: [
           IconButton(
-            icon: const Icon(Icons.dashboard_rounded, color: AppColors.textSecondary),
-            onPressed: () => context.push('/professor/dashboard/${widget.roomId}'),
+            icon: const Icon(Icons.dashboard_rounded,
+                color: AppColors.textSecondary),
+            onPressed: () =>
+                context.push('/professor/dashboard/${widget.roomId}'),
           ),
         ],
         bottom: TabBar(
@@ -278,13 +304,16 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/professor/lecture/${widget.roomId}/upload'),
+        onPressed: () =>
+            context.push('/professor/lecture/${widget.roomId}/upload'),
         backgroundColor: AppColors.primary,
-        label: const Text('교안 업로드', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+        label: const Text('교안 업로드',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
         icon: const Icon(Icons.upload_file_rounded, color: Colors.white),
       ),
       body: summaryAsync.isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primaryLight))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.primaryLight))
           : summaryAsync.hasError || room == null
               ? const Center(
                   child: Text(
@@ -292,15 +321,15 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
                     style: TextStyle(color: AppColors.textMuted),
                   ),
                 )
-          : TabBarView(
-              controller: _tabs,
-              children: [
-                _buildLectures(lectures),
-                _buildNotices(room, notices),
-                _buildStudents(room, students, applications),
-                _buildSettings(room),
-              ],
-            ),
+              : TabBarView(
+                  controller: _tabs,
+                  children: [
+                    _buildLectures(lectures),
+                    _buildNotices(room, notices),
+                    _buildStudents(room, students, applications),
+                    _buildSettings(room),
+                  ],
+                ),
     );
   }
 
@@ -317,18 +346,23 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
                   children: [
                     const Text(
                       '강의 항목 관리',
-                      style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w700),
+                      style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       '${lectures.length}개의 강의 항목을 편집하고 순서를 정렬할 수 있습니다',
-                      style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+                      style: const TextStyle(
+                          color: AppColors.textMuted, fontSize: 12),
                     ),
                   ],
                 ),
               ),
               TextButton.icon(
-                onPressed: () => context.push('/professor/lecture/${widget.roomId}/upload'),
+                onPressed: () =>
+                    context.push('/professor/lecture/${widget.roomId}/upload'),
                 icon: const Icon(Icons.upload_file_rounded),
                 label: const Text('자료 업로드'),
               ),
@@ -337,13 +371,20 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
         ),
         Expanded(
           child: lectures.isEmpty
-              ? const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Text('📄', style: TextStyle(fontSize: 48)),
-                  SizedBox(height: 12),
-                  Text('아직 교안이 없습니다', style: TextStyle(color: AppColors.textMuted, fontSize: 16)),
-                  SizedBox(height: 4),
-                  Text('교안 업로드 버튼을 눌러 시작하세요', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
-                ]))
+              ? const Center(
+                  child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                      Text('📄', style: TextStyle(fontSize: 48)),
+                      SizedBox(height: 12),
+                      Text('아직 교안이 없습니다',
+                          style: TextStyle(
+                              color: AppColors.textMuted, fontSize: 16)),
+                      SizedBox(height: 4),
+                      Text('교안 업로드 버튼을 눌러 시작하세요',
+                          style: TextStyle(
+                              color: AppColors.textMuted, fontSize: 13)),
+                    ]))
               : ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   itemCount: lectures.length,
@@ -351,10 +392,17 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
                     final lec = lectures[i] as Map<String, dynamic>;
                     final confirmed = lec['confirmed'] as bool? ?? false;
                     final order = lec['order_index'] as int? ?? (i + 1);
-                    final hasVideo = (lec['video_url'] as String? ?? '').trim().isNotEmpty;
-                    final hasMaterial = (lec['original_file_url'] as String? ?? '').trim().isNotEmpty ||
-                        (lec['material_url'] as String? ?? '').trim().isNotEmpty;
-                    final isPlaceholder = lec['is_placeholder'] as bool? ?? false;
+                    final hasVideo =
+                        (lec['video_url'] as String? ?? '').trim().isNotEmpty;
+                    final hasMaterial =
+                        (lec['original_file_url'] as String? ?? '')
+                                .trim()
+                                .isNotEmpty ||
+                            (lec['material_url'] as String? ?? '')
+                                .trim()
+                                .isNotEmpty;
+                    final isPlaceholder =
+                        lec['is_placeholder'] as bool? ?? false;
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: AppCard(
@@ -363,67 +411,97 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
                           children: [
                             Row(children: [
                               Container(
-                                width: 44, height: 44,
+                                width: 44,
+                                height: 44,
                                 alignment: Alignment.center,
                                 decoration: BoxDecoration(
-                                  color: (confirmed ? AppColors.accent : AppColors.gold).withValues(alpha: 0.12),
+                                  color: (confirmed
+                                          ? AppColors.accent
+                                          : AppColors.gold)
+                                      .withValues(alpha: 0.12),
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                                 child: Icon(
-                                  confirmed ? Icons.check_circle_rounded : Icons.pending_rounded,
-                                  color: confirmed ? AppColors.accent : AppColors.gold,
+                                  confirmed
+                                      ? Icons.check_circle_rounded
+                                      : Icons.pending_rounded,
+                                  color: confirmed
+                                      ? AppColors.accent
+                                      : AppColors.gold,
                                   size: 22,
                                 ),
                               ),
                               const SizedBox(width: 12),
-                              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.bg,
-                                        borderRadius: BorderRadius.circular(999),
-                                        border: Border.all(color: AppColors.border),
-                                      ),
-                                      child: Text(
-                                        '$order강',
-                                        style: const TextStyle(
-                                          color: AppColors.textMuted,
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w800,
+                              Expanded(
+                                  child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.bg,
+                                            borderRadius:
+                                                BorderRadius.circular(999),
+                                            border: Border.all(
+                                                color: AppColors.border),
+                                          ),
+                                          child: Text(
+                                            '$order강',
+                                            style: const TextStyle(
+                                              color: AppColors.textMuted,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
                                         ),
+                                        const SizedBox(width: 8),
+                                        if (isPlaceholder)
+                                          const Text(
+                                            '자료 연결 대기',
+                                            style: TextStyle(
+                                                color: AppColors.gold,
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w700),
+                                          ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(lec['title'] as String? ?? '',
+                                        style: const TextStyle(
+                                          color: AppColors.textPrimary,
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w600,
+                                        )),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      confirmed ? '학생 교안 활성화됨' : '검토 대기 중',
+                                      style: TextStyle(
+                                        color: confirmed
+                                            ? AppColors.accent
+                                            : AppColors.gold,
+                                        fontSize: 12,
                                       ),
                                     ),
-                                    const SizedBox(width: 8),
-                                    if (isPlaceholder)
-                                      const Text(
-                                        '자료 연결 대기',
-                                        style: TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.w700),
-                                      ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Text(lec['title'] as String? ?? '', style: const TextStyle(
-                                  color: AppColors.textPrimary, fontSize: 15, fontWeight: FontWeight.w600,
-                                )),
-                                const SizedBox(height: 3),
-                                Text(
-                                  confirmed ? '학생 교안 활성화됨' : '검토 대기 중',
-                                  style: TextStyle(
-                                    color: confirmed ? AppColors.accent : AppColors.gold, fontSize: 12,
-                                  ),
-                                ),
-                              ])),
+                                  ])),
                               Column(
                                 children: [
                                   IconButton(
-                                    onPressed: i == 0 ? null : () => _moveLecture(lectures, i, -1),
-                                    icon: const Icon(Icons.keyboard_arrow_up_rounded),
+                                    onPressed: i == 0
+                                        ? null
+                                        : () => _moveLecture(lectures, i, -1),
+                                    icon: const Icon(
+                                        Icons.keyboard_arrow_up_rounded),
                                   ),
                                   IconButton(
-                                    onPressed: i == lectures.length - 1 ? null : () => _moveLecture(lectures, i, 1),
-                                    icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                                    onPressed: i == lectures.length - 1
+                                        ? null
+                                        : () => _moveLecture(lectures, i, 1),
+                                    icon: const Icon(
+                                        Icons.keyboard_arrow_down_rounded),
                                   ),
                                 ],
                               ),
@@ -434,14 +512,22 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
                               runSpacing: 8,
                               children: [
                                 _MetaPill(
-                                  icon: hasVideo ? Icons.ondemand_video_rounded : Icons.videocam_off_rounded,
+                                  icon: hasVideo
+                                      ? Icons.ondemand_video_rounded
+                                      : Icons.videocam_off_rounded,
                                   label: hasVideo ? '영상 연결됨' : '영상 없음',
-                                  color: hasVideo ? AppColors.primaryLight : AppColors.textMuted,
+                                  color: hasVideo
+                                      ? AppColors.primaryLight
+                                      : AppColors.textMuted,
                                 ),
                                 _MetaPill(
-                                  icon: hasMaterial ? Icons.attach_file_rounded : Icons.note_add_outlined,
+                                  icon: hasMaterial
+                                      ? Icons.attach_file_rounded
+                                      : Icons.note_add_outlined,
                                   label: hasMaterial ? '자료 연결됨' : '자료 없음',
-                                  color: hasMaterial ? AppColors.secondary : AppColors.textMuted,
+                                  color: hasMaterial
+                                      ? AppColors.secondary
+                                      : AppColors.textMuted,
                                 ),
                               ],
                             ),
@@ -450,14 +536,17 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
                               children: [
                                 TextButton.icon(
                                   onPressed: () => _editLecture(lec),
-                                  icon: const Icon(Icons.edit_rounded, size: 16),
+                                  icon:
+                                      const Icon(Icons.edit_rounded, size: 16),
                                   label: const Text('편집'),
                                 ),
                                 const SizedBox(width: 8),
                                 TextButton.icon(
                                   onPressed: () => _deleteLecture(lec),
-                                  icon: const Icon(Icons.delete_outline_rounded, size: 16, color: AppColors.rose),
-                                  label: const Text('삭제', style: TextStyle(color: AppColors.rose)),
+                                  icon: const Icon(Icons.delete_outline_rounded,
+                                      size: 16, color: AppColors.rose),
+                                  label: const Text('삭제',
+                                      style: TextStyle(color: AppColors.rose)),
                                 ),
                               ],
                             ),
@@ -483,177 +572,210 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
         .cast<Map<String, dynamic>>()
         .toList();
 
-      return Column(children: [
-        Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            children: [
-              GestureDetector(
-                onTap: () {
-                  Clipboard.setData(ClipboardData(text: code));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('방 코드가 복사되었습니다')),
-                  );
-                },
-                child: AppCard(
-                  borderColor: AppColors.primaryLight.withValues(alpha: 0.3),
-                  child: Row(children: [
-                    const Text('방 코드', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
-                    const Spacer(),
-                    Text(code, style: const TextStyle(
-                      color: AppColors.primaryLight, fontSize: 22,
-                      fontWeight: FontWeight.w900, letterSpacing: 4,
-                    )),
-                    const SizedBox(width: 8),
-                    const Icon(Icons.copy_rounded, color: AppColors.textMuted, size: 18),
-                  ]),
-                ),
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            GestureDetector(
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: code));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('방 코드가 복사되었습니다')),
+                );
+              },
+              child: AppCard(
+                borderColor: AppColors.primaryLight.withValues(alpha: 0.3),
+                child: Row(children: [
+                  const Text('방 코드',
+                      style:
+                          TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                  const Spacer(),
+                  Text(code,
+                      style: const TextStyle(
+                        color: AppColors.primaryLight,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 4,
+                      )),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.copy_rounded,
+                      color: AppColors.textMuted, size: 18),
+                ]),
               ),
-              if (pendingApplications.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                AppCard(
-                  borderColor: AppColors.gold.withValues(alpha: 0.24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Expanded(
-                            child: Text(
-                              '수강 신청 대기',
-                              style: TextStyle(
-                                color: AppColors.textPrimary,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          Text(
-                            '${pendingApplications.length}명',
-                            style: const TextStyle(
-                              color: AppColors.gold,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      ...pendingApplications.map((application) => Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: Container(
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: AppColors.bg,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: AppColors.border),
-                              ),
-                              child: Row(
-                                children: [
-                                  CircleAvatar(
-                                    backgroundColor: AppColors.gold.withValues(alpha: 0.18),
-                                    child: Text(
-                                      ((application['student_name'] as String?) ?? '?').substring(0, 1),
-                                      style: const TextStyle(
-                                        color: AppColors.gold,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          application['student_name'] as String? ?? '',
-                                          style: const TextStyle(
-                                            color: AppColors.textPrimary,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                        if ((application['note'] as String? ?? '').trim().isNotEmpty)
-                                          Padding(
-                                            padding: const EdgeInsets.only(top: 4),
-                                            child: Text(
-                                              application['note'] as String,
-                                              style: const TextStyle(
-                                                color: AppColors.textSecondary,
-                                                fontSize: 12,
-                                              ),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                  TextButton(
-                                    onPressed: () => _reviewApplication(application, 'rejected'),
-                                    child: const Text(
-                                      '반려',
-                                      style: TextStyle(color: AppColors.rose),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  ElevatedButton(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppColors.primary,
-                                      foregroundColor: Colors.black,
-                                    ),
-                                    onPressed: () => _reviewApplication(application, 'approved'),
-                                    child: const Text('승인'),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          )),
-                    ],
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-        Expanded(child: students.isEmpty
-            ? const Center(child: Text('아직 입장한 학생이 없습니다', style: TextStyle(color: AppColors.textMuted)))
-            : ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                itemCount: students.length,
-                itemBuilder: (_, i) {
-                  final s = students[i] as Map<String, dynamic>;
-                  final style = s['primary_style'] as String?;
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: AppCard(
-                      child: Row(children: [
-                        CircleAvatar(
-                          radius: 20,
-                          backgroundColor: style != null
-                              ? LearningStyleUtil.color(style).withValues(alpha: 0.2)
-                              : AppColors.bgSurface,
+            ),
+            if (pendingApplications.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              AppCard(
+                borderColor: AppColors.gold.withValues(alpha: 0.24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Expanded(
                           child: Text(
-                            (s['name'] as String? ?? '?').substring(0, 1),
+                            '수강 신청 대기',
                             style: TextStyle(
-                              color: style != null ? LearningStyleUtil.color(style) : AppColors.textMuted,
+                              color: AppColors.textPrimary,
+                              fontSize: 16,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(s['name'] as String? ?? '', style: const TextStyle(
-                            color: AppColors.textPrimary, fontWeight: FontWeight.w600,
-                          )),
-                          if (style != null)
-                            Text('${LearningStyleUtil.emoji(style)} $style · ${s['social_type'] ?? ''} · ${s['cognitive_type'] ?? ''}',
-                                style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
-                        ])),
-                        if (style != null)
-                          TypeBadge(label: style, color: LearningStyleUtil.color(style)),
-                      ]),
+                        Text(
+                          '${pendingApplications.length}명',
+                          style: const TextStyle(
+                            color: AppColors.gold,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
                     ),
-                  );
-                },
-              )),
-      ]);
+                    const SizedBox(height: 12),
+                    ...pendingApplications.map((application) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: AppColors.bg,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: AppColors.border),
+                            ),
+                            child: Row(
+                              children: [
+                                CircleAvatar(
+                                  backgroundColor:
+                                      AppColors.gold.withValues(alpha: 0.18),
+                                  child: Text(
+                                    ((application['student_name'] as String?) ??
+                                            '?')
+                                        .substring(0, 1),
+                                    style: const TextStyle(
+                                      color: AppColors.gold,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        application['student_name']
+                                                as String? ??
+                                            '',
+                                        style: const TextStyle(
+                                          color: AppColors.textPrimary,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      if ((application['note'] as String? ?? '')
+                                          .trim()
+                                          .isNotEmpty)
+                                        Padding(
+                                          padding:
+                                              const EdgeInsets.only(top: 4),
+                                          child: Text(
+                                            application['note'] as String,
+                                            style: const TextStyle(
+                                              color: AppColors.textSecondary,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                                TextButton(
+                                  onPressed: () => _reviewApplication(
+                                      application, 'rejected'),
+                                  child: const Text(
+                                    '반려',
+                                    style: TextStyle(color: AppColors.rose),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.primary,
+                                    foregroundColor: Colors.black,
+                                  ),
+                                  onPressed: () => _reviewApplication(
+                                      application, 'approved'),
+                                  child: const Text('승인'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      Expanded(
+          child: students.isEmpty
+              ? const Center(
+                  child: Text('아직 입장한 학생이 없습니다',
+                      style: TextStyle(color: AppColors.textMuted)))
+              : ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  itemCount: students.length,
+                  itemBuilder: (_, i) {
+                    final s = students[i] as Map<String, dynamic>;
+                    final style = s['primary_style'] as String?;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: AppCard(
+                        child: Row(children: [
+                          CircleAvatar(
+                            radius: 20,
+                            backgroundColor: style != null
+                                ? LearningStyleUtil.color(style)
+                                    .withValues(alpha: 0.2)
+                                : AppColors.bgSurface,
+                            child: Text(
+                              (s['name'] as String? ?? '?').substring(0, 1),
+                              style: TextStyle(
+                                color: style != null
+                                    ? LearningStyleUtil.color(style)
+                                    : AppColors.textMuted,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                              child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                Text(s['name'] as String? ?? '',
+                                    style: const TextStyle(
+                                      color: AppColors.textPrimary,
+                                      fontWeight: FontWeight.w600,
+                                    )),
+                                if (style != null)
+                                  Text(
+                                      '${LearningStyleUtil.emoji(style)} $style · ${s['social_type'] ?? ''} · ${s['cognitive_type'] ?? ''}',
+                                      style: const TextStyle(
+                                          color: AppColors.textMuted,
+                                          fontSize: 12)),
+                              ])),
+                          if (style != null)
+                            TypeBadge(
+                                label: style,
+                                color: LearningStyleUtil.color(style)),
+                        ]),
+                      ),
+                    );
+                  },
+                )),
+    ]);
   }
 
   Widget _buildNotices(Map<String, dynamic> room, List<dynamic> notices) {
@@ -669,12 +791,16 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
                   children: [
                     const Text(
                       '공지사항',
-                      style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w700),
+                      style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       '${notices.length}개의 공지가 학생에게 노출됩니다',
-                      style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+                      style: const TextStyle(
+                          color: AppColors.textMuted, fontSize: 12),
                     ),
                   ],
                 ),
@@ -694,7 +820,8 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
         Expanded(
           child: notices.isEmpty
               ? const Center(
-                  child: Text('아직 등록된 공지가 없습니다', style: TextStyle(color: AppColors.textMuted)),
+                  child: Text('아직 등록된 공지가 없습니다',
+                      style: TextStyle(color: AppColors.textMuted)),
                 )
               : ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -711,7 +838,10 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
                               children: [
                                 Expanded(
                                   child: Text(
-                                    (notice['title'] as String?)?.trim().isNotEmpty == true
+                                    (notice['title'] as String?)
+                                                ?.trim()
+                                                .isNotEmpty ==
+                                            true
                                         ? notice['title'] as String
                                         : '제목 없는 공지',
                                     style: const TextStyle(
@@ -723,19 +853,24 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
                                 ),
                                 IconButton(
                                   onPressed: () => _deleteNotice(notice),
-                                  icon: const Icon(Icons.delete_outline_rounded, color: AppColors.rose),
+                                  icon: const Icon(Icons.delete_outline_rounded,
+                                      color: AppColors.rose),
                                 ),
                               ],
                             ),
                             const SizedBox(height: 8),
                             Text(
                               notice['content'] as String? ?? '',
-                              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.6),
+                              style: const TextStyle(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 13,
+                                  height: 1.6),
                             ),
                             const SizedBox(height: 10),
                             Text(
                               notice['created_at'] as String? ?? '',
-                              style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+                              style: const TextStyle(
+                                  color: AppColors.textMuted, fontSize: 11),
                             ),
                           ],
                         ),
@@ -750,49 +885,66 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
 
   Widget _buildSettings(Map<String, dynamic> room) {
     final ctrlSynopsis = TextEditingController(text: room['synopsis'] ?? '');
-    final ctrlConcepts = TextEditingController(text: ((room['core_concepts'] as List<dynamic>?) ?? []).join(', '));
+    final ctrlConcepts = TextEditingController(
+        text: ((room['core_concepts'] as List<dynamic>?) ?? []).join(', '));
     final ctrlYoutube = TextEditingController(text: room['youtube_url'] ?? '');
-    
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: AppCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('강의실 설정', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w700)),
+            const Text('강의실 설정',
+                style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700)),
             const SizedBox(height: 24),
-            const Text('강의 줄거리 / 목표', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+            const Text('강의 줄거리 / 목표',
+                style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
             const SizedBox(height: 8),
             TextField(
               controller: ctrlSynopsis,
               maxLines: 3,
               style: const TextStyle(color: AppColors.textPrimary),
-              decoration: const InputDecoration(filled: true, fillColor: AppColors.bg),
+              decoration:
+                  const InputDecoration(filled: true, fillColor: AppColors.bg),
             ),
             const SizedBox(height: 16),
-            const Text('핵심 개념 (쉼표 구분) - AI 퀴즈 자동 생성에 사용됨', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+            const Text('핵심 개념 (쉼표 구분) - AI 퀴즈 자동 생성에 사용됨',
+                style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
             const SizedBox(height: 8),
             TextField(
               controller: ctrlConcepts,
               style: const TextStyle(color: AppColors.textPrimary),
-              decoration: const InputDecoration(filled: true, fillColor: AppColors.bg),
+              decoration:
+                  const InputDecoration(filled: true, fillColor: AppColors.bg),
             ),
             const SizedBox(height: 16),
-            const Text('YouTube URL (온라인 강의 시)', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+            const Text('YouTube URL (온라인 강의 시)',
+                style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
             const SizedBox(height: 8),
             TextField(
               controller: ctrlYoutube,
               style: const TextStyle(color: AppColors.textPrimary),
-              decoration: const InputDecoration(filled: true, fillColor: AppColors.bg),
+              decoration:
+                  const InputDecoration(filled: true, fillColor: AppColors.bg),
             ),
             const SizedBox(height: 32),
             SizedBox(
               width: double.infinity,
               height: 48,
               child: ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.black),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.black),
                 onPressed: () async {
-                  final concepts = ctrlConcepts.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+                  final concepts = ctrlConcepts.text
+                      .split(',')
+                      .map((e) => e.trim())
+                      .where((e) => e.isNotEmpty)
+                      .toList();
                   try {
                     await ApiService().updateRoomMeta(widget.roomId, {
                       'synopsis': ctrlSynopsis.text.trim(),
@@ -801,13 +953,16 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
                     });
                     ref.invalidate(professorRoomDetailProvider(widget.roomId));
                     if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('설정이 저장되었습니다.')));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('설정이 저장되었습니다.')));
                   } catch (e) {
                     if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('오류: $e')));
+                    ScaffoldMessenger.of(context)
+                        .showSnackBar(SnackBar(content: Text('오류: $e')));
                   }
                 },
-                child: const Text('변경사항 저장 및 AI 퀴즈 재생성', style: TextStyle(fontWeight: FontWeight.bold)),
+                child: const Text('변경사항 저장 및 AI 퀴즈 재생성',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
               ),
             ),
           ],
@@ -844,7 +999,8 @@ class _MetaPill extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             label,
-            style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700),
+            style: TextStyle(
+                color: color, fontSize: 11, fontWeight: FontWeight.w700),
           ),
         ],
       ),
