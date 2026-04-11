@@ -19,7 +19,6 @@ from typing import Any
 from google import genai
 from google.genai import types
 
-from .reforge_service import generate_gemini_text
 
 logger = logging.getLogger(__name__)
 
@@ -278,13 +277,19 @@ class VideoPipeline:
     {{"minute": 10, "topic": "주제", "reason": "이유"}}
   ]
 }}"""
-            raw = await generate_gemini_text(
-                [uploaded, prompt],
-                temperature=0.15,
-                max_output_tokens=2600,
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    _vp_client.models.generate_content,
+                    model="gemini-2.5-flash",
+                    contents=[uploaded, prompt],
+                    config=types.GenerateContentConfig(
+                        max_output_tokens=2600,
+                        temperature=0.15,
+                    ),
+                ),
                 timeout=95.0,
-                feature="video_transcription",
             )
+            raw = response.text
             parsed = _json_from_markdown(raw)
             return self._normalize_result(parsed)
         finally:
@@ -360,13 +365,20 @@ class VideoPipeline:
     {{"minute": 5, "topic": "주제", "reason": "이유"}}
   ]
 }}"""
-        raw = await generate_gemini_text(
-            prompt,
-            temperature=0.18,
-            max_output_tokens=2600,
+        _vp_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+        response = await asyncio.wait_for(
+            asyncio.to_thread(
+                _vp_client.models.generate_content,
+                model="gemini-2.5-flash",
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    max_output_tokens=2600,
+                    temperature=0.18,
+                ),
+            ),
             timeout=45.0,
-            feature=f"video_{source}_summary",
         )
+        raw = response.text
         parsed = _json_from_markdown(raw)
         if not parsed.get("segments"):
             parsed["segments"] = segments[:180]
