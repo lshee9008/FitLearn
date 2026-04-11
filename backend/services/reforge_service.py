@@ -80,7 +80,6 @@ async def generate_gemini_text(
                 generation_config={
                     "temperature": temperature,
                     "max_output_tokens": max_output_tokens,
-                    "thinking_config": {"thinking_budget": 0},
                 },
             )
             response = await asyncio.wait_for(
