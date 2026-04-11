@@ -9,15 +9,6 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/services/api_service.dart';
 import '../../../../shared/widgets/app_card.dart';
 
-const _styleEmojis = {
-  '시각형': '👁️',
-  '청각형': '👂',
-  '읽기형': '📖',
-  '실습형': '🔧',
-  '요약형': '⚡',
-  '상세형': '🔍',
-};
-
 const _styleColors = {
   '시각형': AppColors.primary,
   '청각형': AppColors.secondary,
@@ -139,28 +130,45 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
               color: AppColors.textMuted, size: 20),
         ),
         const SizedBox(width: 12),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(widget.title, style: const TextStyle(
-            color: AppColors.textPrimary, fontSize: 17, fontWeight: FontWeight.w800,
-          ), maxLines: 1, overflow: TextOverflow.ellipsis),
-          if (_primaryStyle != null)
-            Row(children: [
-              Text('${_styleEmojis[_primaryStyle]} $_primaryStyle 맞춤 교안',
-                  style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
-              if (_subjectLevel != null && _subjectLevel!.isNotEmpty) ...[
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(_levelLabel(_subjectLevel!),
-                      style: const TextStyle(color: AppColors.primaryLight, fontSize: 10, fontWeight: FontWeight.w700)),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(
+              widget.title,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            if (_primaryStyle != null)
+              Row(children: [
+                Text(
+                  '자동 맞춤 교안 · $_primaryStyle',
+                  style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
                 ),
-              ],
-            ]),
-        ])),
+                if (_subjectLevel != null && _subjectLevel!.isNotEmpty) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      _levelLabel(_subjectLevel!),
+                      style: const TextStyle(
+                        color: AppColors.primaryLight,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ]),
+          ]),
+        ),
         IconButton(
           tooltip: '원본 강의자료 다운로드',
           icon: const Icon(Icons.download_rounded, color: AppColors.textMuted, size: 22),
@@ -295,14 +303,31 @@ class _EmptyView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-      const Text('🎯', style: TextStyle(fontSize: 56)),
+      Container(
+        width: 64,
+        height: 64,
+        decoration: BoxDecoration(
+          color: AppColors.bgSurface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: const Icon(Icons.article_outlined, color: AppColors.primaryLight, size: 30),
+      ),
       const SizedBox(height: 16),
-      const Text('교안이 아직 준비되지 않았습니다', style: TextStyle(
-        color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w800,
-      )),
+      const Text(
+        '교안이 아직 준비되지 않았습니다',
+        style: TextStyle(
+          color: AppColors.textPrimary,
+          fontSize: 18,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
       const SizedBox(height: 8),
-      const Text('교수님이 핵심 포인트를 확정하면\n개인화 교안이 생성됩니다', textAlign: TextAlign.center,
-          style: TextStyle(color: AppColors.textMuted, fontSize: 14)),
+      const Text(
+        '교수님이 핵심 포인트를 확정하면\n개인화 교안이 생성됩니다',
+        textAlign: TextAlign.center,
+        style: TextStyle(color: AppColors.textMuted, fontSize: 14),
+      ),
       const SizedBox(height: 28),
       GlowButton(text: '다시 불러오기', onTap: onRetry),
     ]));
@@ -323,19 +348,18 @@ class _NotionDocument extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = _styleColors[style] ?? AppColors.primary;
-    final emoji = _styleEmojis[style] ?? '📚';
 
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: const Color(0xFF15151B),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: AppColors.border),
+        color: const Color(0xFF121319),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.78)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.26),
-            blurRadius: 30,
-            offset: const Offset(0, 18),
+            color: Colors.black.withValues(alpha: 0.22),
+            blurRadius: 26,
+            offset: const Offset(0, 16),
           ),
         ],
       ),
@@ -344,17 +368,17 @@ class _NotionDocument extends StatelessWidget {
         children: [
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(34, 30, 34, 26),
+            padding: const EdgeInsets.fromLTRB(32, 28, 32, 24),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  color.withValues(alpha: 0.18),
-                  const Color(0xFF15151B),
+                  color.withValues(alpha: 0.1),
+                  const Color(0xFF121319),
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -367,11 +391,12 @@ class _NotionDocument extends StatelessWidget {
                     border: Border.all(color: color.withValues(alpha: 0.24)),
                   ),
                   child: Text(
-                    '$emoji $style 자동 맞춤 교안',
+                    '$style · 자동 맞춤 교안',
                     style: TextStyle(
-                      color: color,
+                      color: Color.lerp(color, Colors.white, 0.16),
                       fontSize: 12,
-                      fontWeight: FontWeight.w900,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.1,
                     ),
                   ),
                 ),
@@ -380,10 +405,10 @@ class _NotionDocument extends StatelessWidget {
                   title,
                   style: const TextStyle(
                     color: AppColors.textPrimary,
-                    fontSize: 30,
+                    fontSize: 29,
                     fontWeight: FontWeight.w900,
                     height: 1.2,
-                    letterSpacing: -0.8,
+                    letterSpacing: -0.7,
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -399,8 +424,14 @@ class _NotionDocument extends StatelessWidget {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(34, 26, 34, 38),
-            child: _MarkdownText(content),
+            padding: const EdgeInsets.fromLTRB(32, 28, 32, 40),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 920),
+                child: _MarkdownText(content),
+              ),
+            ),
           ),
         ],
       ),
@@ -451,7 +482,7 @@ class _PersonalizationBasisCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'AI 재해석 기준',
+                      '개인화 기준',
                       style: TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 16,
@@ -460,7 +491,7 @@ class _PersonalizationBasisCard extends StatelessWidget {
                     ),
                     SizedBox(height: 4),
                     Text(
-                      '학생이 고르는 옵션이 아니라, 진단 결과와 과목 수준으로 자동 적용됩니다.',
+                      '진단 결과와 과목 수준을 자동 적용해 교안을 재구성합니다.',
                       style: TextStyle(color: AppColors.textMuted, fontSize: 12),
                     ),
                   ],
@@ -938,7 +969,7 @@ class _VideoAssistPanel extends StatelessWidget {
                   color: AppColors.primary.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primaryLight, size: 18),
+                child: const Icon(Icons.notes_rounded, color: AppColors.primaryLight, size: 18),
               ),
               const SizedBox(width: 10),
               const Expanded(
@@ -946,7 +977,7 @@ class _VideoAssistPanel extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '영상 구간 요약 · 질문',
+                      '구간 이해 도우미',
                       style: TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 15,
@@ -955,7 +986,7 @@ class _VideoAssistPanel extends StatelessWidget {
                     ),
                     SizedBox(height: 3),
                     Text(
-                      '모르는 구간을 적으면 교안과 핵심포인트 근거로 맞춤 설명합니다.',
+                      '모르는 구간을 적으면 교안과 핵심 포인트를 근거로 설명합니다.',
                       style: TextStyle(color: AppColors.textMuted, fontSize: 12),
                     ),
                   ],
@@ -1204,43 +1235,41 @@ class _MarkdownText extends StatelessWidget {
   Widget _renderLine(String line) {
     if (line.startsWith('### ')) {
       return Padding(
-        padding: const EdgeInsets.fromLTRB(0, 20, 0, 8),
+        padding: const EdgeInsets.fromLTRB(0, 22, 0, 8),
         child: _SectionHeading(text: line.substring(4), level: 3),
       );
     }
     if (line.startsWith('## ')) {
       return Padding(
-        padding: const EdgeInsets.fromLTRB(0, 24, 0, 10),
+        padding: const EdgeInsets.fromLTRB(0, 30, 0, 10),
         child: _SectionHeading(text: line.substring(3), level: 2),
       );
     }
     if (line.startsWith('# ')) {
       return Padding(
-        padding: const EdgeInsets.fromLTRB(0, 8, 0, 18),
+        padding: const EdgeInsets.fromLTRB(0, 4, 0, 20),
         child: _SectionHeading(text: line.substring(2), level: 1),
       );
     }
     if (line.startsWith('- ') || line.startsWith('* ')) {
       return Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-          decoration: BoxDecoration(
-            color: AppColors.bgSurface.withValues(alpha: 0.72),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.border.withValues(alpha: 0.7)),
+        padding: const EdgeInsets.only(bottom: 7),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(2, 10, 12, 0),
+            child: CircleAvatar(radius: 2.5, backgroundColor: AppColors.primaryLight),
           ),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(0, 7, 10, 0),
-              child: CircleAvatar(radius: 3, backgroundColor: AppColors.primaryLight),
+          Expanded(
+            child: SelectableText(
+              line.substring(2),
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 14,
+                height: 1.65,
+              ),
             ),
-            Expanded(child: Text(line.substring(2), style: const TextStyle(
-              color: AppColors.textSecondary, fontSize: 14, height: 1.65,
-            ))),
-          ]),
-        ),
+          ),
+        ]),
       );
     }
     if (line.startsWith('> ')) {
@@ -1255,18 +1284,28 @@ class _MarkdownText extends StatelessWidget {
         ).copyWith(
           color: AppColors.primary.withValues(alpha: 0.06),
         ),
-        child: Text(line.substring(2), style: const TextStyle(
-          color: AppColors.textSecondary, fontSize: 13,
-          fontStyle: FontStyle.italic, height: 1.5,
-        )),
+        child: SelectableText(
+          line.substring(2),
+          style: const TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 13,
+            fontStyle: FontStyle.italic,
+            height: 1.5,
+          ),
+        ),
       );
     }
     if (line.trim().isEmpty) return const SizedBox(height: 8);
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: Text(line, style: const TextStyle(
-        color: AppColors.textSecondary, fontSize: 14, height: 1.7,
-      )),
+      child: SelectableText(
+        line,
+        style: const TextStyle(
+          color: AppColors.textSecondary,
+          fontSize: 14,
+          height: 1.7,
+        ),
+      ),
     );
   }
 }
@@ -1283,27 +1322,26 @@ class _SectionHeading extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isTop = level == 1;
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.symmetric(horizontal: isTop ? 18 : 14, vertical: isTop ? 16 : 12),
+    return DecoratedBox(
       decoration: BoxDecoration(
-        color: isTop
-            ? AppColors.primary.withValues(alpha: 0.1)
-            : AppColors.bgSurface.withValues(alpha: 0.82),
-        borderRadius: BorderRadius.circular(isTop ? 18 : 14),
-        border: Border.all(
-          color: isTop
-              ? AppColors.primaryLight.withValues(alpha: 0.28)
-              : AppColors.border,
+        border: Border(
+          left: BorderSide(
+            color: isTop ? AppColors.primaryLight : AppColors.border,
+            width: isTop ? 3 : 2,
+          ),
         ),
       ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: isTop ? AppColors.primaryLight : AppColors.textPrimary,
-          fontSize: isTop ? 22 : (level == 2 ? 18 : 16),
-          fontWeight: FontWeight.w900,
-          height: 1.35,
+      child: Padding(
+        padding: EdgeInsets.only(left: isTop ? 14 : 12),
+        child: SelectableText(
+          text,
+          style: TextStyle(
+            color: isTop ? AppColors.textPrimary : AppColors.textSecondary,
+            fontSize: isTop ? 24 : (level == 2 ? 19 : 16),
+            fontWeight: isTop ? FontWeight.w900 : FontWeight.w800,
+            height: 1.35,
+            letterSpacing: isTop ? -0.55 : -0.2,
+          ),
         ),
       ),
     );
