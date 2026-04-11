@@ -8,22 +8,28 @@ import '../../../../shared/services/api_service.dart';
 
 // ─── 컬러 ────────────────────────────────────────────────────
 class _C {
-  static const bg = Color(0xFF111111);
-  static const surface = Color(0xFF1A1A1A);
-  static const surface2 = Color(0xFF222222);
-  static const border = Color(0xFF2A2A2A);
+  static const bg = Color(0xFF0E0E11);
+  static const surface = Color(0xFF13131A);
+  static const surface2 = Color(0xFF1A1A24);
+  static const border = Color(0xFF1E1E2A);
+  static const border2 = Color(0xFF252532);
   static const lime = Color(0xFFC8F135);
   static const limeDeep = Color(0xFFA8D010);
-  static const limeDark = Color(0xFF1A2E00);
-  static const salmon = Color(0xFFFF6B5B);
-  static const salmonDark = Color(0xFF3D0A04);
-  static const lavender = Color(0xFFC5B8F8);
-  static const lavDark = Color(0xFF26215C);
-  static const yellow = Color(0xFFFFE566);
-  static const yellowDark = Color(0xFF412402);
-  static const textPri = Color(0xFFFFFFFF);
-  static const textSec = Color(0xFF888888);
-  static const textMute = Color(0xFF555555);
+  static const limeDark = Color(0xFF1A2400);
+  static const lavender = Color(0xFFA78BFA);
+  static const lavDark = Color(0xFF2D1B69);
+  static const lavMid = Color(0xFF1E1830);
+  static const coral = Color(0xFFFB7185);
+  static const coralDark = Color(0xFF3D0A14);
+  static const amber = Color(0xFFFBBF24);
+  static const amberDark = Color(0xFF3D2800);
+  static const mint = Color(0xFF34D399);
+  static const mintDark = Color(0xFF064E3B);
+  static const blue = Color(0xFF60A5FA);
+  static const blueDark = Color(0xFF1E3A5F);
+  static const textPri = Color(0xFFF0F0F4);
+  static const textSec = Color(0xFF8888A0);
+  static const textMute = Color(0xFF4A4A5A);
 }
 
 // ── 강의 아이템 모델 ──────────────────────────────────────────
@@ -101,6 +107,7 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
         await ApiService().createLectureShells(roomId, lectureSeeds);
       }
 
+      await Future.delayed(const Duration(milliseconds: 500));
       await _refreshRooms();
 
       if (mounted) {
@@ -128,26 +135,23 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
+        backgroundColor: _C.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('강의 방 삭제',
             style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w700)),
+                color: _C.textPri, fontSize: 16, fontWeight: FontWeight.w700)),
         content: Text('"$subject"을 삭제할까요?\n삭제 후 복구가 불가능합니다.',
-            style: const TextStyle(
-                color: Color(0xFF888888), fontSize: 13, height: 1.5)),
+            style:
+                const TextStyle(color: _C.textSec, fontSize: 13, height: 1.5)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('취소', style: TextStyle(color: Color(0xFF888888))),
+            child: const Text('취소', style: TextStyle(color: _C.textSec)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('삭제',
-                style: TextStyle(
-                    color: Color(0xFFFF6B5B), fontWeight: FontWeight.w700)),
+                style: TextStyle(color: _C.coral, fontWeight: FontWeight.w700)),
           ),
         ],
       ),
@@ -155,6 +159,7 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
     if (confirm != true || !mounted) return;
     try {
       await ApiService().deleteRoom(roomId);
+      await Future.delayed(const Duration(milliseconds: 500));
       await _refreshRooms();
     } catch (_) {
       await _refreshRooms();
@@ -175,6 +180,7 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
         synopsis: result['synopsis'] ?? '',
         coreConcepts: result['core_concepts'] ?? '',
       );
+      await Future.delayed(const Duration(milliseconds: 500));
       await _refreshRooms();
     } catch (e) {
       if (!mounted) return;
@@ -412,7 +418,7 @@ class _SidebarState extends State<_Sidebar> {
                         width: 16,
                         height: 16,
                         decoration: const BoxDecoration(
-                          color: _C.salmon,
+                          color: _C.coral,
                           shape: BoxShape.circle,
                         ),
                         child: const Center(
@@ -437,9 +443,9 @@ class _SidebarState extends State<_Sidebar> {
           child: const Padding(
             padding: EdgeInsets.all(16),
             child: Row(children: [
-              Icon(Icons.logout_rounded, size: 16, color: _C.salmon),
+              Icon(Icons.logout_rounded, size: 16, color: _C.coral),
               SizedBox(width: 8),
-              Text('로그아웃', style: TextStyle(fontSize: 13, color: _C.salmon)),
+              Text('로그아웃', style: TextStyle(fontSize: 13, color: _C.coral)),
             ]),
           ),
         ),
@@ -596,7 +602,7 @@ class _StatsRow extends StatelessWidget {
           value: '$studentCount',
           icon: Icons.people_rounded,
           color: _C.lavender,
-          colorBg: _C.lavDark,
+          colorBg: _C.lavMid,
         ),
       ),
       const SizedBox(width: 12),
@@ -605,8 +611,8 @@ class _StatsRow extends StatelessWidget {
           label: '완강률',
           value: '72%',
           icon: Icons.trending_up_rounded,
-          color: _C.salmon,
-          colorBg: _C.salmonDark,
+          color: _C.coral,
+          colorBg: _C.coralDark,
         ),
       ),
       const SizedBox(width: 12),
@@ -615,8 +621,8 @@ class _StatsRow extends StatelessWidget {
           label: 'AI Q&A 처리',
           value: '12건',
           icon: Icons.auto_awesome_rounded,
-          color: _C.yellow,
-          colorBg: _C.yellowDark,
+          color: _C.amber,
+          colorBg: _C.amberDark,
         ),
       ),
     ]);
@@ -718,7 +724,7 @@ class _CreateRoomButton extends StatelessWidget {
         child: const Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(Icons.add_rounded, color: _C.limeDark, size: 16),
           SizedBox(width: 4),
-          Text('방 만들기',
+          Text('강의 생성',
               style: TextStyle(
                   color: _C.limeDark,
                   fontSize: 12,
@@ -909,20 +915,20 @@ class _RoomCardState extends State<_RoomCard> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
-                          color: _C.salmonDark,
+                          color: _C.coralDark,
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                              color: _C.salmon.withValues(alpha: 0.3)),
+                              color: _C.coral.withValues(alpha: 0.3)),
                         ),
                         child: const Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(Icons.delete_outline_rounded,
-                                  color: _C.salmon, size: 13),
+                                  color: _C.coral, size: 13),
                               SizedBox(width: 4),
                               Text('삭제',
                                   style: TextStyle(
-                                      color: _C.salmon,
+                                      color: _C.coral,
                                       fontSize: 11,
                                       fontWeight: FontWeight.w600)),
                             ]),
@@ -997,9 +1003,9 @@ class _RightPanel extends StatelessWidget {
 
   static const _schedule = [
     ('파트3 라이브 Q&A', '7월 8일', '오전 8시–9시', _C.lime, _C.limeDark),
-    ('중간 과제 마감', '7월 12일', '오후 11시 59분', _C.salmon, _C.salmonDark),
-    ('색보정 보충 강의', '7월 17일', '오전 8시–9시', _C.lavender, _C.lavDark),
-    ('최종 발표', '7월 22일', '오전 10시–오후 1시', _C.yellow, _C.yellowDark),
+    ('중간 과제 마감', '7월 12일', '오후 11시 59분', _C.coral, _C.coralDark),
+    ('색보정 보충 강의', '7월 17일', '오전 8시–9시', _C.lavender, _C.lavMid),
+    ('최종 발표', '7월 22일', '오전 10시–오후 1시', _C.amber, _C.amberDark),
   ];
 
   @override
@@ -1083,9 +1089,9 @@ class _AiInsightCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFF1F1F35),
+        color: _C.lavMid,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF3A3A6A)),
+        border: Border.all(color: _C.lavDark),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Container(
@@ -1121,7 +1127,7 @@ class _AiInsightCard extends StatelessWidget {
           ),
           Text('$pct%',
               style: const TextStyle(
-                  color: _C.salmon, fontSize: 11, fontWeight: FontWeight.w600)),
+                  color: _C.coral, fontSize: 11, fontWeight: FontWeight.w600)),
         ]),
         const SizedBox(height: 4),
         ClipRRect(
@@ -1130,7 +1136,7 @@ class _AiInsightCard extends StatelessWidget {
             value: pct / 100,
             minHeight: 3,
             backgroundColor: _C.border,
-            valueColor: const AlwaysStoppedAnimation(_C.salmon),
+            valueColor: const AlwaysStoppedAnimation(_C.coral),
           ),
         ),
       ]),
@@ -1149,9 +1155,9 @@ class _DistributionCard extends StatelessWidget {
           style: TextStyle(
               color: _C.textPri, fontSize: 13, fontWeight: FontWeight.w700)),
       const SizedBox(height: 10),
-      _distRow('예시 중심형', 27, _C.lavender, _C.lavDark),
+      _distRow('예시 중심형', 27, _C.lavender, _C.lavMid),
       _distRow('상세 이해형', 42, _C.lime, _C.limeDark),
-      _distRow('핵심 요약형', 31, _C.salmon, _C.salmonDark),
+      _distRow('핵심 요약형', 31, _C.coral, _C.coralDark),
     ]);
   }
 
@@ -1260,15 +1266,15 @@ class _CreateRoomDialogState extends State<_CreateRoomDialog> {
       _nameCtrl.text.trim().isNotEmpty && _currCtrl.text.trim().isNotEmpty;
   bool get _canCreate => _lectures.any((l) => l.title.trim().isNotEmpty);
 
-  static const _bg = Color(0xFF141414);
-  static const _surf = Color(0xFF1A1A1A);
+  static const _bg = Color(0xFF0E0E11);
+  static const _surf = Color(0xFF13131A);
   static const _lime = Color(0xFFC8F135);
-  static const _limeDark = Color(0xFF1A2E00);
-  static const _border = Color(0xFF2A2A2A);
-  static const _textPri = Color(0xFFFFFFFF);
-  static const _textSec = Color(0xFF888888);
-  static const _textMute = Color(0xFF555555);
-  static const _btnGhost = Color(0xFF1E1E1E);
+  static const _limeDark = Color(0xFF1A2400);
+  static const _border = Color(0xFF1E1E2A);
+  static const _textPri = Color(0xFFF0F0F4);
+  static const _textSec = Color(0xFF8888A0);
+  static const _textMute = Color(0xFF4A4A5A);
+  static const _btnGhost = Color(0xFF13131A);
 
   @override
   void initState() {
@@ -1690,10 +1696,10 @@ class _SummarySection extends StatelessWidget {
   const _SummarySection(
       {required this.icon, required this.title, required this.child});
 
-  static const _surf = Color(0xFF1A1A1A);
+  static const _surf = Color(0xFF13131A);
   static const _lime = Color(0xFFC8F135);
-  static const _border = Color(0xFF2A2A2A);
-  static const _textMute = Color(0xFF555555);
+  static const _border = Color(0xFF1E1E2A);
+  static const _textMute = Color(0xFF4A4A5A);
 
   @override
   Widget build(BuildContext context) {
@@ -1730,8 +1736,8 @@ class _SummaryLink extends StatelessWidget {
       {required this.icon, required this.label, required this.url});
 
   static const _lime = Color(0xFFC8F135);
-  static const _limeDark = Color(0xFF1A2E00);
-  static const _textSec = Color(0xFF888888);
+  static const _limeDark = Color(0xFF1A2400);
+  static const _textSec = Color(0xFF8888A0);
 
   @override
   Widget build(BuildContext context) {
@@ -1779,11 +1785,11 @@ class _AttachCard extends StatefulWidget {
 }
 
 class _AttachCardState extends State<_AttachCard> {
-  static const _surf = Color(0xFF1A1A1A);
+  static const _surf = Color(0xFF13131A);
   static const _lime = Color(0xFFC8F135);
-  static const _border = Color(0xFF2A2A2A);
-  static const _textPri = Color(0xFFFFFFFF);
-  static const _textMute = Color(0xFF555555);
+  static const _border = Color(0xFF1E1E2A);
+  static const _textPri = Color(0xFFF0F0F4);
+  static const _textMute = Color(0xFF4A4A5A);
 
   @override
   void initState() {
@@ -1825,7 +1831,7 @@ class _AttachCardState extends State<_AttachCard> {
             hintStyle: const TextStyle(color: _textMute, fontSize: 12),
             isDense: true,
             filled: true,
-            fillColor: const Color(0xFF141414),
+            fillColor: const Color(0xFF0E0E11),
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
             border: OutlineInputBorder(
@@ -1870,15 +1876,15 @@ class _EditRoomDialogState extends State<_EditRoomDialog> {
   bool get _canNext =>
       _nameCtrl.text.trim().isNotEmpty && _currCtrl.text.trim().isNotEmpty;
 
-  static const _bg = Color(0xFF141414);
-  static const _surf = Color(0xFF1A1A1A);
+  static const _bg = Color(0xFF0E0E11);
+  static const _surf = Color(0xFF13131A);
   static const _lime = Color(0xFFC8F135);
-  static const _limeDark = Color(0xFF1A2E00);
-  static const _border = Color(0xFF2A2A2A);
-  static const _textPri = Color(0xFFFFFFFF);
-  static const _textSec = Color(0xFF888888);
-  static const _textMute = Color(0xFF555555);
-  static const _btnGhost = Color(0xFF1E1E1E);
+  static const _limeDark = Color(0xFF1A2400);
+  static const _border = Color(0xFF1E1E2A);
+  static const _textPri = Color(0xFFF0F0F4);
+  static const _textSec = Color(0xFF8888A0);
+  static const _textMute = Color(0xFF4A4A5A);
+  static const _btnGhost = Color(0xFF13131A);
 
   @override
   void initState() {
@@ -2187,13 +2193,13 @@ class _InviteCodeDialog extends StatefulWidget {
 class _InviteCodeDialogState extends State<_InviteCodeDialog> {
   bool _copied = false;
 
-  static const _bg = Color(0xFF141414);
-  static const _surf = Color(0xFF1A1A1A);
+  static const _bg = Color(0xFF0E0E11);
+  static const _surf = Color(0xFF13131A);
   static const _lime = Color(0xFFC8F135);
-  static const _limeDark = Color(0xFF1A2E00);
-  static const _border = Color(0xFF2A2A2A);
-  static const _textSec = Color(0xFF888888);
-  static const _textMute = Color(0xFF555555);
+  static const _limeDark = Color(0xFF1A2400);
+  static const _border = Color(0xFF1E1E2A);
+  static const _textSec = Color(0xFF8888A0);
+  static const _textMute = Color(0xFF4A4A5A);
 
   Future<void> _copyCode() async {
     await Clipboard.setData(ClipboardData(text: widget.code));
@@ -2227,7 +2233,7 @@ class _InviteCodeDialogState extends State<_InviteCodeDialog> {
               const Text(
                 '강의 방이 생성되었습니다!',
                 style: TextStyle(
-                    color: Color(0xFFFFFFFF),
+                    color: _C.textPri,
                     fontSize: 18,
                     fontWeight: FontWeight.w800),
               ),
@@ -2344,11 +2350,11 @@ class _RoomTypeChip extends StatelessWidget {
   });
 
   static const _lime = Color(0xFFC8F135);
-  static const _limeDark = Color(0xFF1A2E00);
-  static const _border = Color(0xFF2A2A2A);
-  static const _surf = Color(0xFF1A1A1A);
-  static const _textPri = Color(0xFFFFFFFF);
-  static const _textSec = Color(0xFF888888);
+  static const _limeDark = Color(0xFF1A2400);
+  static const _border = Color(0xFF1E1E2A);
+  static const _surf = Color(0xFF13131A);
+  static const _textPri = Color(0xFFF0F0F4);
+  static const _textSec = Color(0xFF8888A0);
 
   @override
   Widget build(BuildContext context) {

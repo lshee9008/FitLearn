@@ -332,6 +332,10 @@ class FirebaseService:
         if db is None:
             return
         try:
+            # 교수 방 목록 캐시(학생 수) 업데이트를 위해 professor_uid 필요
+            room_data = await self.get_room(room_id)
+            prof_uid = room_data.get("professor_uid") if room_data else None
+
             from firebase_admin import firestore
             def _write():
                 db.collection("rooms").document(room_id).update(
@@ -342,7 +346,8 @@ class FirebaseService:
             await self._cache_delete_prefix(f"room_students:{room_id}")
             await self._cache_delete_prefix(f"student_rooms:{user_id}")
             await self._cache_delete_prefix(f"room_catalog:{user_id}")
-            await self._cache_delete_prefix("professor_rooms:")
+            if prof_uid:
+                await self._cache_delete_prefix(f"professor_rooms:{prof_uid}")
         except Exception as e:
             logger.warning(f"[Firebase] add_student_to_room 실패: {e}")
 
@@ -506,11 +511,18 @@ class FirebaseService:
             result = await _run(_write)
             if status == "approved":
                 await self.add_student_to_room(room_id, user_id)
+            
+            # 교수 방 목록의 학생 수 통계를 위해 캐시 삭제
+            room_data = await self.get_room(room_id)
+            prof_uid = room_data.get("professor_uid") if room_data else None
+            
             await self._cache_delete_prefix(f"student_hub:{user_id}")
             await self._cache_delete_prefix(f"student_applications:{user_id}")
             await self._cache_delete_prefix(f"room_applications:{room_id}")
             await self._cache_delete_prefix(f"room:{room_id}")
             await self._cache_delete_prefix(f"room_catalog:{user_id}")
+            if prof_uid:
+                await self._cache_delete_prefix(f"professor_rooms:{prof_uid}")
             return result
         except Exception as e:
             logger.warning(f"[Firebase] review_room_application 실패: {e}")
@@ -561,12 +573,18 @@ class FirebaseService:
         if db is None:
             return
         try:
+            # 삭제 전 교수 UID 획득하여 캐시 삭제에 사용
+            room_data = await self.get_room(room_id)
+            prof_uid = room_data.get("professor_uid") if room_data else None
+
             await _run(lambda: db.collection("rooms").document(room_id).delete())
             await self._cache_delete_prefix(f"room:{room_id}")
             await self._cache_delete_prefix(f"room_students:{room_id}")
             await self._cache_delete_prefix(f"room_lectures:{room_id}")
             await self._cache_delete_prefix(f"room_quiz:{room_id}")
             await self._cache_delete_prefix("room_catalog:")
+            if prof_uid:
+                await self._cache_delete_prefix(f"professor_rooms:{prof_uid}")
         except Exception as e:
             logger.warning(f"[Firebase] delete_room 실패: {e}")
 
