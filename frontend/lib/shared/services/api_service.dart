@@ -308,6 +308,25 @@ class ApiService {
     return res.data as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> uploadLectureVideoAsset({
+    required String roomId,
+    required String lectureId,
+    required List<int> videoFileBytes,
+    required String videoFileName,
+  }) async {
+    final formData = FormData.fromMap({
+      'video_file': MultipartFile.fromBytes(
+        videoFileBytes,
+        filename: videoFileName,
+      ),
+    });
+    final res = await _dio.post(
+      '/api/v1/lectures/$roomId/$lectureId/video/upload',
+      data: formData,
+    );
+    return res.data as Map<String, dynamic>;
+  }
+
   Future<Map<String, dynamic>> updateLectureMeta(
     String roomId,
     String lectureId,

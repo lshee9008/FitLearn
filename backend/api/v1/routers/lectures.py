@@ -515,6 +515,72 @@ async def confirm_core_points(room_id: str, lecture_id: str, body: CorePointConf
     return {"status": "confirmed", "count": len(points)}
 
 
+@router.post("/lectures/{room_id}/{lecture_id}/video/upload")
+async def upload_lecture_video_asset(
+    room_id: str,
+    lecture_id: str,
+    background_tasks: BackgroundTasks,
+    video_file: UploadFile = File(...),
+):
+    """교안 없이 생성된 강의 shell에도 영상 파일을 연결하고 전사/요약을 큐에 등록"""
+    lecture = await firebase.get_lecture(room_id, lecture_id)
+    if not lecture:
+        raise HTTPException(status_code=404, detail="강의를 찾을 수 없습니다.")
+
+    video_content = await video_file.read()
+    if not video_content:
+        raise HTTPException(status_code=400, detail="영상 파일이 비어 있습니다.")
+
+    video_filename = video_file.filename or "video.bin"
+    video_content_type = video_file.content_type or "application/octet-stream"
+    video_public_url = await firebase.upload_lecture_asset(
+        room_id,
+        lecture_id,
+        video_content,
+        video_filename,
+        video_content_type,
+        "video",
+    )
+    if not video_public_url:
+        video_public_url = await _save_local_video_asset(
+            video_content,
+            video_filename,
+            video_content_type,
+        )
+        logger.warning(f"[video_upload] Firebase Storage 미사용 — 로컬 영상 URL 폴백 lecture={lecture_id}")
+
+    title = lecture.get("title") or video_filename
+    original_text = lecture.get("original_text") or ""
+    core_points = lecture.get("core_points") or []
+    await firebase.update_lecture_meta(room_id, lecture_id, {
+        "video_url": video_public_url,
+        "video_asset_url": video_public_url,
+        "video_status": "ready",
+        "video_type": "upload",
+        "video_source": "uploaded_file",
+        "transcription_status": "queued",
+        "summary_status": "processing",
+        "confirmed": True,
+    })
+    background_tasks.add_task(
+        _process_uploaded_video_transcript,
+        room_id,
+        lecture_id,
+        video_content,
+        video_filename,
+        video_content_type,
+        title,
+        original_text,
+        core_points,
+    )
+    return {
+        "status": "queued",
+        "lecture_id": lecture_id,
+        "video_url": video_public_url,
+        "video_asset_url": video_public_url,
+    }
+
+
 @router.get("/lectures/{room_id}/{lecture_id}/original")
 async def get_original_file(room_id: str, lecture_id: str):
     """원본 교안 파일 다운로드 URL 반환"""

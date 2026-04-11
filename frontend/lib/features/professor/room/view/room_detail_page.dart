@@ -241,9 +241,6 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
   bool get _canCreateRoomWithLectures {
     if (_creatingRoom) return false;
     if (_roomNameCtrl.text.trim().isEmpty) return false;
-    if (_roomCurriculumCtrl.text.trim().isEmpty && _curriculumFile == null) {
-      return false;
-    }
     return _lectureDrafts.any((draft) =>
         draft.titleCtrl.text.trim().isNotEmpty ||
         draft.materialFile != null ||
@@ -261,12 +258,6 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
           draft.materialFile != null ||
           draft.videoFile != null;
       if (!hasAny) continue;
-      if (draft.videoFile != null && draft.materialFile == null) {
-        setState(() {
-          _uploadError = '${i + 1}강은 영상 파일과 함께 교안 파일도 선택해야 분석할 수 있습니다.';
-        });
-        return;
-      }
     }
 
     setState(() {
@@ -297,10 +288,11 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
       if (roomId.isEmpty) throw Exception('생성된 강의실 ID가 없습니다.');
 
       final shellLectures = <Map<String, dynamic>>[];
+      final shellDrafts = <_LectureDraft>[];
       for (var i = 0; i < _lectureDrafts.length; i++) {
         final draft = _lectureDrafts[i];
         final title = draft.titleCtrl.text.trim();
-        if (title.isEmpty && draft.materialFile == null) continue;
+        if (title.isEmpty && draft.materialFile == null && draft.videoFile == null) continue;
         if (draft.materialFile == null) {
           shellLectures.add({
             'title': title.isEmpty ? '${i + 1}강' : title,
@@ -308,10 +300,11 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
             'video_url': '',
             'material_url': '',
           });
+          shellDrafts.add(draft);
           continue;
         }
 
-        await ApiService().uploadLecture(
+        final uploadData = await ApiService().uploadLecture(
           roomId: roomId,
           professorUid: user.userId,
           fileBytes: draft.materialFile!.bytes!,
@@ -322,9 +315,36 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
           videoFileBytes: draft.videoFile?.bytes,
           videoFileName: draft.videoFile?.name,
         );
+        final lectureId = uploadData['lecture_id'] as String? ?? '';
+        final points = (uploadData['core_points'] as List<dynamic>? ?? const [])
+            .map((point) => Map<String, dynamic>.from(point as Map))
+            .toList();
+        if (lectureId.isNotEmpty) {
+          await ApiService().confirmCorePoints(
+            roomId: roomId,
+            lectureId: lectureId,
+            professorUid: user.userId,
+            points: points,
+          );
+        }
       }
       if (shellLectures.isNotEmpty) {
-        await ApiService().createLectureShells(roomId, shellLectures);
+        final shellResult = await ApiService().createLectureShells(roomId, shellLectures);
+        final created = (shellResult['lectures'] as List<dynamic>? ?? const []);
+        for (var i = 0; i < created.length && i < shellDrafts.length; i++) {
+          final draft = shellDrafts[i];
+          if (draft.videoFile == null) continue;
+          final lecture = Map<String, dynamic>.from(created[i] as Map);
+          final lectureId = lecture['lecture_id'] as String? ?? '';
+          final bytes = draft.videoFile?.bytes;
+          if (lectureId.isEmpty || bytes == null) continue;
+          await ApiService().uploadLectureVideoAsset(
+            roomId: roomId,
+            lectureId: lectureId,
+            videoFileBytes: bytes,
+            videoFileName: draft.videoFile!.name,
+          );
+        }
       }
 
       ref.invalidate(currentProfessorRoomsProvider);
