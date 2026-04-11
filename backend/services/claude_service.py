@@ -10,6 +10,7 @@ MODEL = "gemma-4-31b-it"
 LEARNING_TYPES = ["요약형", "상세형", "예시형"]
 
 
+
 class ClaudeService:
     def __init__(self):
         api_key = os.getenv("GEMINI_API_KEY")
