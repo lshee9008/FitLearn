@@ -15,9 +15,13 @@ logger = logging.getLogger(__name__)
 # Vision OCR 동시 실행 제한 (429 방지 — RPM 15 제한 대응을 위해 1로 순차 처리)
 _VISION_SEMAPHORE = asyncio.Semaphore(1)
 
-# 슬라이드당 처리할 최대 이미지 수 (너무 많으면 quota 소진)
-_MAX_IMAGES_PER_PAGE = 4
-_MAX_IMAGES_PER_SLIDE = 4
+# 업로드 요청은 교수가 화면에서 기다리는 구간이므로 Vision OCR은 짧게만 시도한다.
+# 전체 이미지 보존은 별도 백그라운드 파이프라인으로 확장하는 것이 안전하다.
+_MAX_IMAGES_PER_PAGE = int(os.getenv("FITLEARN_MAX_IMAGES_PER_PAGE", "2"))
+_MAX_IMAGES_PER_SLIDE = int(os.getenv("FITLEARN_MAX_IMAGES_PER_SLIDE", "2"))
+_MAX_PDF_VISION_PAGES = int(os.getenv("FITLEARN_MAX_PDF_VISION_PAGES", "2"))
+_VISION_TIMEOUT_SECONDS = float(os.getenv("FITLEARN_VISION_TIMEOUT_SECONDS", "12"))
+_VISION_RETRIES = int(os.getenv("FITLEARN_VISION_RETRIES", "1"))
 
 # Vision OCR 모델 폴백 순서
 _VISION_MODELS = [
@@ -63,6 +67,7 @@ class FileService:
         try:
             import pdfplumber
             pages_text: list[str] = []
+            vision_pages_used = 0
             with pdfplumber.open(io.BytesIO(data)) as pdf:
                 for i, page in enumerate(pdf.pages, 1):
                     parts: list[str] = []
@@ -87,8 +92,13 @@ class FileService:
 
                     # 텍스트가 거의 없는 페이지 또는 이미지/도식이 포함된 페이지 → Vision 분석
                     has_visuals = bool(getattr(page, "images", None))
-                    if len(combined) < 40 or has_visuals:
+                    should_try_vision = (
+                        len(combined) < 40
+                        or (has_visuals and vision_pages_used < _MAX_PDF_VISION_PAGES)
+                    )
+                    if should_try_vision:
                         try:
+                            vision_pages_used += 1
                             vision_text = await self._pdf_page_to_vision(data, i - 1)
                             if vision_text:
                                 combined = (
@@ -111,10 +121,12 @@ class FileService:
             import PyPDF2
             reader = PyPDF2.PdfReader(io.BytesIO(data))
             pages_text = []
+            vision_pages_used = 0
             for i, page in enumerate(reader.pages, 1):
                 text = (page.extract_text() or "").strip()
-                if len(text) < 40:
+                if len(text) < 40 and vision_pages_used < _MAX_PDF_VISION_PAGES:
                     try:
+                        vision_pages_used += 1
                         vision_text = await self._pdf_page_to_vision(data, i - 1)
                         if vision_text:
                             text = vision_text
@@ -131,7 +143,7 @@ class FileService:
             import fitz
             doc = fitz.open(stream=pdf_bytes, filetype="pdf")
             page = doc.load_page(page_index)
-            pix = page.get_pixmap(dpi=200)
+            pix = page.get_pixmap(dpi=150)
             img_bytes = pix.tobytes("png")
             return await self._analyze_image(img_bytes)
         except ImportError:
@@ -312,14 +324,14 @@ class FileService:
 - 원본 슬라이드의 텍스트, 코드, 그림 의미를 임의로 요약하지 말고 보존 중심으로 출력.
 - 한국어 설명은 유지, 코드는 원어 그대로 보존."""
 
-            # 모델 폴백 체인 + 429 충분한 대기 (RPM 15 제한 고려)
+            # 모델 폴백 체인. 업로드 화면을 막지 않도록 429 장기 대기는 하지 않는다.
             for model_name in _VISION_MODELS:
-                for attempt in range(5):
+                for attempt in range(_VISION_RETRIES):
                     try:
                         model = genai.GenerativeModel(model_name)
                         response = await asyncio.wait_for(
                             asyncio.to_thread(model.generate_content, [prompt, image_part]),
-                            timeout=25.0,
+                            timeout=_VISION_TIMEOUT_SECONDS,
                         )
                         result = response.text.strip()
                         if result.lower() in ("", "없음", "none", "n/a"):
@@ -333,15 +345,10 @@ class FileService:
                     except Exception as e:
                         err = str(e)
                         if "429" in err or "quota" in err.lower():
-                            wait = 15 * (attempt + 1)  # 15s, 30s, 45s, 60s, 75s
                             logger.warning(
-                                f"[FileService] Vision 429 ({model_name} attempt {attempt+1}) "
-                                f"— {wait}s 대기 후 재시도"
+                                f"[FileService] Vision 429 ({model_name} attempt {attempt+1}) — 업로드 지연 방지를 위해 스킵"
                             )
-                            await asyncio.sleep(wait)
-                            if attempt == 4:
-                                logger.warning(f"[FileService] {model_name} 재시도 소진 → 다음 모델")
-                                break  # 다음 모델로
+                            break  # 다음 모델로
                         else:
                             logger.warning(f"[FileService] Vision OCR 실패 ({model_name}): {e}")
                             break  # 다른 에러는 다음 모델로
