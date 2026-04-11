@@ -29,6 +29,34 @@ _working_model = MODEL
 _quota_cooldown_until = 0.0
 
 
+_thinking_support_cache: bool | None = None
+
+
+def _check_thinking_support() -> bool:
+    """google-generativeai SDK가 generation_config에서 thinking_config를 지원하는지 감지."""
+    global _thinking_support_cache
+    if _thinking_support_cache is not None:
+        return _thinking_support_cache
+    try:
+        import google.generativeai as _genai
+        test_model = _genai.GenerativeModel(
+            model_name="gemini-2.0-flash",
+            generation_config={
+                "temperature": 0.7,
+                "max_output_tokens": 16,
+                "thinking_config": {"thinking_budget": 0},
+            },
+        )
+        # 모델 객체 생성만으로 config 파싱 에러가 발생하면 미지원
+        _ = test_model
+        _thinking_support_cache = True
+        print("[Gemini] thinking_config SDK 지원 감지 → 활성화")
+    except Exception as e:
+        _thinking_support_cache = False
+        print(f"[Gemini] thinking_config SDK 미지원 → 비활성화 (이유: {e})")
+    return _thinking_support_cache
+
+
 def _is_quota_error(error: Exception) -> bool:
     message = str(error).lower()
     return "429" in message or "quota" in message or "rate-limit" in message
@@ -42,9 +70,9 @@ def _activate_quota_cooldown(seconds: int = 75) -> None:
 async def generate_gemini_text(
     contents,
     *,
-    temperature: float = 0.35,
-    max_output_tokens: int = 1200,
-    timeout: float = 35.0,
+    temperature: float = 0.7,
+    max_output_tokens: int = 2048,
+    timeout: float = 60.0,
     feature: str = "gemini",
 ) -> str:
     """Generate text with model fallback within one hard deadline.
@@ -67,6 +95,9 @@ async def generate_gemini_text(
         if model_name and model_name not in candidates:
             candidates.append(model_name)
 
+    # thinking_config SDK 지원 여부 1회 감지 (모듈 레벨 캐시)
+    thinking_supported = _check_thinking_support()
+
     loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout
     last_error: Exception | None = None
@@ -75,12 +106,20 @@ async def generate_gemini_text(
         if remaining <= 0:
             raise asyncio.TimeoutError(f"{feature} 전체 생성 시간 초과 ({timeout}s)")
         try:
+            base_config = {
+                "temperature": temperature,
+                "max_output_tokens": max_output_tokens,
+            }
+            if thinking_supported:
+                base_config["thinking_config"] = {"thinking_budget": 0}
+
             model = genai.GenerativeModel(
                 model_name=model_name,
-                generation_config={
-                    "temperature": temperature,
-                    "max_output_tokens": max_output_tokens,
-                },
+                generation_config=base_config,
+            )
+            print(
+                f"[Gemini] model={model_name} | "
+                f"thinking_config={'활성(budget=0)' if thinking_supported else '비활성(SDK 미지원)'}"
             )
             response = await asyncio.wait_for(
                 asyncio.to_thread(model.generate_content, contents),
