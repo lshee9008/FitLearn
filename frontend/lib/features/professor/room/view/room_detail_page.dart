@@ -287,6 +287,7 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
       final roomId = roomData['room_id'] as String? ?? '';
       if (roomId.isEmpty) throw Exception('생성된 강의실 ID가 없습니다.');
 
+      final extractedConcepts = <String>[];
       final shellLectures = <Map<String, dynamic>>[];
       final shellDrafts = <_LectureDraft>[];
       for (var i = 0; i < _lectureDrafts.length; i++) {
@@ -320,11 +321,24 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
             .map((point) => Map<String, dynamic>.from(point as Map))
             .toList();
         if (lectureId.isNotEmpty) {
-          await ApiService().confirmCorePoints(
-            roomId: roomId,
-            lectureId: lectureId,
-            professorUid: user.userId,
-            points: points,
+          if (!mounted) return;
+          setState(() => _creatingRoom = false);
+          final confirmed = await context.push<bool>(
+            '/professor/lecture/$roomId/$lectureId/review',
+            extra: uploadData,
+          );
+          if (!mounted) return;
+          if (confirmed != true) {
+            ref.invalidate(currentProfessorRoomsProvider);
+            ref.invalidate(professorRoomDetailProvider(roomId));
+            context.go('/professor/room/$roomId');
+            return;
+          }
+          setState(() => _creatingRoom = true);
+          extractedConcepts.addAll(
+            points
+                .map((point) => (point['content'] as String? ?? '').trim())
+                .where((value) => value.isNotEmpty),
           );
         }
       }
@@ -345,6 +359,17 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
             videoFileName: draft.videoFile!.name,
           );
         }
+      }
+      if (extractedConcepts.isNotEmpty) {
+        await ApiService().updateRoomMeta(roomId, {
+          'synopsis': _roomDescCtrl.text.trim().isNotEmpty
+              ? _roomDescCtrl.text.trim()
+              : extractedConcepts.take(4).join('\n'),
+          'core_concepts': [
+            ...concepts,
+            ...extractedConcepts.take(12),
+          ],
+        });
       }
 
       ref.invalidate(currentProfessorRoomsProvider);
