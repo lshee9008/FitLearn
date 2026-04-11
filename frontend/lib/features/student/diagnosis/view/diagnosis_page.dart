@@ -8,20 +8,22 @@ import '../provider/diagnosis_provider.dart';
 // 컬러
 // ════════════════════════════════════════════════════════════
 class _C {
-  static const bg        = Color(0xFF111111);
-  static const surface   = Color(0xFF1A1A1A);
-  static const surface2  = Color(0xFF222222);
-  static const border    = Color(0xFF2A2A2A);
+  static const bg        = Color(0xFF0E0E11);
+  static const surface   = Color(0xFF13131A);
+  static const surface2  = Color(0xFF1A1A24);
+  static const border    = Color(0xFF1E1E2A);
   static const lime      = Color(0xFFC8F135);
-  static const limeDark  = Color(0xFF1A2E00);
-  static const salmon    = Color(0xFFFF6B5B);
-  static const lavender  = Color(0xFFC5B8F8);
-  static const lavDark   = Color(0xFF26215C);
-  static const yellow    = Color(0xFFFFE566);
-  static const yellowDark= Color(0xFF2A2000);
-  static const textPri   = Color(0xFFFFFFFF);
-  static const textSec   = Color(0xFF888888);
-  static const textMute  = Color(0xFF555555);
+  static const limeDark  = Color(0xFF1A2400);
+  static const lavender  = Color(0xFFA78BFA);
+  static const lavDark   = Color(0xFF2D1B69);
+  static const lavMid    = Color(0xFF1E1830);
+  static const coral     = Color(0xFFFB7185);
+  static const coralDark = Color(0xFF3D0A14);
+  static const amber     = Color(0xFFFBBF24);
+  static const amberDark = Color(0xFF3D2800);
+  static const textPri   = Color(0xFFF0F0F4);
+  static const textSec   = Color(0xFF8888A0);
+  static const textMute  = Color(0xFF4A4A5A);
 }
 
 // ════════════════════════════════════════════════════════════
@@ -321,8 +323,8 @@ const _kS3Branch = {
 const _kPhaseColor = {
   'P0': _C.lavender,
   'P1': _C.lime,
-  'P2': _C.salmon,
-  'P3': _C.yellow,
+  'P2': _C.coral,
+  'P3': _C.amber,
   'P4': _C.lavender,
 };
 
@@ -627,7 +629,7 @@ class _DiagnosisPageState extends ConsumerState<DiagnosisPage>
         });
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('분석 실패: $e'),
-          backgroundColor: _C.salmon,
+          backgroundColor: _C.coral,
         ));
       }
     }
@@ -720,7 +722,7 @@ class _DiagnosisPageState extends ConsumerState<DiagnosisPage>
   Widget _buildWebTopBar() {
     final barColor = _phase == _Phase.questions
         ? (_kPhaseColor[_q.phase] ?? _C.lime)
-        : _C.yellow;
+        : _C.amber;
     return Container(
       decoration: const BoxDecoration(
         border: Border(bottom: BorderSide(color: _C.border)),
@@ -805,7 +807,7 @@ class _DiagnosisPageState extends ConsumerState<DiagnosisPage>
       barColor = _kPhaseColor[_q.phase] ?? _C.lime;
       label = _kPhaseLabel[_q.phase] ?? '';
     } else if (_phase == _Phase.history) {
-      barColor = _C.yellow;
+      barColor = _C.amber;
       label = '학습 이력';
     }
 
@@ -997,7 +999,7 @@ class _WritingCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
-                  color: _C.lavDark,
+                  color: _C.lavMid,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: _C.lavender.withValues(alpha: 0.25))),
                 child: Row(children: [
@@ -1074,7 +1076,7 @@ class _WritingCard extends StatelessWidget {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(color: _C.lavDark, borderRadius: BorderRadius.circular(20)),
+                  decoration: BoxDecoration(color: _C.lavMid, borderRadius: BorderRadius.circular(20)),
                   child: const Text('분석 항목',
                       style: TextStyle(color: _C.lavender, fontSize: 9, fontWeight: FontWeight.w700))),
                 const SizedBox(height: 10),
@@ -1118,7 +1120,7 @@ class _WritingCenter extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: _C.lavDark,
+            color: _C.lavMid,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: _C.lavender.withValues(alpha: 0.25)),
           ),
@@ -1397,7 +1399,7 @@ class _QuestionRightPanel extends StatelessWidget {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(color: _C.lavDark, borderRadius: BorderRadius.circular(20)),
+                decoration: BoxDecoration(color: _C.lavMid, borderRadius: BorderRadius.circular(20)),
                 child: const Text('분석 항목',
                     style: TextStyle(color: _C.lavender, fontSize: 9, fontWeight: FontWeight.w700))),
               const SizedBox(height: 10),
@@ -1571,7 +1573,7 @@ class _ChoiceCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: selected 
               ? partColor.withValues(alpha: 0.12) 
-              : const Color(0xFF1A1A1A),
+              : _C.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: selected ? partColor : _C.border,
@@ -1696,9 +1698,9 @@ class _HistoryCardState extends State<_HistoryCard> {
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: _C.yellowDark,
+              color: _C.amberDark,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: _C.yellow.withValues(alpha: 0.25)),
+              border: Border.all(color: _C.amber.withValues(alpha: 0.25)),
             ),
             child: const Row(children: [
               Text('📚', style: TextStyle(fontSize: 26)),
@@ -1731,7 +1733,7 @@ class _HistoryCardState extends State<_HistoryCard> {
               color: _C.surface,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: hasSubject ? _C.yellow.withValues(alpha: 0.6) : _C.border,
+                color: hasSubject ? _C.amber.withValues(alpha: 0.6) : _C.border,
                 width: hasSubject ? 1.5 : 1,
               ),
             ),
@@ -1760,7 +1762,7 @@ class _HistoryCardState extends State<_HistoryCard> {
               label: String.fromCharCode(65 + i),
               text: _reasons[i],
               selected: widget.reason == _reasons[i],
-              partColor: _C.yellow,
+              partColor: _C.amber,
               onTap: () => widget.onReasonChanged(_reasons[i]),
             ),
           )),
@@ -1778,7 +1780,7 @@ class _HistoryCardState extends State<_HistoryCard> {
               label: String.fromCharCode(65 + i),
               text: _difficulties[i],
               selected: widget.difficulty == _difficulties[i],
-              partColor: _C.yellow,
+              partColor: _C.amber,
               onTap: () => widget.onDifficultyChanged(_difficulties[i]),
             ),
           )),

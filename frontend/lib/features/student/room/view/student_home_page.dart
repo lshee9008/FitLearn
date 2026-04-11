@@ -6,19 +6,23 @@ import '../../../../shared/providers/room_data_providers.dart';
 import '../../../../shared/services/api_service.dart';
 
 class _C {
-  static const bg = Color(0xFF111111);
-  static const surface = Color(0xFF18181C);
-  static const surface2 = Color(0xFF202028);
-  static const border = Color(0xFF2B2B35);
-  static const lime = Color(0xFFC8F135);
-  static const limeDark = Color(0xFF1A2E00);
-  static const mint = Color(0xFF67E8B2);
-  static const rose = Color(0xFFFF6B5B);
-  static const gold = Color(0xFFFFD166);
-  static const lavender = Color(0xFFC5B8F8);
-  static const textPri = Color(0xFFF7F7FA);
-  static const textSec = Color(0xFFB8BAC6);
-  static const textMute = Color(0xFF707382);
+  static const bg        = Color(0xFF0E0E11);
+  static const surface   = Color(0xFF13131A);
+  static const surface2  = Color(0xFF1A1A24);
+  static const border    = Color(0xFF1E1E2A);
+  static const lime      = Color(0xFFC8F135);
+  static const limeDark  = Color(0xFF1A2400);
+  static const mint      = Color(0xFF34D399);
+  static const mintDark  = Color(0xFF064E3B);
+  static const coral     = Color(0xFFFB7185);
+  static const coralDark = Color(0xFF3D0A14);
+  static const amber     = Color(0xFFFBBF24);
+  static const amberDark = Color(0xFF3D2800);
+  static const lavender  = Color(0xFFA78BFA);
+  static const lavMid    = Color(0xFF1E1830);
+  static const textPri   = Color(0xFFF0F0F4);
+  static const textSec   = Color(0xFF8888A0);
+  static const textMute  = Color(0xFF4A4A5A);
 }
 
 const _kTags = ['전체', '온라인', '오프라인', '신청 가능', '승인 대기'];
@@ -601,8 +605,8 @@ class _SidebarState extends State<_Sidebar> {
           const Divider(color: _C.border, height: 1),
           ListTile(
             onTap: widget.onLogout,
-            leading: const Icon(Icons.logout_rounded, color: _C.rose, size: 18),
-            title: const Text('로그아웃', style: TextStyle(color: _C.rose, fontSize: 13)),
+            leading: const Icon(Icons.logout_rounded, color: _C.coral, size: 18),
+            title: const Text('로그아웃', style: TextStyle(color: _C.coral, fontSize: 13)),
           ),
         ],
       ),
@@ -970,8 +974,8 @@ class _ApplicationStatusCard extends StatelessWidget {
     final status = application['status'] as String? ?? 'pending';
     final color = switch (status) {
       'approved' => _C.mint,
-      'rejected' => _C.rose,
-      _ => _C.gold,
+      'rejected' => _C.coral,
+      _ => _C.amber,
     };
     final label = switch (status) {
       'approved' => '승인 완료',
@@ -1141,7 +1145,7 @@ class _DiscoverRoomCard extends StatelessWidget {
               _TinyChip(
                 label: statusLabel,
                 color: status == 'pending'
-                    ? _C.gold
+                    ? _C.amber
                     : status == 'approved'
                         ? _C.mint
                         : accent,
@@ -1235,9 +1239,9 @@ class _SubjectLevelBanner extends StatelessWidget {
       case 'advanced':
         return _C.mint;
       case 'intermediate':
-        return _C.gold;
+        return _C.amber;
       case 'beginner':
-        return _C.rose;
+        return _C.coral;
       default:
         return _C.lavender;
     }
@@ -1441,7 +1445,7 @@ class _RightPanel extends StatelessWidget {
           const SizedBox(height: 10),
           _StatCard(title: '탐색 가능', value: '$discoverCount', color: _C.lavender),
           const SizedBox(height: 10),
-          _StatCard(title: '승인 대기', value: '$pendingCount', color: _C.gold),
+          _StatCard(title: '승인 대기', value: '$pendingCount', color: _C.amber),
           const SizedBox(height: 20),
           _ActionCard(
             title: '학습 성향 다시 보기',
