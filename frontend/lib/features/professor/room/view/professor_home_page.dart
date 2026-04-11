@@ -100,8 +100,9 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
       if (roomId.isNotEmpty && lectureSeeds.isNotEmpty) {
         await ApiService().createLectureShells(roomId, lectureSeeds);
       }
-
-      ref.invalidate(currentProfessorRoomsProvider);
+ 
+      await Future.delayed(const Duration(milliseconds: 500));
+      await _refreshRooms();
 
       if (mounted) {
         final inviteCode = roomData['room_code'] as String? ?? '';
@@ -148,7 +149,8 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
     if (confirm != true || !mounted) return;
     try {
       await ApiService().deleteRoom(roomId);
-      ref.invalidate(currentProfessorRoomsProvider);
+      await Future.delayed(const Duration(milliseconds: 500));
+      await _refreshRooms();
     } catch (_) {
       await _refreshRooms();
     }
@@ -168,7 +170,8 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
         synopsis: result['synopsis'] ?? '',
         coreConcepts: result['core_concepts'] ?? '',
       );
-      ref.invalidate(currentProfessorRoomsProvider);
+      await Future.delayed(const Duration(milliseconds: 500));
+      await _refreshRooms();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
