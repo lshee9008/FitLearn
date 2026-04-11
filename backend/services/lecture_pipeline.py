@@ -9,7 +9,10 @@ import logging
 import os
 import re
 
-import google.generativeai as genai
+try:
+    import google.generativeai as genai
+except ModuleNotFoundError:  # 배포 의존성 누락 시 라우터 전체가 죽지 않도록 방어
+    genai = None
 
 from .rag_pipeline.knowledge_base import PAPER_CHUNKS
 
@@ -59,6 +62,44 @@ def _count_words(text: str) -> int:
     return len(text.split())
 
 
+def _fallback_extract_from_text(text: str) -> dict:
+    """Gemini 장애 시에도 교안 대기가 아닌 최소 핵심 포인트를 생성한다."""
+    sentences = [
+        re.sub(r"\s+", " ", item).strip(" -•\t")
+        for item in re.split(r"(?<=[.!?。])\s+|[\n\r]+", text)
+        if len(item.strip()) >= 12
+    ]
+    if not sentences:
+        sentences = [
+            re.sub(r"\s+", " ", item).strip(" -•\t")
+            for item in re.split(r"[.]", text)
+            if len(item.strip()) >= 8
+        ]
+    picked = sentences[:7] or ["교안에서 추출 가능한 텍스트가 부족합니다. 원본 자료를 다시 확인해주세요."]
+    core_points = []
+    for index, sentence in enumerate(picked, start=1):
+        core_points.append({
+            "id": index,
+            "content": sentence[:240],
+            "priority": max(5 - (index // 2), 3),
+            "topic": "교안 핵심",
+            "difficulty": "중",
+            "review_question": "이 포인트가 학생들이 반드시 따라 해야 하는 실습/개념 흐름과 어떻게 연결되나요?",
+            "confirmed": True,
+        })
+    return {
+        "core_points": core_points,
+        "lecture_summary": "AI 모델 호출이 지연되어 교안 원문에서 핵심 문장을 우선 추출했습니다.",
+        "topics": ["교안 핵심", "수업 흐름", "실습 확인"],
+        "learning_objectives": [
+            "학습자는 교안의 핵심 흐름을 설명할 수 있다",
+            "학습자는 제시된 예시와 실습 단계를 따라 할 수 있다",
+            "학습자는 핵심 개념을 자신의 말로 정리할 수 있다",
+        ],
+        "estimated_difficulty": "중",
+    }
+
+
 class LecturePipeline:
     """
     교안 업로드 시 실행되는 8단계 AI 파이프라인
@@ -74,9 +115,14 @@ class LecturePipeline:
     """
 
     def __init__(self):
-        genai.configure(api_key=os.environ["GEMINI_API_KEY"], transport="rest")
+        if genai is not None and os.getenv("GEMINI_API_KEY"):
+            genai.configure(api_key=os.environ["GEMINI_API_KEY"], transport="rest")
 
-    def _model(self, temp: float = 0.2) -> genai.GenerativeModel:
+    def _model(self, temp: float = 0.2):
+        if genai is None:
+            raise RuntimeError("google-generativeai 패키지가 설치되지 않았습니다.")
+        if not os.getenv("GEMINI_API_KEY"):
+            raise RuntimeError("GEMINI_API_KEY가 설정되지 않았습니다.")
         return genai.GenerativeModel(
             model_name=MODEL,
             generation_config=genai.GenerationConfig(
@@ -194,17 +240,8 @@ class LecturePipeline:
         try:
             extract_result = await self._stage_extract_all(text)
         except Exception as e:
-            logger.error(f"[Pipeline] 핵심 추출 실패: {e}", exc_info=True)
-            extract_result = {
-                "core_points": [
-                    {"id": 1, "content": "핵심 내용 추출 실패 — 직접 입력해주세요",
-                     "priority": 3, "topic": "미분류", "difficulty": "중"}
-                ],
-                "lecture_summary": "자동 분석에 실패했습니다. 직접 수정해주세요.",
-                "topics": ["미분류"],
-                "learning_objectives": [],
-                "estimated_difficulty": "중",
-            }
+            logger.error(f"[Pipeline] 핵심 추출 실패 — 로컬 분석 fallback 사용: {e}", exc_info=True)
+            extract_result = _fallback_extract_from_text(text)
 
         core_points_raw = extract_result.get("core_points", [])
         logger.info(f"[Pipeline] Stage3-6 완료: {len(core_points_raw)}개 핵심 포인트")

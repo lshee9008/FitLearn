@@ -242,8 +242,6 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
                               room: rooms[i] as Map<String, dynamic>,
                               onDelete: () =>
                                   _deleteRoom(rooms[i] as Map<String, dynamic>),
-                              onEdit: () =>
-                                  _editRoom(rooms[i] as Map<String, dynamic>),
                             ),
                           ),
                           childCount: rooms.length,
@@ -751,9 +749,7 @@ class _CreateRoomButton extends StatelessWidget {
 class _RoomCard extends StatefulWidget {
   final Map<String, dynamic> room;
   final VoidCallback onDelete;
-  final VoidCallback onEdit;
-  const _RoomCard(
-      {required this.room, required this.onDelete, required this.onEdit});
+  const _RoomCard({required this.room, required this.onDelete});
 
   @override
   State<_RoomCard> createState() => _RoomCardState();
@@ -821,9 +817,28 @@ class _RoomCardState extends State<_RoomCard> {
     );
     if (!mounted || action == null || roomId.isEmpty) return;
     if (action == 'view') {
-      context.push('/professor/room/$roomId');
+      try {
+        final lectures = await ApiService().getRoomLectures(roomId);
+        final lecture = lectures
+            .cast<Map<String, dynamic>>()
+            .where((item) => (item['lecture_id'] as String? ?? '').isNotEmpty)
+            .cast<Map<String, dynamic>>()
+            .firstWhere(
+              (item) => item['confirmed'] == true,
+              orElse: () => lectures.cast<Map<String, dynamic>>().first,
+            );
+        if (!mounted) return;
+        context.push('/student/lecture', extra: {
+          'room_id': roomId,
+          'lecture_id': lecture['lecture_id'] as String? ?? '',
+          'user_id': 'professor-preview',
+          'title': lecture['title'] as String? ?? subject,
+        });
+      } catch (_) {
+        if (mounted) context.push('/professor/room/$roomId');
+      }
     } else {
-      widget.onEdit();
+      await context.push('/professor/room/$roomId');
     }
   }
 

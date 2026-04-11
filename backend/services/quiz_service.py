@@ -9,7 +9,10 @@ import logging
 import os
 import re
 
-import google.generativeai as genai
+try:
+    import google.generativeai as genai
+except ModuleNotFoundError:  # 패키지 누락이 rooms 라우터 전체 장애로 번지지 않도록 방어
+    genai = None
 
 logger = logging.getLogger(__name__)
 MODEL = "models/gemma-4-31b-it"
@@ -36,6 +39,10 @@ def _extract_json(text: str) -> list | dict:
 
 class QuizService:
     def _model(self):
+        if genai is None:
+            raise RuntimeError("google-generativeai 패키지가 설치되지 않았습니다.")
+        if not os.getenv("GEMINI_API_KEY"):
+            raise RuntimeError("GEMINI_API_KEY가 설정되지 않았습니다.")
         genai.configure(api_key=os.environ["GEMINI_API_KEY"], transport="rest")
         return genai.GenerativeModel(
             model_name=MODEL,
