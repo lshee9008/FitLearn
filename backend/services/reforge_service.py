@@ -7,6 +7,7 @@ import asyncio
 import logging
 import os
 import re
+import time
 
 import google.generativeai as genai
 
@@ -25,6 +26,17 @@ MODEL_FALLBACKS = [
     if model.strip()
 ]
 _working_model = MODEL
+_quota_cooldown_until = 0.0
+
+
+def _is_quota_error(error: Exception) -> bool:
+    message = str(error).lower()
+    return "429" in message or "quota" in message or "rate-limit" in message
+
+
+def _activate_quota_cooldown(seconds: int = 75) -> None:
+    global _quota_cooldown_until
+    _quota_cooldown_until = max(_quota_cooldown_until, time.monotonic() + seconds)
 
 
 async def generate_gemini_text(
@@ -46,6 +58,8 @@ async def generate_gemini_text(
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY가 설정되지 않았습니다.")
+    if time.monotonic() < _quota_cooldown_until:
+        raise RuntimeError("Gemini quota cooldown active")
 
     genai.configure(api_key=api_key, transport="rest")
     candidates = []
@@ -81,6 +95,10 @@ async def generate_gemini_text(
             logger.warning(f"[{feature}] model={model_name} 전체 생성 시간 초과 ({timeout}s)")
             raise
         except Exception as e:
+            if _is_quota_error(e):
+                _activate_quota_cooldown()
+                logger.warning(f"[{feature}] Gemini quota 감지 — fallback 후보 순회 중단: {e}")
+                raise RuntimeError("Gemini quota exceeded") from e
             last_error = e
             logger.warning(f"[{feature}] model={model_name} 생성 실패 — fallback 후보 시도: {e}")
 

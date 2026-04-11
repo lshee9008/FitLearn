@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import re
+import time
 
 import google.generativeai as genai
 
@@ -15,6 +16,24 @@ from .rag_pipeline.knowledge_base import PAPER_CHUNKS
 
 logger = logging.getLogger(__name__)
 MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+_GEMINI_QUOTA_COOLDOWN_UNTIL = 0.0
+
+
+def _is_quota_error(error: Exception) -> bool:
+    message = str(error).lower()
+    return "429" in message or "quota" in message or "rate-limit" in message
+
+
+def _activate_quota_cooldown(seconds: int = 75) -> None:
+    global _GEMINI_QUOTA_COOLDOWN_UNTIL
+    _GEMINI_QUOTA_COOLDOWN_UNTIL = max(
+        _GEMINI_QUOTA_COOLDOWN_UNTIL,
+        time.monotonic() + seconds,
+    )
+
+
+def _quota_cooldown_active() -> bool:
+    return time.monotonic() < _GEMINI_QUOTA_COOLDOWN_UNTIL
 
 # ── 교육 이론 기반 난이도 가중치 ────────────────────────────────────────────
 DIFFICULTY_CUES = {
@@ -59,6 +78,47 @@ def _count_words(text: str) -> int:
     return len(text.split())
 
 
+def _fallback_extract_from_text(text: str) -> dict:
+    """Gemini quota/timeouts 시에도 교수 검토 화면으로 빠르게 넘기는 로컬 분석."""
+    lines = [ln.strip(" -•\t") for ln in text.splitlines() if len(ln.strip()) >= 8]
+    preferred = [
+        ln for ln in lines
+        if re.search(r"(GAN|Generator|Discriminator|Loss|학습|모델|코드|실습|함수|데이터|네트워크|프레임워크|정의|개념)", ln, re.IGNORECASE)
+    ]
+    candidates = []
+    for line in [*preferred, *lines]:
+        normalized = re.sub(r"\s+", " ", line)
+        if normalized not in candidates:
+            candidates.append(normalized[:180])
+        if len(candidates) >= 7:
+            break
+    if not candidates:
+        candidates = ["원본 교안의 주요 개념과 실습 흐름을 교수 검토 기준으로 확인해야 합니다."]
+
+    core_points = [
+        {
+            "id": idx + 1,
+            "content": item,
+            "priority": max(5 - idx // 2, 3),
+            "topic": "원본 교안 기반",
+            "difficulty": "중",
+        }
+        for idx, item in enumerate(candidates)
+    ]
+    topics = [p["content"][:24] for p in core_points[:4]]
+    return {
+        "core_points": core_points,
+        "lecture_summary": "Gemini quota 또는 응답 제한으로 원본 텍스트 기반 빠른 분석을 사용했습니다. 교수 검토에서 핵심 포인트를 보정하면 학생 맞춤 교안 생성에 반영됩니다.",
+        "topics": topics or ["원본 교안"],
+        "learning_objectives": [
+            "학습자는 원본 교안의 핵심 개념을 설명할 수 있다",
+            "학습자는 교안의 실습 흐름을 따라 적용할 수 있다",
+        ],
+        "estimated_difficulty": "중",
+        "ai_fallback": True,
+    }
+
+
 class LecturePipeline:
     """
     교안 업로드 시 실행되는 8단계 AI 파이프라인
@@ -95,6 +155,9 @@ class LecturePipeline:
         """
         핵심 포인트 추출 + 주제 분류 + 전체 요약 + 학습 목표 — 단일 Gemini 호출
         """
+        if _quota_cooldown_active():
+            raise RuntimeError("Gemini quota cooldown active")
+
         prompt = f"""당신은 교육 전문가입니다. 교육심리학 이론에 기반하여 다음 교안을 분석하세요.
 이 분석은 이후 학생 맞춤형 '재해석 교안'의 근거가 됩니다. 절대 단순 요약으로 축소하지 마세요.
 
@@ -148,7 +211,7 @@ class LecturePipeline:
         Stage 7 — 각 핵심 포인트별 교수 검토 질문 생성
         교수가 학생 관점에서 중요성·난이도·설명 방식을 재고하도록 유도
         """
-        if not core_points:
+        if not core_points or _quota_cooldown_active():
             return []
 
         points_text = "\n".join(
@@ -184,6 +247,10 @@ class LecturePipeline:
             data = _extract_json(response.text)
             return data.get("questions", [])
         except Exception as e:
+            if _is_quota_error(e):
+                _activate_quota_cooldown()
+                logger.warning("[Pipeline] 검토 질문 생성 quota 감지 — 건너뜀")
+                return []
             logger.warning(f"[Pipeline] 검토 질문 생성 실패 (건너뜀): {e}")
             return []
 
@@ -204,24 +271,19 @@ class LecturePipeline:
         try:
             extract_result = await self._stage_extract_all(text)
         except Exception as e:
-            logger.error(f"[Pipeline] 핵심 추출 실패: {e}", exc_info=True)
-            extract_result = {
-                "core_points": [
-                    {"id": 1, "content": "핵심 내용 추출 실패 — 직접 입력해주세요",
-                     "priority": 3, "topic": "미분류", "difficulty": "중"}
-                ],
-                "lecture_summary": "자동 분석에 실패했습니다. 직접 수정해주세요.",
-                "topics": ["미분류"],
-                "learning_objectives": [],
-                "estimated_difficulty": "중",
-            }
+            if _is_quota_error(e) or "quota cooldown" in str(e).lower():
+                _activate_quota_cooldown()
+                logger.warning(f"[Pipeline] Gemini quota/cooldown — 로컬 분석 fallback 사용: {e}")
+            else:
+                logger.error(f"[Pipeline] 핵심 추출 실패 — 로컬 분석 fallback 사용: {e}", exc_info=True)
+            extract_result = _fallback_extract_from_text(text)
 
         core_points_raw = extract_result.get("core_points", [])
         logger.info(f"[Pipeline] Stage3-6 완료: {len(core_points_raw)}개 핵심 포인트")
 
         # Stage 7: 검토 질문 생성 (비동기 병렬 — extract_all 완료 후)
         logger.info("[Pipeline] Stage7 검토 질문 생성 시작")
-        review_questions = await self._stage_review_questions(core_points_raw, text)
+        review_questions = [] if extract_result.get("ai_fallback") else await self._stage_review_questions(core_points_raw, text)
 
         # Stage 8: 후처리 — 검토 질문 매핑 + 우선순위 정렬
         for i, point in enumerate(core_points_raw):

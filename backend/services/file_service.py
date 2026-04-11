@@ -22,6 +22,8 @@ _MAX_IMAGES_PER_SLIDE = int(os.getenv("FITLEARN_MAX_IMAGES_PER_SLIDE", "2"))
 _MAX_PDF_VISION_PAGES = int(os.getenv("FITLEARN_MAX_PDF_VISION_PAGES", "2"))
 _VISION_TIMEOUT_SECONDS = float(os.getenv("FITLEARN_VISION_TIMEOUT_SECONDS", "12"))
 _VISION_RETRIES = int(os.getenv("FITLEARN_VISION_RETRIES", "1"))
+_VISION_QUOTA_COOLDOWN_SECONDS = int(os.getenv("FITLEARN_VISION_QUOTA_COOLDOWN_SECONDS", "75"))
+_VISION_QUOTA_COOLDOWN_UNTIL = 0.0
 
 # Vision OCR 모델 폴백 순서
 _VISION_MODELS = [
@@ -277,6 +279,10 @@ class FileService:
             api_key = os.environ.get("GEMINI_API_KEY")
             if not api_key:
                 return ""
+            global _VISION_QUOTA_COOLDOWN_UNTIL
+            if time.monotonic() < _VISION_QUOTA_COOLDOWN_UNTIL:
+                logger.info("[FileService] Vision quota cooldown 중 — 이미지 OCR 스킵")
+                return ""
 
             genai.configure(api_key=api_key, transport="rest")
 
@@ -345,10 +351,11 @@ class FileService:
                     except Exception as e:
                         err = str(e)
                         if "429" in err or "quota" in err.lower():
+                            _VISION_QUOTA_COOLDOWN_UNTIL = time.monotonic() + _VISION_QUOTA_COOLDOWN_SECONDS
                             logger.warning(
                                 f"[FileService] Vision 429 ({model_name} attempt {attempt+1}) — 업로드 지연 방지를 위해 스킵"
                             )
-                            break  # 다음 모델로
+                            return ""
                         else:
                             logger.warning(f"[FileService] Vision OCR 실패 ({model_name}): {e}")
                             break  # 다른 에러는 다음 모델로
