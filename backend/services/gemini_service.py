@@ -81,7 +81,7 @@ class GeminiService:
         return types.GenerateContentConfig(
             temperature=temperature,
             max_output_tokens=max_tokens,
-            thinking_config=types.ThinkingConfig(thinking_budget=0),
+            thinking_config={"thinking_budget": 0},
         )
 
     # ── 6차원 심리 진단 ──────────────────────────────────────────

@@ -93,7 +93,7 @@ async def _stream_sse(content: str, learning_types: list[str]):
                 config=types.GenerateContentConfig(
                     temperature=0.7,
                     max_output_tokens=2048,
-                    thinking_config=types.ThinkingConfig(thinking_budget=0),
+                    thinking_config={"thinking_budget": 0},
                 ),
             ):
                 if chunk.text:

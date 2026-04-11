@@ -19,7 +19,7 @@ class ClaudeService:
         return types.GenerateContentConfig(
             temperature=temperature,
             max_output_tokens=max_tokens,
-            thinking_config=types.ThinkingConfig(thinking_budget=0),
+            thinking_config={"thinking_budget": 0},
         )
 
     async def classify_learning_type(self, answers: list[str]) -> str:

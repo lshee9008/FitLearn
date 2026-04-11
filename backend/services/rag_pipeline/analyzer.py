@@ -106,7 +106,7 @@ class RAGAnalyzer:
         return types.GenerateContentConfig(
             temperature=0.1,
             max_output_tokens=3000,
-            thinking_config=types.ThinkingConfig(thinking_budget=0),
+            thinking_config={"thinking_budget": 0},
         )
 
     def _build_context(self, retrieved: list[dict]) -> str:

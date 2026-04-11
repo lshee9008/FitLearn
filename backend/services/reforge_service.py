@@ -89,7 +89,7 @@ async def generate_gemini_text(
             config = types.GenerateContentConfig(
                 temperature=temperature,
                 max_output_tokens=max_output_tokens,
-                thinking_config=types.ThinkingConfig(thinking_budget=0),
+                thinking_config={"thinking_budget": 0},
             )
             response = await asyncio.wait_for(
                 asyncio.to_thread(
@@ -554,7 +554,7 @@ class ReforgeService:
             config = types.GenerateContentConfig(
                 max_output_tokens=2048,
                 temperature=0.7,
-                thinking_config=types.ThinkingConfig(thinking_budget=0),
+                thinking_config={"thinking_budget": 0},
             )
 
             def _sync_stream():
