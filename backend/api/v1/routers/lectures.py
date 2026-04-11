@@ -101,6 +101,47 @@ async def _process_uploaded_video_transcript(
             "summary_status": "failed",
         })
 
+
+async def _process_youtube_transcript(
+    room_id: str,
+    lecture_id: str,
+    video_url: str,
+    title: str,
+    original_text: str,
+    core_points: list[dict],
+) -> None:
+    try:
+        await firebase.update_lecture_meta(room_id, lecture_id, {
+            "transcription_status": "processing",
+            "transcription_error": "",
+            "summary_status": "processing",
+        })
+        result = await video_pipeline.transcribe_youtube_url(
+            video_url=video_url,
+            title=title,
+            original_text=original_text,
+            core_points=core_points,
+        )
+        await firebase.update_lecture_meta(room_id, lecture_id, {
+            "video_transcript": result.get("transcript", ""),
+            "video_segments": result.get("segments", []),
+            "chapters": result.get("chapters", []),
+            "video_summary": result.get("summary_markdown", ""),
+            "video_key_moments": result.get("key_moments", []),
+            "summary_cache": {"default": result.get("summary_markdown", "")},
+            "summary_status": "ready",
+            "transcription_status": "ready",
+            "transcription_error": "",
+        })
+        logger.info(f"[youtube_transcript] 완료 room={room_id} lecture={lecture_id}")
+    except Exception as e:
+        logger.warning(f"[youtube_transcript] 실패 room={room_id} lecture={lecture_id}: {e}")
+        await firebase.update_lecture_meta(room_id, lecture_id, {
+            "transcription_status": "failed",
+            "transcription_error": str(e)[:500],
+            "summary_status": "failed",
+        })
+
 _DEMO_LECTURE = """
 # 학습심리학 기초 — 인지부하이론과 학습 전략
 
@@ -278,6 +319,20 @@ async def upload_lecture(
                 )
         except Exception as e:
             logger.warning(f"[upload] 영상 파일 Storage 업로드 실패: {e}")
+    elif video_meta["video_type"] == "youtube" and video_meta["video_url"]:
+        await firebase.update_lecture_meta(room_id, lecture_id, {
+            "transcription_status": "queued",
+            "summary_status": "processing",
+        })
+        background_tasks.add_task(
+            _process_youtube_transcript,
+            room_id,
+            lecture_id,
+            video_meta["video_url"],
+            resolved_title,
+            text,
+            result["core_points"],
+        )
 
     logger.info(f"[upload] 완료 lecture_id={lecture_id} points={len(result['core_points'])}")
 
@@ -345,6 +400,24 @@ async def assist_video_segment(room_id: str, lecture_id: str, body: VideoAssistR
     )
     transcript_text = str(transcript)[:4500] if transcript else ""
     video_segments = lecture.get("video_segments") or []
+    video_url = lecture.get("video_url") or ""
+    video_type = lecture.get("video_type") or ""
+    if not transcript_text and (video_type == "youtube" or "youtu" in video_url):
+        try:
+            logger.info(f"[video_assist] 전사 없음 — YouTube 전사 온디맨드 시도 lecture={lecture_id}")
+            await _process_youtube_transcript(
+                room_id,
+                lecture_id,
+                video_url,
+                lecture.get("title") or lecture_id,
+                lecture.get("original_text", ""),
+                core_points,
+            )
+            lecture = await firebase.get_lecture(room_id, lecture_id) or lecture
+            transcript_text = str(lecture.get("video_transcript") or "")[:4500]
+            video_segments = lecture.get("video_segments") or []
+        except Exception as e:
+            logger.warning(f"[video_assist] YouTube 전사 온디맨드 실패: {e}")
     segment_context = "\n".join(
         f"- {item.get('start_minute', 0)}~{item.get('end_minute', 0)}분: {item.get('text', '')}"
         for item in video_segments

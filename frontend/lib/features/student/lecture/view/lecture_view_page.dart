@@ -331,6 +331,7 @@ class _LearningExperienceShell extends StatelessWidget {
     final videoType = lecture?['video_type'] as String? ?? 'none';
     final videoStatus = lecture?['video_status'] as String? ?? 'none';
     final transcriptionStatus = lecture?['transcription_status'] as String? ?? 'idle';
+    final videoSummary = lecture?['video_summary'] as String? ?? '';
     final materialUrl = lecture?['material_url'] as String? ?? '';
     final hasOriginal = (lecture?['original_file_url'] as String? ?? '').isNotEmpty;
     final hasVideo = videoUrl.trim().isNotEmpty;
@@ -343,6 +344,7 @@ class _LearningExperienceShell extends StatelessWidget {
     final sidePanel = _LearningSidePanel(
       hasVideo: hasVideo,
       transcriptionStatus: transcriptionStatus,
+      videoSummary: videoSummary,
       materialUrl: materialUrl,
       hasOriginal: hasOriginal,
       onDownloadOriginal: onDownloadOriginal,
@@ -395,6 +397,7 @@ class _LearningExperienceShell extends StatelessWidget {
 class _LearningSidePanel extends StatelessWidget {
   final bool hasVideo;
   final String transcriptionStatus;
+  final String videoSummary;
   final String materialUrl;
   final bool hasOriginal;
   final VoidCallback onDownloadOriginal;
@@ -411,6 +414,7 @@ class _LearningSidePanel extends StatelessWidget {
   const _LearningSidePanel({
     required this.hasVideo,
     required this.transcriptionStatus,
+    required this.videoSummary,
     required this.materialUrl,
     required this.hasOriginal,
     required this.onDownloadOriginal,
@@ -445,6 +449,13 @@ class _LearningSidePanel extends StatelessWidget {
           ),
           const SizedBox(height: 14),
         ],
+        if (hasVideo && videoSummary.trim().isNotEmpty) ...[
+          _VideoSummaryCard(summary: videoSummary),
+          const SizedBox(height: 14),
+        ] else if (hasVideo && transcriptionStatus != 'ready') ...[
+          _VideoSummaryStatusCard(status: transcriptionStatus),
+          const SizedBox(height: 14),
+        ],
         _ResourceDock(
           materialUrl: materialUrl,
           hasOriginal: hasOriginal,
@@ -457,6 +468,74 @@ class _LearningSidePanel extends StatelessWidget {
           subjectLevel: subjectLevel,
         ),
       ],
+    );
+  }
+}
+
+class _VideoSummaryCard extends StatelessWidget {
+  final String summary;
+
+  const _VideoSummaryCard({required this.summary});
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      borderColor: AppColors.primaryLight.withValues(alpha: 0.18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.subject_rounded, color: AppColors.primaryLight, size: 18),
+              SizedBox(width: 8),
+              Text(
+                '영상 요약',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _MarkdownText(summary),
+        ],
+      ),
+    );
+  }
+}
+
+class _VideoSummaryStatusCard extends StatelessWidget {
+  final String status;
+
+  const _VideoSummaryStatusCard({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final text = switch (status) {
+      'queued' || 'processing' => '영상 전사와 요약을 준비 중입니다. 잠시 후 다시 열면 영상 요약이 표시됩니다.',
+      'failed' => '영상 자막을 가져오지 못했습니다. 자막이 없는 유튜브 영상이거나 접근이 제한된 영상일 수 있습니다.',
+      _ => '영상 요약은 전사 완료 후 표시됩니다.',
+    };
+    return AppCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.info_outline_rounded, color: AppColors.textMuted, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: AppColors.textMuted,
+                fontSize: 12,
+                height: 1.55,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

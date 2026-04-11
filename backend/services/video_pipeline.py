@@ -15,6 +15,7 @@ import re
 import tempfile
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs, urlparse
 
 import google.generativeai as genai
 
@@ -62,6 +63,55 @@ def _fallback_video_analysis(original_text: str, core_points: list[dict]) -> dic
 
 
 class VideoPipeline:
+    async def transcribe_youtube_url(
+        self,
+        *,
+        video_url: str,
+        title: str,
+        original_text: str,
+        core_points: list[dict],
+    ) -> dict[str, Any]:
+        """Fetch YouTube captions and summarize them for grounded segment Q&A."""
+        video_id = self._youtube_id(video_url)
+        if not video_id:
+            raise ValueError("유효한 YouTube 영상 URL이 아닙니다.")
+
+        def _fetch():
+            from youtube_transcript_api import YouTubeTranscriptApi
+
+            try:
+                return YouTubeTranscriptApi.get_transcript(video_id, languages=["ko", "en"])
+            except Exception:
+                transcripts = YouTubeTranscriptApi.list_transcripts(video_id)
+                transcript = transcripts.find_transcript(["ko", "en"])
+                return transcript.fetch()
+
+        rows = await asyncio.to_thread(_fetch)
+        if not rows:
+            raise RuntimeError("YouTube 자막/전사를 찾을 수 없습니다.")
+
+        segments = [
+            {
+                "start_minute": max(0, int(float(row.get("start", 0)) // 60)),
+                "end_minute": max(0, int((float(row.get("start", 0)) + float(row.get("duration", 0))) // 60) + 1),
+                "text": str(row.get("text", "")).replace("\n", " ").strip(),
+            }
+            for row in rows
+            if str(row.get("text", "")).strip()
+        ]
+        transcript_text = "\n".join(
+            f"[{item['start_minute']}~{item['end_minute']}분] {item['text']}"
+            for item in segments
+        )
+        return await self._summarize_transcript(
+            transcript_text=transcript_text[:14000],
+            segments=segments,
+            title=title,
+            original_text=original_text,
+            core_points=core_points,
+            source="youtube",
+        )
+
     async def transcribe_uploaded_video(
         self,
         *,
@@ -136,13 +186,7 @@ class VideoPipeline:
                 feature="video_transcription",
             )
             parsed = _json_from_markdown(raw)
-            return {
-                "transcript": str(parsed.get("transcript", "")).strip(),
-                "segments": parsed.get("segments") or [],
-                "chapters": parsed.get("chapters") or [],
-                "summary_markdown": str(parsed.get("summary_markdown", "")).strip(),
-                "key_moments": parsed.get("key_moments") or [],
-            }
+            return self._normalize_result(parsed)
         finally:
             if uploaded is not None:
                 try:
@@ -166,3 +210,84 @@ class VideoPipeline:
             await asyncio.sleep(2)
             uploaded = await asyncio.to_thread(genai.get_file, name)
         raise TimeoutError("Gemini File API 영상 처리 대기 시간 초과")
+
+    async def _summarize_transcript(
+        self,
+        *,
+        transcript_text: str,
+        segments: list[dict[str, Any]],
+        title: str,
+        original_text: str,
+        core_points: list[dict],
+        source: str,
+    ) -> dict[str, Any]:
+        core_text = "\n".join(
+            f"- {point.get('content', '')}"
+            for point in core_points[:10]
+            if point.get("content")
+        )
+        prompt = f"""당신은 온라인 강의 전사 기반 요약 전문가입니다.
+아래 {source} 전사와 교수 핵심 포인트, 원본 교안을 근거로 학생용 영상 요약을 만드세요.
+전사에 없는 내용을 꾸며내지 말고, 코드/실습 흐름은 가능한 한 단계별로 보존하세요.
+한국어로만 작성하고 JSON만 출력하세요.
+
+[강의 제목]
+{title}
+
+[교수 핵심 포인트]
+{core_text}
+
+[원본 교안 일부]
+{original_text[:3000]}
+
+[영상 전사]
+{transcript_text}
+
+{{
+  "transcript": "정리된 전체 전사",
+  "segments": [
+    {{"start_minute": 0, "end_minute": 5, "text": "구간 내용"}}
+  ],
+  "chapters": [
+    {{"start_minute": 0, "end_minute": 5, "title": "챕터 제목", "summary": "요약"}}
+  ],
+  "summary_markdown": "## 영상 요약\\n- 핵심 요지\\n- 실습 흐름\\n- 다시 볼 구간",
+  "key_moments": [
+    {{"minute": 0, "label": "다시 볼 지점", "reason": "이유"}}
+  ]
+}}"""
+        raw = await generate_gemini_text(
+            prompt,
+            temperature=0.18,
+            max_output_tokens=2600,
+            timeout=45.0,
+            feature=f"video_{source}_summary",
+        )
+        parsed = _json_from_markdown(raw)
+        if not parsed.get("segments"):
+            parsed["segments"] = segments[:180]
+        if not parsed.get("transcript"):
+            parsed["transcript"] = transcript_text
+        return self._normalize_result(parsed)
+
+    @staticmethod
+    def _normalize_result(parsed: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "transcript": str(parsed.get("transcript", "")).strip(),
+            "segments": parsed.get("segments") or [],
+            "chapters": parsed.get("chapters") or [],
+            "summary_markdown": str(parsed.get("summary_markdown", "")).strip(),
+            "key_moments": parsed.get("key_moments") or [],
+        }
+
+    @staticmethod
+    def _youtube_id(url: str) -> str:
+        parsed = urlparse(url or "")
+        host = parsed.netloc.lower()
+        if "youtu.be" in host:
+            return parsed.path.strip("/").split("/")[0]
+        if "youtube.com" in host:
+            if parsed.path.startswith("/shorts/") or parsed.path.startswith("/embed/"):
+                return parsed.path.strip("/").split("/")[1]
+            return parse_qs(parsed.query).get("v", [""])[0]
+        return ""
