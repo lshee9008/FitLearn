@@ -48,7 +48,6 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
   Future<void> _refreshRooms() async {
     final user = ref.read(authNotifierProvider);
     if (user != null) {
-      // 진짜 알맹이 데이터를 들고 있는 프로바이더 파기
       ref.invalidate(professorRoomsProvider(user.userId));
     }
     ref.invalidate(currentProfessorRoomsProvider);

@@ -251,9 +251,10 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage>
         userId: application['user_id'] as String,
         status: status,
       );
+      // 1. 상세 화면 갱신
       ref.invalidate(professorRoomDetailProvider(widget.roomId));
 
-      // [추가] 홈 화면의 '수강생 수' 등 전체 데이터 업데이트를 위해 홈 프로바이더도 같이 파기!
+      // 2. 홈 화면(방 목록, 수강생 수)도 강제 갱신
       final user = ref.read(authNotifierProvider);
       if (user != null) {
         ref.invalidate(professorRoomsProvider(user.userId));
