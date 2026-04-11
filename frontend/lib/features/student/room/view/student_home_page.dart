@@ -1796,21 +1796,45 @@ class _MyLectureRow extends StatelessWidget {
               style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.w700))),
         ),
         const SizedBox(width: 10),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: _C.textPri, fontSize: 12, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 2),
-          Text(sub, style: const TextStyle(color: _C.textSec, fontSize: 10)),
-          const SizedBox(height: 5),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(2),
-            child: LinearProgressIndicator(
-              value: progress, minHeight: 3,
-              backgroundColor: _C.border,
-              valueColor: AlwaysStoppedAnimation(color),
-            ),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start, 
+            mainAxisSize: MainAxisSize.min, // 추가: 내부 높이에 딱 맞게 설정
+            children: [
+              // ── 수정 포인트 02: 제목 maxLines 변경 ──────────────────
+              Text(
+                title, 
+                maxLines: 2, // 두 줄 허용
+                overflow: TextOverflow.ellipsis, // 세 줄부터 '...' 처리
+                style: const TextStyle(
+                  color: _C.textPri, 
+                  fontSize: 11, // 폰트 크기를 12 -> 11로 아주 살짝 줄이면 훨씬 안정적입니다
+                  fontWeight: FontWeight.w600,
+                  height: 1.2, // 줄 간격 추가
+                ),
+              ),
+              const SizedBox(height: 2),
+              
+              // ── 수정 포인트 03: 서브텍스트 한 줄 유지 ────────────────
+              Text(
+                sub, 
+                maxLines: 1, 
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: _C.textSec, fontSize: 10),
+              ),
+              
+              const SizedBox(height: 5),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(2),
+                child: LinearProgressIndicator(
+                  value: progress, minHeight: 3,
+                  backgroundColor: _C.border,
+                  valueColor: AlwaysStoppedAnimation(color),
+                ),
+              ),
+            ],
           ),
-        ])),
+        ),
       ]),
     );
   }

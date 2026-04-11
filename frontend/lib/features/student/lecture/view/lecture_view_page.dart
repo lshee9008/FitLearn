@@ -1258,32 +1258,57 @@ class _ChatMessage extends StatelessWidget {
   final bool isAi;
   final String content;
 
-  const _ChatMessage({required this.isAi, required this.content});
+  const _ChatMessage({
+    super.key,
+    required this.isAi,
+    required this.content,
+  });
 
   @override
   Widget build(BuildContext context) {
+    if (!isAi) {
+      // 학생 질문은 오른쪽 정렬 (기존처럼 유지하고 싶다면 그대로 두세요)
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 20),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            Flexible(
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: AppColors.primaryLight.withValues(alpha: 0.14),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.22),
+                      blurRadius: 18,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: _MarkdownText(content),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // ========== AI 답변 (로봇 아이콘 제거 + 가운데 정렬) ==========
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,   // 핵심: 가운데 정렬
         children: [
-          if (isAi)
-            Container(
-              width: 30,
-              height: 30,
-              margin: const EdgeInsets.only(right: 12),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.smart_toy_rounded,
-                  color: AppColors.primaryLight, size: 16),
-            ),
-          Expanded(
+          Flexible(
             child: Container(
               padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
               decoration: BoxDecoration(
-                color: isAi ? const Color(0xFF0F131C) : AppColors.primary,
+                color: const Color(0xFF0F131C),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
                   color: AppColors.primaryLight.withValues(alpha: 0.14),
