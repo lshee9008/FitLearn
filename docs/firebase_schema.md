@@ -101,6 +101,12 @@
 - `video_status`: `none | processing | ready | failed`
 - `video_asset_url`: string
 - `video_duration`: number
+- `video_transcript`: string
+- `video_segments`: array of `{ start_minute, end_minute, text }`
+- `video_summary`: markdown string
+- `video_key_moments`: array of `{ minute, label, reason }`
+- `transcription_status`: `idle | queued | processing | ready | failed`
+- `transcription_error`: string
 - `chapters`: array
 - `summary_status`: `idle | processing | ready | failed`
 - `summary_cache`: map

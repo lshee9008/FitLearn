@@ -1,6 +1,6 @@
 import logging
 import re
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from models.lecture import LectureUploadResponse, CorePoint, CorePointConfirmRequest
@@ -8,6 +8,7 @@ from services.lecture_pipeline import LecturePipeline
 from services.reforge_service import ReforgeService, generate_gemini_text
 from services.file_service import FileService
 from services.firebase_service import FirebaseService
+from services.video_pipeline import VideoPipeline
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["lectures"])
@@ -15,6 +16,7 @@ pipeline = LecturePipeline()
 reforge_svc = ReforgeService()
 file_svc = FileService()
 firebase = FirebaseService()
+video_pipeline = VideoPipeline()
 REFORGED_CACHE_VERSION = 2
 FALLBACK_CACHE_MARKERS = (
     "AI 서버 응답 지연",
@@ -42,11 +44,62 @@ def _has_fallback_content(styles: dict) -> bool:
     )
 
 
+def _as_int(value, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 class VideoAssistRequest(BaseModel):
     user_id: str
     start_minute: int = 0
     end_minute: int = 0
     question: str = ""
+
+
+async def _process_uploaded_video_transcript(
+    room_id: str,
+    lecture_id: str,
+    video_bytes: bytes,
+    filename: str,
+    mime_type: str,
+    title: str,
+    original_text: str,
+    core_points: list[dict],
+) -> None:
+    try:
+        await firebase.update_lecture_meta(room_id, lecture_id, {
+            "transcription_status": "processing",
+            "transcription_error": "",
+        })
+        result = await video_pipeline.transcribe_uploaded_video(
+            video_bytes=video_bytes,
+            filename=filename,
+            mime_type=mime_type,
+            title=title,
+            original_text=original_text,
+            core_points=core_points,
+        )
+        await firebase.update_lecture_meta(room_id, lecture_id, {
+            "video_transcript": result.get("transcript", ""),
+            "video_segments": result.get("segments", []),
+            "chapters": result.get("chapters", []),
+            "video_summary": result.get("summary_markdown", ""),
+            "video_key_moments": result.get("key_moments", []),
+            "summary_cache": {"default": result.get("summary_markdown", "")},
+            "summary_status": "ready",
+            "transcription_status": "ready",
+            "transcription_error": "",
+        })
+        logger.info(f"[video_transcript] 완료 room={room_id} lecture={lecture_id}")
+    except Exception as e:
+        logger.warning(f"[video_transcript] 실패 room={room_id} lecture={lecture_id}: {e}")
+        await firebase.update_lecture_meta(room_id, lecture_id, {
+            "transcription_status": "failed",
+            "transcription_error": str(e)[:500],
+            "summary_status": "failed",
+        })
 
 _DEMO_LECTURE = """
 # 학습심리학 기초 — 인지부하이론과 학습 전략
@@ -125,6 +178,7 @@ def _resolve_video_meta(video_url: str, has_video_file: bool, title: str) -> dic
 
 @router.post("/lectures/upload", response_model=LectureUploadResponse)
 async def upload_lecture(
+    background_tasks: BackgroundTasks,
     room_id: str = Form(...),
     professor_uid: str = Form(...),
     file: UploadFile = File(...),
@@ -194,19 +248,34 @@ async def upload_lecture(
         try:
             video_content = await video_file.read()
             if video_content:
+                video_filename = video_file.filename or "video.bin"
+                video_content_type = video_file.content_type or "application/octet-stream"
                 await firebase.upload_lecture_asset(
                     room_id,
                     lecture_id,
                     video_content,
-                    video_file.filename or "video.bin",
-                    video_file.content_type or "application/octet-stream",
+                    video_filename,
+                    video_content_type,
                     "video",
                 )
                 await firebase.update_lecture_meta(room_id, lecture_id, {
                     "video_status": "ready",
                     "video_type": "upload",
                     "video_source": "uploaded_file",
+                    "transcription_status": "queued",
+                    "summary_status": "processing",
                 })
+                background_tasks.add_task(
+                    _process_uploaded_video_transcript,
+                    room_id,
+                    lecture_id,
+                    video_content,
+                    video_filename,
+                    video_content_type,
+                    resolved_title,
+                    text,
+                    result["core_points"],
+                )
         except Exception as e:
             logger.warning(f"[upload] 영상 파일 Storage 업로드 실패: {e}")
 
@@ -275,6 +344,15 @@ async def assist_video_segment(room_id: str, lecture_id: str, body: VideoAssistR
         or ""
     )
     transcript_text = str(transcript)[:4500] if transcript else ""
+    video_segments = lecture.get("video_segments") or []
+    segment_context = "\n".join(
+        f"- {item.get('start_minute', 0)}~{item.get('end_minute', 0)}분: {item.get('text', '')}"
+        for item in video_segments
+        if isinstance(item, dict)
+        and _as_int(item.get("end_minute")) >= start
+        and _as_int(item.get("start_minute")) <= end
+        and item.get("text")
+    )[:3500]
 
     prompt = f"""당신은 온라인 강의 학습 도우미입니다.
 학생이 영상의 특정 구간을 보다가 궁금한 점을 물었습니다.
@@ -297,6 +375,9 @@ async def assist_video_segment(room_id: str, lecture_id: str, body: VideoAssistR
 
 [영상 전사]
 {transcript_text or "영상 전사가 아직 없습니다. 교안과 교수 핵심 포인트만 근거로 답해야 합니다."}
+
+[요청 구간과 겹치는 전사 세그먼트]
+{segment_context or "요청 구간과 직접 매칭되는 전사 세그먼트가 없습니다."}
 
 [원본 교안]
 {original_text}

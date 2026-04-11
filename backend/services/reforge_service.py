@@ -28,7 +28,7 @@ _working_model = MODEL
 
 
 async def generate_gemini_text(
-    prompt: str,
+    contents,
     *,
     temperature: float = 0.35,
     max_output_tokens: int = 1200,
@@ -59,7 +59,7 @@ async def generate_gemini_text(
                 ),
             )
             response = await asyncio.wait_for(
-                asyncio.to_thread(model.generate_content, prompt),
+                asyncio.to_thread(model.generate_content, contents),
                 timeout=timeout,
             )
             text = (response.text or "").strip()

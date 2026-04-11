@@ -257,37 +257,33 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
       return const Center(child: Text('맞춤 교안이 아직 없습니다.',
           style: TextStyle(color: AppColors.textMuted)));
     }
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 100),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1180),
-          child: Column(children: [
-            _LearningWorkspaceHeader(
-              lecture: _lectureMeta,
-              onDownloadOriginal: _downloadOriginal,
-              startController: _segmentStartCtrl,
-              endController: _segmentEndCtrl,
-              questionController: _segmentQuestionCtrl,
-              segmentAnswer: _segmentAnswer,
-              segmentLoading: _segmentLoading,
-              onAskSegment: _askVideoSegment,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 100),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1480),
+              child: _LearningExperienceShell(
+                lecture: _lectureMeta,
+                title: widget.title,
+                content: content,
+                activeStyle: activeStyle,
+                profile: _profileSummary,
+                subjectLevel: _subjectLevel,
+                onDownloadOriginal: _downloadOriginal,
+                startController: _segmentStartCtrl,
+                endController: _segmentEndCtrl,
+                questionController: _segmentQuestionCtrl,
+                segmentAnswer: _segmentAnswer,
+                segmentLoading: _segmentLoading,
+                onAskSegment: _askVideoSegment,
+                useSplit: constraints.maxWidth >= 1040,
+              ),
             ),
-            const SizedBox(height: 16),
-            _PersonalizationBasisCard(
-              profile: _profileSummary,
-              primaryStyle: activeStyle,
-              subjectLevel: _subjectLevel,
-            ),
-            const SizedBox(height: 16),
-            _NotionDocument(
-              style: activeStyle,
-              title: widget.title,
-              content: content,
-            ),
-          ]),
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
@@ -295,6 +291,323 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
 // ── 스타일 선택 바텀시트 ──────────────────────────────────────────────────────
 
 // ── 빈 상태 ───────────────────────────────────────────────────────────────────
+
+class _LearningExperienceShell extends StatelessWidget {
+  final Map<String, dynamic>? lecture;
+  final String title;
+  final String content;
+  final String activeStyle;
+  final Map<String, dynamic>? profile;
+  final String? subjectLevel;
+  final VoidCallback onDownloadOriginal;
+  final TextEditingController startController;
+  final TextEditingController endController;
+  final TextEditingController questionController;
+  final String? segmentAnswer;
+  final bool segmentLoading;
+  final VoidCallback onAskSegment;
+  final bool useSplit;
+
+  const _LearningExperienceShell({
+    required this.lecture,
+    required this.title,
+    required this.content,
+    required this.activeStyle,
+    required this.profile,
+    required this.subjectLevel,
+    required this.onDownloadOriginal,
+    required this.startController,
+    required this.endController,
+    required this.questionController,
+    required this.segmentAnswer,
+    required this.segmentLoading,
+    required this.onAskSegment,
+    required this.useSplit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final videoUrl = lecture?['video_url'] as String? ?? '';
+    final videoType = lecture?['video_type'] as String? ?? 'none';
+    final videoStatus = lecture?['video_status'] as String? ?? 'none';
+    final transcriptionStatus = lecture?['transcription_status'] as String? ?? 'idle';
+    final materialUrl = lecture?['material_url'] as String? ?? '';
+    final hasOriginal = (lecture?['original_file_url'] as String? ?? '').isNotEmpty;
+    final hasVideo = videoUrl.trim().isNotEmpty;
+
+    final document = _NotionDocument(
+      style: activeStyle,
+      title: title,
+      content: content,
+    );
+    final sidePanel = _LearningSidePanel(
+      hasVideo: hasVideo,
+      transcriptionStatus: transcriptionStatus,
+      materialUrl: materialUrl,
+      hasOriginal: hasOriginal,
+      onDownloadOriginal: onDownloadOriginal,
+      profile: profile,
+      activeStyle: activeStyle,
+      subjectLevel: subjectLevel,
+      startController: startController,
+      endController: endController,
+      questionController: questionController,
+      segmentAnswer: segmentAnswer,
+      segmentLoading: segmentLoading,
+      onAskSegment: onAskSegment,
+    );
+
+    if (!useSplit) {
+      return Column(
+        children: [
+          if (hasVideo) ...[
+            _VideoStage(videoUrl: videoUrl, videoType: videoType, videoStatus: videoStatus),
+            const SizedBox(height: 14),
+          ],
+          sidePanel,
+          const SizedBox(height: 16),
+          document,
+        ],
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            children: [
+              if (hasVideo) ...[
+                _VideoStage(videoUrl: videoUrl, videoType: videoType, videoStatus: videoStatus),
+                const SizedBox(height: 18),
+              ],
+              document,
+            ],
+          ),
+        ),
+        const SizedBox(width: 18),
+        SizedBox(width: 390, child: sidePanel),
+      ],
+    );
+  }
+}
+
+class _LearningSidePanel extends StatelessWidget {
+  final bool hasVideo;
+  final String transcriptionStatus;
+  final String materialUrl;
+  final bool hasOriginal;
+  final VoidCallback onDownloadOriginal;
+  final Map<String, dynamic>? profile;
+  final String activeStyle;
+  final String? subjectLevel;
+  final TextEditingController startController;
+  final TextEditingController endController;
+  final TextEditingController questionController;
+  final String? segmentAnswer;
+  final bool segmentLoading;
+  final VoidCallback onAskSegment;
+
+  const _LearningSidePanel({
+    required this.hasVideo,
+    required this.transcriptionStatus,
+    required this.materialUrl,
+    required this.hasOriginal,
+    required this.onDownloadOriginal,
+    required this.profile,
+    required this.activeStyle,
+    required this.subjectLevel,
+    required this.startController,
+    required this.endController,
+    required this.questionController,
+    required this.segmentAnswer,
+    required this.segmentLoading,
+    required this.onAskSegment,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _StudyModePanel(
+          hasVideo: hasVideo,
+          transcriptionStatus: transcriptionStatus,
+        ),
+        const SizedBox(height: 14),
+        if (hasVideo) ...[
+          _VideoAssistPanel(
+            startController: startController,
+            endController: endController,
+            questionController: questionController,
+            answer: segmentAnswer,
+            loading: segmentLoading,
+            onAsk: onAskSegment,
+          ),
+          const SizedBox(height: 14),
+        ],
+        _ResourceDock(
+          materialUrl: materialUrl,
+          hasOriginal: hasOriginal,
+          onDownloadOriginal: onDownloadOriginal,
+        ),
+        const SizedBox(height: 14),
+        _PersonalizationBasisCard(
+          profile: profile,
+          primaryStyle: activeStyle,
+          subjectLevel: subjectLevel,
+        ),
+      ],
+    );
+  }
+}
+
+class _StudyModePanel extends StatelessWidget {
+  final bool hasVideo;
+  final String transcriptionStatus;
+
+  const _StudyModePanel({
+    required this.hasVideo,
+    required this.transcriptionStatus,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      borderColor: AppColors.primaryLight.withValues(alpha: 0.22),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.13),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  hasVideo ? Icons.ondemand_video_rounded : Icons.menu_book_rounded,
+                  color: AppColors.primaryLight,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  hasVideo ? '영상 학습실' : '교안 학습실',
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              _TranscriptStatusPill(status: transcriptionStatus, hasVideo: hasVideo),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            hasVideo
+                ? '좌측에서 영상을 따라가고, 우측에서 구간 질문과 맞춤 교안을 함께 확인합니다.'
+                : '원본 교안과 교수 핵심 포인트를 기준으로 재해석된 문서를 읽습니다.',
+            style: const TextStyle(
+              color: AppColors.textMuted,
+              fontSize: 13,
+              height: 1.55,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TranscriptStatusPill extends StatelessWidget {
+  final String status;
+  final bool hasVideo;
+
+  const _TranscriptStatusPill({
+    required this.status,
+    required this.hasVideo,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final label = !hasVideo
+        ? '오프라인'
+        : switch (status) {
+            'ready' => '전사 완료',
+            'processing' || 'queued' => '전사 중',
+            'failed' => '전사 확인',
+            _ => '교안 기준',
+          };
+    final color = status == 'ready'
+        ? AppColors.primaryLight
+        : status == 'failed'
+            ? AppColors.accent
+            : AppColors.textMuted;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w800),
+      ),
+    );
+  }
+}
+
+class _ResourceDock extends StatelessWidget {
+  final String materialUrl;
+  final bool hasOriginal;
+  final VoidCallback onDownloadOriginal;
+
+  const _ResourceDock({
+    required this.materialUrl,
+    required this.hasOriginal,
+    required this.onDownloadOriginal,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '자료',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _WorkspaceAction(
+            icon: hasOriginal ? Icons.file_download_outlined : Icons.insert_drive_file_outlined,
+            title: hasOriginal ? '원본 자료' : '원본 준비 중',
+            subtitle: hasOriginal ? '교수 업로드 파일 열기' : '원본 파일 URL이 아직 없습니다.',
+            color: hasOriginal ? AppColors.accent : AppColors.textMuted,
+            onTap: hasOriginal ? onDownloadOriginal : null,
+          ),
+          const SizedBox(height: 10),
+          _WorkspaceAction(
+            icon: materialUrl.isNotEmpty ? Icons.link_rounded : Icons.link_off_rounded,
+            title: materialUrl.isNotEmpty ? '보조 자료' : '보조 자료 없음',
+            subtitle: materialUrl.isNotEmpty ? '실습 링크 또는 외부 자료' : '추가 링크가 연결되면 표시됩니다.',
+            color: materialUrl.isNotEmpty ? AppColors.primaryLight : AppColors.textMuted,
+            onTap: materialUrl.isNotEmpty ? () => html.window.open(materialUrl, '_blank') : null,
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _EmptyView extends StatelessWidget {
   final VoidCallback onRetry;
@@ -656,120 +969,6 @@ class _ReliabilityPill extends StatelessWidget {
   }
 }
 
-class _LearningWorkspaceHeader extends StatelessWidget {
-  final Map<String, dynamic>? lecture;
-  final VoidCallback onDownloadOriginal;
-  final TextEditingController startController;
-  final TextEditingController endController;
-  final TextEditingController questionController;
-  final String? segmentAnswer;
-  final bool segmentLoading;
-  final VoidCallback onAskSegment;
-
-  const _LearningWorkspaceHeader({
-    required this.lecture,
-    required this.onDownloadOriginal,
-    required this.startController,
-    required this.endController,
-    required this.questionController,
-    required this.segmentAnswer,
-    required this.segmentLoading,
-    required this.onAskSegment,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final videoUrl = lecture?['video_url'] as String? ?? '';
-    final videoType = lecture?['video_type'] as String? ?? 'none';
-    final videoStatus = lecture?['video_status'] as String? ?? 'none';
-    final materialUrl = lecture?['material_url'] as String? ?? '';
-    final hasOriginal = (lecture?['original_file_url'] as String? ?? '').isNotEmpty;
-    final hasVideo = videoUrl.trim().isNotEmpty;
-
-    return AppCard(
-      borderColor: AppColors.primaryLight.withValues(alpha: 0.22),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: const Icon(Icons.view_in_ar_rounded, color: AppColors.primaryLight),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '학습 워크스페이스',
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      '영상, 원본 자료, AI 재해석 교안을 함께 보며 수업 흐름을 따라갑니다.',
-                      style: TextStyle(color: AppColors.textMuted, fontSize: 12),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          if (hasVideo) ...[
-            _VideoStage(
-              videoUrl: videoUrl,
-              videoType: videoType,
-              videoStatus: videoStatus,
-            ),
-            const SizedBox(height: 14),
-            _VideoAssistPanel(
-              startController: startController,
-              endController: endController,
-              questionController: questionController,
-              answer: segmentAnswer,
-              loading: segmentLoading,
-              onAsk: onAskSegment,
-            ),
-            const SizedBox(height: 14),
-          ],
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              _WorkspaceAction(
-                icon: hasOriginal ? Icons.file_download_outlined : Icons.insert_drive_file_outlined,
-                title: hasOriginal ? '원본 자료' : '원본 준비 중',
-                subtitle: hasOriginal ? '교수 업로드 원본을 새 탭에서 확인합니다.' : '원본 파일 URL이 아직 없습니다.',
-                color: hasOriginal ? AppColors.accent : AppColors.textMuted,
-                onTap: hasOriginal ? onDownloadOriginal : null,
-              ),
-              _WorkspaceAction(
-                icon: materialUrl.isNotEmpty ? Icons.link_rounded : Icons.link_off_rounded,
-                title: materialUrl.isNotEmpty ? '보조 자료' : '보조 자료 없음',
-                subtitle: materialUrl.isNotEmpty ? '실습 링크나 외부 자료를 엽니다.' : '추가 링크가 연결되면 표시됩니다.',
-                color: materialUrl.isNotEmpty ? AppColors.primaryLight : AppColors.textMuted,
-                onTap: materialUrl.isNotEmpty ? () => html.window.open(materialUrl, '_blank') : null,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-}
-
 class _VideoStage extends StatelessWidget {
   final String videoUrl;
   final String videoType;
@@ -995,30 +1194,24 @@ class _VideoAssistPanel extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          Row(
-            children: [
-              _MinuteField(label: '시작', controller: startController),
-              const SizedBox(width: 10),
-              _MinuteField(label: '끝', controller: endController),
-              const SizedBox(width: 10),
-              Expanded(
-                child: TextField(
-                  controller: questionController,
-                  style: const TextStyle(color: AppColors.textPrimary),
-                  decoration: InputDecoration(
-                    hintText: '예: 이 구간의 코드 흐름이 이해가 안 돼요',
-                    hintStyle: const TextStyle(color: AppColors.textMuted),
-                    filled: true,
-                    fillColor: AppColors.bg,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppColors.border),
-                    ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 560;
+              final questionField = TextField(
+                controller: questionController,
+                style: const TextStyle(color: AppColors.textPrimary),
+                decoration: InputDecoration(
+                  hintText: '예: 이 구간의 코드 흐름이 이해가 안 돼요',
+                  hintStyle: const TextStyle(color: AppColors.textMuted),
+                  filled: true,
+                  fillColor: AppColors.bg,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.border),
                   ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              SizedBox(
+              );
+              final button = SizedBox(
                 height: 48,
                 child: ElevatedButton.icon(
                   onPressed: loading ? null : onAsk,
@@ -1031,8 +1224,38 @@ class _VideoAssistPanel extends StatelessWidget {
                       : const Icon(Icons.send_rounded, size: 16),
                   label: Text(loading ? '분석 중' : '요약 확인'),
                 ),
-              ),
-            ],
+              );
+
+              if (compact) {
+                return Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(child: _MinuteField(label: '시작', controller: startController)),
+                        const SizedBox(width: 10),
+                        Expanded(child: _MinuteField(label: '끝', controller: endController)),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    questionField,
+                    const SizedBox(height: 10),
+                    SizedBox(width: double.infinity, child: button),
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  _MinuteField(label: '시작', controller: startController),
+                  const SizedBox(width: 10),
+                  _MinuteField(label: '끝', controller: endController),
+                  const SizedBox(width: 10),
+                  Expanded(child: questionField),
+                  const SizedBox(width: 10),
+                  button,
+                ],
+              );
+            },
           ),
           if (answer != null && answer!.trim().isNotEmpty) ...[
             const SizedBox(height: 16),
