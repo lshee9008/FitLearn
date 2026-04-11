@@ -15,13 +15,13 @@ from .rag_pipeline.knowledge_base import PAPER_CHUNKS
 from .gemini_service import STYLE_GUIDES
 
 logger = logging.getLogger(__name__)
-DEFAULT_MODEL = "gemini-2.5-flash"
+DEFAULT_MODEL = "gemini-2.0-flash"
 MODEL = os.getenv("GEMINI_MODEL", DEFAULT_MODEL)
 MODEL_FALLBACKS = [
     model.strip()
     for model in os.getenv(
         "GEMINI_MODEL_FALLBACKS",
-        "gemini-2.5-flash,gemini-2.5-flash-lite,gemini-2.0-flash",
+        "gemini-2.0-flash,gemini-2.0-flash-lite,gemini-1.5-flash",
     ).split(",")
     if model.strip()
 ]
@@ -77,7 +77,8 @@ async def _call_gemini_rest(
         "generationConfig": {
             "temperature": temperature,
             "maxOutputTokens": max_output_tokens,
-            "thinkingConfig": {"thinkingBudget": 0},
+            # thinkingConfig는 thinking-exp 모델에서만 지원되므로 일반 flash 모델에서는 삭제하거나 0으로 설정
+            # "thinkingConfig": {"thinkingBudget": 0}, 
         },
     }
 

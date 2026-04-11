@@ -8,34 +8,13 @@ import json
 import logging
 import os
 import re
-import time
 
-
-from google import genai
-from google.genai import types
+import google.generativeai as genai
 
 from .rag_pipeline.knowledge_base import PAPER_CHUNKS
 
 logger = logging.getLogger(__name__)
-MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-_GEMINI_QUOTA_COOLDOWN_UNTIL = 0.0
-
-
-def _is_quota_error(error: Exception) -> bool:
-    message = str(error).lower()
-    return "429" in message or "quota" in message or "rate-limit" in message
-
-
-def _activate_quota_cooldown(seconds: int = 75) -> None:
-    global _GEMINI_QUOTA_COOLDOWN_UNTIL
-    _GEMINI_QUOTA_COOLDOWN_UNTIL = max(
-        _GEMINI_QUOTA_COOLDOWN_UNTIL,
-        time.monotonic() + seconds,
-    )
-
-
-def _quota_cooldown_active() -> bool:
-    return time.monotonic() < _GEMINI_QUOTA_COOLDOWN_UNTIL
+MODEL = "models/gemma-4-31b-it"
 
 # ── 교육 이론 기반 난이도 가중치 ────────────────────────────────────────────
 DIFFICULTY_CUES = {
@@ -68,57 +47,16 @@ def _extract_json(text: str) -> dict:
 
 
 def _preprocess_text(raw_text: str) -> str:
-    """전처리: 불필요한 공백·반복 제거, 최대 12000자 제한"""
+    """전처리: 불필요한 공백·반복 제거, 최대 6000자 제한"""
     lines = [ln.strip() for ln in raw_text.split("\n") if ln.strip()]
     cleaned = "\n".join(lines)
     # 반복 공백 정리
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
-    return cleaned[:12000]
+    return cleaned[:6000]
 
 
 def _count_words(text: str) -> int:
     return len(text.split())
-
-
-def _fallback_extract_from_text(text: str) -> dict:
-    """Gemini quota/timeouts 시에도 교수 검토 화면으로 빠르게 넘기는 로컬 분석."""
-    lines = [ln.strip(" -•\t") for ln in text.splitlines() if len(ln.strip()) >= 8]
-    preferred = [
-        ln for ln in lines
-        if re.search(r"(GAN|Generator|Discriminator|Loss|학습|모델|코드|실습|함수|데이터|네트워크|프레임워크|정의|개념)", ln, re.IGNORECASE)
-    ]
-    candidates = []
-    for line in [*preferred, *lines]:
-        normalized = re.sub(r"\s+", " ", line)
-        if normalized not in candidates:
-            candidates.append(normalized[:180])
-        if len(candidates) >= 7:
-            break
-    if not candidates:
-        candidates = ["원본 교안의 주요 개념과 실습 흐름을 교수 검토 기준으로 확인해야 합니다."]
-
-    core_points = [
-        {
-            "id": idx + 1,
-            "content": item,
-            "priority": max(5 - idx // 2, 3),
-            "topic": "원본 교안 기반",
-            "difficulty": "중",
-        }
-        for idx, item in enumerate(candidates)
-    ]
-    topics = [p["content"][:24] for p in core_points[:4]]
-    return {
-        "core_points": core_points,
-        "lecture_summary": "Gemini quota 또는 응답 제한으로 원본 텍스트 기반 빠른 분석을 사용했습니다. 교수 검토에서 핵심 포인트를 보정하면 학생 맞춤 교안 생성에 반영됩니다.",
-        "topics": topics or ["원본 교안"],
-        "learning_objectives": [
-            "학습자는 원본 교안의 핵심 개념을 설명할 수 있다",
-            "학습자는 교안의 실습 흐름을 따라 적용할 수 있다",
-        ],
-        "estimated_difficulty": "중",
-        "ai_fallback": True,
-    }
 
 
 class LecturePipeline:
@@ -136,18 +74,15 @@ class LecturePipeline:
     """
 
     def __init__(self):
-        api_key = os.getenv("GEMINI_API_KEY")
-        if api_key:
-            self._client = genai.Client(api_key=api_key)
-        else:
-            logger.warning("[LecturePipeline] GEMINI_API_KEY 미설정 — 분석 기능 동작 보장 불가")
-            self._client = None
+        genai.configure(api_key=os.environ["GEMINI_API_KEY"], transport="rest")
 
-    def _config(self, temp: float = 0.2) -> types.GenerateContentConfig:
-        return types.GenerateContentConfig(
-            temperature=temp,
-            max_output_tokens=2048,
-            thinking_config={"thinking_budget": 0},
+    def _model(self, temp: float = 0.2) -> genai.GenerativeModel:
+        return genai.GenerativeModel(
+            model_name=MODEL,
+            generation_config=genai.GenerationConfig(
+                temperature=temp,
+                max_output_tokens=2048,
+            ),
         )
 
     # ── Stage 3+4+5+6: 핵심 추출 + 분류 + 난이도 + 학습목표 (단일 프롬프트 병렬화) ──
@@ -156,11 +91,7 @@ class LecturePipeline:
         """
         핵심 포인트 추출 + 주제 분류 + 전체 요약 + 학습 목표 — 단일 Gemini 호출
         """
-        if _quota_cooldown_active():
-            raise RuntimeError("Gemini quota cooldown active")
-
         prompt = f"""당신은 교육 전문가입니다. 교육심리학 이론에 기반하여 다음 교안을 분석하세요.
-이 분석은 이후 학생 맞춤형 '재해석 교안'의 근거가 됩니다. 절대 단순 요약으로 축소하지 마세요.
 
 [참조 이론]
 • {CLT_CONTEXT}
@@ -191,22 +122,13 @@ class LecturePipeline:
 
 규칙:
 - core_points: 5-7개, priority는 5(최중요)~1(보통), difficulty는 상|중|하
-- 코드·명령어·실습 예제·터미널 출력이 있으면 core_points에 반드시 반영
-- [시각자료], [다이어그램], [슬라이드 이미지], [코드 캡처] 블록은 중요 자료로 취급
-- 이미지 속 코드나 실습 흐름은 학생이 그대로 따라해야 하므로 누락 금지
 - topics: 3-5개의 핵심 주제 분류
 - learning_objectives: Bloom 분류 기반 3-5개 (이해/적용/분석/종합/평가)
 - estimated_difficulty: 전체 난이도 상|중|하
 - JSON만 출력하세요"""
 
-        response = await asyncio.wait_for(
-            asyncio.to_thread(
-                self._client.models.generate_content,
-                model=MODEL,
-                contents=prompt,
-                config=self._config(temp=0.2),
-            ),
-            timeout=55.0,
+        response = await asyncio.to_thread(
+            self._model(temp=0.2).generate_content, prompt
         )
         return _extract_json(response.text)
 
@@ -217,7 +139,7 @@ class LecturePipeline:
         Stage 7 — 각 핵심 포인트별 교수 검토 질문 생성
         교수가 학생 관점에서 중요성·난이도·설명 방식을 재고하도록 유도
         """
-        if not core_points or _quota_cooldown_active():
+        if not core_points:
             return []
 
         points_text = "\n".join(
@@ -246,22 +168,12 @@ class LecturePipeline:
 3. JSON 형식 외 어떠한 텍스트도 출력하지 마세요."""
 
         try:
-            response = await asyncio.wait_for(
-                asyncio.to_thread(
-                    self._client.models.generate_content,
-                    model=MODEL,
-                    contents=prompt,
-                    config=self._config(temp=0.4),
-                ),
-                timeout=25.0,
+            response = await asyncio.to_thread(
+                self._model(temp=0.4).generate_content, prompt
             )
             data = _extract_json(response.text)
             return data.get("questions", [])
         except Exception as e:
-            if _is_quota_error(e):
-                _activate_quota_cooldown()
-                logger.warning("[Pipeline] 검토 질문 생성 quota 감지 — 건너뜀")
-                return []
             logger.warning(f"[Pipeline] 검토 질문 생성 실패 (건너뜀): {e}")
             return []
 
@@ -282,21 +194,24 @@ class LecturePipeline:
         try:
             extract_result = await self._stage_extract_all(text)
         except Exception as e:
-            if _is_quota_error(e) or "quota cooldown" in str(e).lower():
-                _activate_quota_cooldown()
-                logger.warning(f"[Pipeline] Gemini quota/cooldown — 로컬 분석 fallback 사용: {e}")
-            elif isinstance(e, json.JSONDecodeError):
-                logger.warning("[Pipeline] Gemini JSON 파싱 실패 — 로컬 분석 fallback 사용")
-            else:
-                logger.error(f"[Pipeline] 핵심 추출 실패 — 로컬 분석 fallback 사용: {e}", exc_info=True)
-            extract_result = _fallback_extract_from_text(text)
+            logger.error(f"[Pipeline] 핵심 추출 실패: {e}", exc_info=True)
+            extract_result = {
+                "core_points": [
+                    {"id": 1, "content": "핵심 내용 추출 실패 — 직접 입력해주세요",
+                     "priority": 3, "topic": "미분류", "difficulty": "중"}
+                ],
+                "lecture_summary": "자동 분석에 실패했습니다. 직접 수정해주세요.",
+                "topics": ["미분류"],
+                "learning_objectives": [],
+                "estimated_difficulty": "중",
+            }
 
         core_points_raw = extract_result.get("core_points", [])
         logger.info(f"[Pipeline] Stage3-6 완료: {len(core_points_raw)}개 핵심 포인트")
 
         # Stage 7: 검토 질문 생성 (비동기 병렬 — extract_all 완료 후)
         logger.info("[Pipeline] Stage7 검토 질문 생성 시작")
-        review_questions = [] if extract_result.get("ai_fallback") else await self._stage_review_questions(core_points_raw, text)
+        review_questions = await self._stage_review_questions(core_points_raw, text)
 
         # Stage 8: 후처리 — 검토 질문 매핑 + 우선순위 정렬
         for i, point in enumerate(core_points_raw):
