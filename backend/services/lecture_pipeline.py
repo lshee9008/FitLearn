@@ -144,10 +144,11 @@ class LecturePipeline:
     def _model(self, temp: float = 0.2) -> genai.GenerativeModel:
         return genai.GenerativeModel(
             model_name=MODEL,
-            generation_config=genai.GenerationConfig(
-                temperature=temp,
-                max_output_tokens=2048,
-            ),
+            generation_config={
+                "temperature": temp,
+                "max_output_tokens": 2048,
+                "thinking_config": {"thinking_budget": 0},
+            },
         )
 
     # ── Stage 3+4+5+6: 핵심 추출 + 분류 + 난이도 + 학습목표 (단일 프롬프트 병렬화) ──

@@ -27,10 +27,11 @@ class ClaudeService:
     async def _classify_once(self, prompt: str) -> str:
         model = genai.GenerativeModel(
             model_name=MODEL,
-            generation_config=genai.GenerationConfig(
-                temperature=0.2,
-                max_output_tokens=100,
-            ),
+            generation_config={
+                "temperature": 0.2,
+                "max_output_tokens": 100,
+                "thinking_config": {"thinking_budget": 0},
+            },
         )
         response = await asyncio.to_thread(model.generate_content, prompt)
         text = response.text.strip()
@@ -56,10 +57,11 @@ class ClaudeService:
         prompt = self._build_reforge_prompt(lecture_content, learning_type)
         model = genai.GenerativeModel(
             model_name=MODEL,
-            generation_config=genai.GenerationConfig(
-                temperature=0.7,
-                max_output_tokens=2048,
-            ),
+            generation_config={
+                "temperature": 0.7,
+                "max_output_tokens": 2048,
+                "thinking_config": {"thinking_budget": 0},
+            },
         )
         response = await asyncio.to_thread(model.generate_content, prompt)
         return response.text

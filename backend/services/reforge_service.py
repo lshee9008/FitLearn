@@ -77,10 +77,11 @@ async def generate_gemini_text(
         try:
             model = genai.GenerativeModel(
                 model_name=model_name,
-                generation_config=genai.GenerationConfig(
-                    temperature=temperature,
-                    max_output_tokens=max_output_tokens,
-                ),
+                generation_config={
+                    "temperature": temperature,
+                    "max_output_tokens": max_output_tokens,
+                    "thinking_config": {"thinking_budget": 0},
+                },
             )
             response = await asyncio.wait_for(
                 asyncio.to_thread(model.generate_content, contents),
@@ -542,7 +543,12 @@ class ReforgeService:
                 return
 
             genai.configure(api_key=api_key, transport="rest")
-            model = genai.GenerativeModel(MODEL)
+            model = genai.GenerativeModel(
+                MODEL,
+                generation_config={
+                    "thinking_config": {"thinking_budget": 0},
+                }
+            )
             
             response = await asyncio.to_thread(
                 model.generate_content, 
