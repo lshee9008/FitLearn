@@ -167,98 +167,65 @@ class VideoPipeline:
             raise ValueError("유효한 YouTube 영상 URL이 아닙니다.")
 
         def _fetch():
-            from youtube_transcript_api import YouTubeTranscriptApi
-
             try:
-                return YouTubeTranscriptApi.get_transcript(video_id, languages=["ko", "en"])
+                from youtube_transcript_api import YouTubeTranscriptApi
+            except ImportError:
+                raise RuntimeError("youtube-transcript-api가 설치되지 않았습니다. pip install youtube-transcript-api 필요.")
+            
+            try:
+                # 1. 우선 한국어, 영어 수동/자동 자막 모두 폭넓게 시도
+                return YouTubeTranscriptApi.get_transcript(video_id, languages=["ko", "en", "ko-KR", "en-US"])
             except Exception:
-                transcripts = YouTubeTranscriptApi.list_transcripts(video_id)
-                transcript = None
-                for finder in ("find_transcript", "find_generated_transcript"):
-                    try:
-                        transcript = getattr(transcripts, finder)(["ko", "en"])
-                        break
-                    except Exception:
-                        continue
-                if transcript is None:
-                    for candidate in transcripts:
-                        transcript = candidate
-                        break
-                if transcript is None:
-                    raise RuntimeError("사용 가능한 YouTube 자막 트랙이 없습니다.")
+                # 2. 실패 시, 아무 자막이나 찾아서 한국어로 번역 시도 (자동 생성 자막 등)
                 try:
-                    if getattr(transcript, "is_translatable", False):
-                        transcript = transcript.translate("ko")
-                except Exception:
-                    pass
-                return transcript.fetch()
+                    transcripts = YouTubeTranscriptApi.list_transcripts(video_id)
+                    for t in transcripts:
+                        if t.is_translatable:
+                            return t.translate('ko').fetch()
+                        return t.fetch()
+                except Exception as inner_e:
+                    raise RuntimeError(f"가져올 수 있는 자막이 없습니다: {inner_e}")
 
         try:
             rows = await asyncio.to_thread(_fetch)
         except Exception as e:
-            logger.warning(f"[VideoPipeline] YouTube 자막 추출 실패 — 영상 다운로드 전사 폴백: {e}")
-            try:
-                return await self._transcribe_youtube_by_download(
-                    video_url=video_url,
-                    title=title,
-                    original_text=original_text,
-                    core_points=core_points,
-                )
-            except Exception as download_error:
-                logger.warning(f"[VideoPipeline] YouTube 다운로드 전사 실패 — 교안 기반 요약 폴백: {download_error}")
-                return _fallback_youtube_analysis(
-                    title=title,
-                    transcript_text="",
-                    segments=[],
-                    original_text=original_text,
-                    core_points=core_points,
-                    reason="유튜브 자막과 다운로드 전사를 모두 사용할 수 없어 교안 기준으로 제공됩니다.",
-                )
-        if not rows:
-            return _fallback_youtube_analysis(
+            logger.warning(f"[VideoPipeline] YouTube 자막 추출 실패 — 영상 다운로드 전사 폴백 시도: {e}")
+            return await self._transcribe_youtube_by_download(
+                video_url=video_url,
                 title=title,
-                transcript_text="",
-                segments=[],
                 original_text=original_text,
                 core_points=core_points,
-                reason="유튜브 자막이 비어 있어 교안 기준으로 제공됩니다.",
+            )
+        
+        if not rows:
+            return await self._transcribe_youtube_by_download(
+                video_url=video_url,
+                title=title,
+                original_text=original_text,
+                core_points=core_points,
             )
 
-        segments = []
-        for row in rows:
-            text = str(_row_value(row, "text", "")).replace("\n", " ").strip()
-            if not text:
-                continue
-            start = float(_row_value(row, "start", 0) or 0)
-            duration = float(_row_value(row, "duration", 0) or 0)
-            segments.append({
-                "start_minute": max(0, int(start // 60)),
-                "end_minute": max(0, int((start + duration) // 60) + 1),
-                "text": text,
-            })
+        segments = [
+            {
+                "start_minute": max(0, int(float(row.get("start", 0)) // 60)),
+                "end_minute": max(0, int((float(row.get("start", 0)) + float(row.get("duration", 0))) // 60) + 1),
+                "text": str(row.get("text", "")).replace("\n", " ").strip(),
+            }
+            for row in rows
+            if str(row.get("text", "")).strip()
+        ]
         transcript_text = "\n".join(
             f"[{item['start_minute']}~{item['end_minute']}분] {item['text']}"
             for item in segments
         )
-        try:
-            return await self._summarize_transcript(
-                transcript_text=transcript_text[:14000],
-                segments=segments,
-                title=title,
-                original_text=original_text,
-                core_points=core_points,
-                source="youtube",
-            )
-        except Exception as e:
-            logger.warning(f"[VideoPipeline] YouTube 자막 요약 실패 — 자막 기반 로컬 요약 폴백: {e}")
-            return _fallback_youtube_analysis(
-                title=title,
-                transcript_text=transcript_text,
-                segments=segments,
-                original_text=original_text,
-                core_points=core_points,
-                reason="AI 요약 생성이 지연되어 자막 기반 요약으로 제공됩니다.",
-            )
+        return await self._summarize_transcript(
+            transcript_text=transcript_text[:14000],
+            segments=segments,
+            title=title,
+            original_text=original_text,
+            core_points=core_points,
+            source="youtube",
+        )
 
     async def _transcribe_youtube_by_download(
         self,
@@ -271,12 +238,15 @@ class VideoPipeline:
         temp_dir = tempfile.mkdtemp(prefix="fitlearn_youtube_")
         try:
             def _download() -> Path:
-                from yt_dlp import YoutubeDL
+                try:
+                    from yt_dlp import YoutubeDL
+                except ImportError:
+                    raise RuntimeError("yt-dlp가 설치되지 않았습니다. pip install yt-dlp 필요.")
 
                 outtmpl = str(Path(temp_dir) / "%(id)s.%(ext)s")
                 options = {
                     "outtmpl": outtmpl,
-                    "format": "best[height<=720][ext=mp4]/best[height<=480]/best",
+                    "format": "best[height<=720][ext=mp4]/best[ext=mp4]/best",
                     "quiet": True,
                     "no_warnings": True,
                     "noplaylist": True,
@@ -297,6 +267,10 @@ class VideoPipeline:
                 original_text=original_text,
                 core_points=core_points,
             )
+        except Exception as e:
+            logger.error(f"[VideoPipeline] YouTube 다운로드 폴백마저 실패 (차단됨): {e}")
+            # [핵심] 에러로 터뜨리지 않고, 교안/핵심포인트 기반의 빈 요약본이라도 리턴해서 화면 깨짐을 방지!
+            return _fallback_video_analysis(original_text, core_points)
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
