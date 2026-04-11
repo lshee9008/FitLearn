@@ -331,7 +331,10 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
           if (confirmed != true) {
             ref.invalidate(currentProfessorRoomsProvider);
             ref.invalidate(professorRoomDetailProvider(roomId));
-            context.go('/professor/room/$roomId');
+            setState(() {
+              _creatingRoom = false;
+              _uploadError = '핵심포인트 확정을 마치면 이어서 강의실을 생성합니다.';
+            });
             return;
           }
           setState(() => _creatingRoom = true);
