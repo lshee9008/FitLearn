@@ -11,7 +11,7 @@ import re
 
 try:
     import google.generativeai as genai
-except ModuleNotFoundError:  # 패키지 누락이 rooms 라우터 전체 장애로 번지지 않도록 방어
+except ModuleNotFoundError:  #패키지 누락이 rooms 라우터 전체 장애로 번지지 않도록 방어
     genai = None
 
 logger = logging.getLogger(__name__)
