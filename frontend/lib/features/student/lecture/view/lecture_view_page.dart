@@ -1183,7 +1183,7 @@ class _EmptyChatView extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           _PromptHint(
-            text: "0~5분 구간에서 GAN의 생성자와 판별자 관계를 쉽게 설명해줘",
+            text: "내 성향에 맞게 더 쉽게 설명해줘",
             onTap: onSelectPrompt,
           ),
           _PromptHint(

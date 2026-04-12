@@ -29,18 +29,30 @@ def _json_from_markdown(text: str) -> dict[str, Any]:
     if fenced:
         cleaned = fenced.group(1).strip()
     try:
-        return json.loads(cleaned)
+        parsed = json.loads(cleaned)
     except json.JSONDecodeError:
         logger.warning("[VideoPipeline] JSON 파싱 실패 — 원문 요약으로 폴백")
         return {
             "transcript": cleaned,
             "segments": [],
             "chapters": [],
-            "summary_markdown": cleaned,
+            "summary_markdown": f"## 영상 요약\n\n{cleaned[:2000]}",
             "key_moments": [],
             "study_tips": [],
             "stuck_points": [],
         }
+
+    # summary_markdown 없거나 비어있으면 transcript로 구성
+    if not parsed.get("summary_markdown"):
+        transcript = parsed.get("transcript", "")
+        parsed["summary_markdown"] = f"## 영상 요약\n\n{transcript[:2000]}"
+
+    # summary_markdown이 JSON 문자열 전체인 경우 방어
+    summary = parsed.get("summary_markdown", "")
+    if summary.strip().startswith("{") or summary.strip().startswith('"transcript"'):
+        parsed["summary_markdown"] = f"## 영상 요약\n\n{parsed.get('transcript', '')[:2000]}"
+
+    return parsed
 
 
 def _fallback_video_analysis(original_text: str, core_points: list[dict]) -> dict[str, Any]:
@@ -288,7 +300,7 @@ segments의 start_minute/end_minute는
                     model="gemini-2.5-flash",
                     contents=[uploaded, prompt],
                     config=types.GenerateContentConfig(
-                        max_output_tokens=2600,
+                        max_output_tokens=4096,
                         temperature=0.15,
                     ),
                 ),
@@ -377,7 +389,7 @@ segments의 start_minute/end_minute는
                 model="gemini-2.5-flash",
                 contents=prompt,
                 config=types.GenerateContentConfig(
-                    max_output_tokens=2600,
+                    max_output_tokens=4096,
                     temperature=0.18,
                 ),
             ),
