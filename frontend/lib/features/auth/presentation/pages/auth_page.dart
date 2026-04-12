@@ -125,7 +125,7 @@ class _AuthPageState extends ConsumerState<AuthPage>
         role: role,
         diagnosis: diagnosis,
       );
-      ref.read(authNotifierProvider.notifier).setProfile(profile);
+      await ref.read(authNotifierProvider.notifier).setProfile(profile);
 
       if (!mounted) return;
       await _routeAfterAuth(profile);
@@ -181,7 +181,7 @@ class _AuthPageState extends ConsumerState<AuthPage>
         role: role,
         diagnosis: false,
       );
-      ref.read(authNotifierProvider.notifier).setProfile(profile);
+      await ref.read(authNotifierProvider.notifier).setProfile(profile);
 
       if (!mounted) return;
       await _routeAfterAuth(profile);

@@ -292,7 +292,8 @@ class AuthNotifier extends _$AuthNotifier {
   }
 
   // ── 외부에서 프로필 직접 설정 (auth_page 등) ──────────────────
-  void setProfile(UserProfile profile) {
+  Future<void> setProfile(UserProfile profile) async {
+    await _saveToPrefs(profile);
     state = profile;
   }
 
