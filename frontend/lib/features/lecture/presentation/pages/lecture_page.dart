@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 import 'package:video_player/video_player.dart';
@@ -24,6 +25,59 @@ String? extractYoutubeId(String url) {
     return uri.pathSegments.isNotEmpty ? uri.pathSegments.first : null;
   }
   return uri.queryParameters['v'];
+}
+
+String _normalizeDisplayText(String raw) {
+  final trimmed = raw.trim();
+  if (trimmed.isEmpty) return raw;
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return raw;
+
+  try {
+    final decoded = jsonDecode(trimmed);
+
+    if (decoded is Map<String, dynamic>) {
+      final transcript = decoded['transcript'];
+      if (transcript is String && transcript.trim().isNotEmpty) {
+        return transcript.trim();
+      }
+
+      final summary = decoded['summary'];
+      if (summary is String && summary.trim().isNotEmpty) {
+        return summary.trim();
+      }
+
+      final segments = decoded['segments'];
+      if (segments is List) {
+        final texts = segments
+            .whereType<Map>()
+            .map((segment) => segment['text'])
+            .whereType<String>()
+            .map((text) => text.trim())
+            .where((text) => text.isNotEmpty)
+            .toList();
+        if (texts.isNotEmpty) {
+          return texts.join('\n\n');
+        }
+      }
+    }
+
+    if (decoded is List) {
+      final texts = decoded
+          .whereType<Map>()
+          .map((segment) => segment['text'])
+          .whereType<String>()
+          .map((text) => text.trim())
+          .where((text) => text.isNotEmpty)
+          .toList();
+      if (texts.isNotEmpty) {
+        return texts.join('\n\n');
+      }
+    }
+  } catch (_) {
+    return raw;
+  }
+
+  return raw;
 }
 
 // ════════════════════════════════════════════════════════════
@@ -150,6 +204,9 @@ class _LecturePageState extends State<LecturePage> {
       'style': '예시 중심형',
     },
   ];
+
+  String get _roomNameText => widget.roomName ?? _kSubject;
+  String get _lectureTitleText => widget.lectureTitle ?? _kEpTitle;
 
   // ── initState ─────────────────────────────────────────────
   @override
@@ -382,10 +439,10 @@ class _LecturePageState extends State<LecturePage> {
             splashRadius: 20,
           ),
           const SizedBox(width: 4),
-          const Expanded(
+          Expanded(
             child: Text(
-              _kSubject,
-              style: TextStyle(
+              _lectureTitleText,
+              style: const TextStyle(
                 color: _C.text1,
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
@@ -436,6 +493,9 @@ class _LecturePageState extends State<LecturePage> {
 
   // ── 영상 하단 정보 바 (강의명 + 다음 강의 버튼) ────────────
   Widget _buildVideoInfoBar() {
+    final roomName = _roomNameText;
+    final lectureTitle = _lectureTitleText;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       color: _C.surface,
@@ -447,13 +507,13 @@ class _LecturePageState extends State<LecturePage> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  widget.roomName ?? _kSubject,
+                  roomName,
                   style: const TextStyle(color: _C.text2, fontSize: 12),
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  widget.lectureTitle ?? _kEpTitle,
+                  lectureTitle,
                   style: const TextStyle(
                     color: _C.text1,
                     fontSize: 15,
@@ -570,7 +630,7 @@ class _LecturePageState extends State<LecturePage> {
               ),
               const SizedBox(height: 6),
               Text(
-                _kEpTitle,
+                _lectureTitleText,
                 style: const TextStyle(
                   color: _C.text1,
                   fontSize: 16,
@@ -1327,7 +1387,7 @@ class _ChatBubble extends StatelessWidget {
               ),
             ),
             child: Text(
-              text,
+              _normalizeDisplayText(text),
               style: TextStyle(
                 color: isUser ? _C.lime : _C.text1,
                 fontSize: 13,
