@@ -40,6 +40,7 @@ class LectureViewPage extends ConsumerStatefulWidget {
 class _LectureViewPageState extends ConsumerState<LectureViewPage> {
   Map<String, String>? _styleContents;
   Map<String, dynamic>? _lectureMeta;
+  List<Map<String, dynamic>> _lectureList = [];
   Map<String, dynamic>? _profileSummary;
   String? _primaryStyle;
   String? _subjectLevel;
@@ -77,17 +78,23 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
     try {
       final results = await Future.wait([
         ApiService().getLecture(widget.roomId, widget.lectureId),
+        ApiService().getRoomLectures(widget.roomId),
         ApiService().getReforgedLecture(
           roomId: widget.roomId,
           lectureId: widget.lectureId,
           userId: widget.userId,
         ),
       ]);
-      final lecture = results[0];
-      final data = results[1];
+      final lecture = Map<String, dynamic>.from(results[0] as Map);
+      final lectures = (results[1] as List<dynamic>)
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+      final data = Map<String, dynamic>.from(results[2] as Map);
       final rawStyles = data['styles'] as Map<String, dynamic>? ?? {};
       setState(() {
         _lectureMeta = lecture;
+        _lectureList = lectures;
         _styleContents = rawStyles.map((k, v) => MapEntry(k, v as String));
         _profileSummary = data['profile'] as Map<String, dynamic>?;
         _primaryStyle = data['primary_style'] as String? ?? '읽기형';
@@ -259,6 +266,30 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
     }
   }
 
+  void _goNextLecture() {
+    if (_lectureList.isEmpty) return;
+    final currentIndex =
+        _lectureList.indexWhere((lecture) => lecture['id'] == widget.lectureId);
+    if (currentIndex == -1 || currentIndex >= _lectureList.length - 1) return;
+
+    final nextLecture = _lectureList[currentIndex + 1];
+    final nextLectureId = nextLecture['id']?.toString();
+    if (nextLectureId == null || nextLectureId.isEmpty) return;
+
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => LectureViewPage(
+          roomId: widget.roomId,
+          lectureId: nextLectureId,
+          userId: widget.userId,
+          title: nextLecture['title']?.toString().trim().isNotEmpty == true
+              ? nextLecture['title'].toString()
+              : '다음 강의',
+        ),
+      ),
+    );
+  }
+
   Widget _buildContent() {
     final activeStyle = _primaryStyle ?? '읽기형';
     final content = _styleContents?[activeStyle] ??
@@ -288,6 +319,9 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
                 activeStyle: activeStyle,
                 profile: _profileSummary,
                 subjectLevel: _subjectLevel,
+                lectureList: _lectureList,
+                currentLectureId: widget.lectureId,
+                onNextLecture: _goNextLecture,
                 onDownloadOriginal: _downloadOriginal,
                 startController: _segmentStartCtrl,
                 endController: _segmentEndCtrl,
@@ -312,6 +346,9 @@ class _LearningExperienceShell extends StatelessWidget {
   final String activeStyle;
   final Map<String, dynamic>? profile;
   final String? subjectLevel;
+  final List<Map<String, dynamic>> lectureList;
+  final String currentLectureId;
+  final VoidCallback onNextLecture;
   final VoidCallback onDownloadOriginal;
   final TextEditingController startController;
   final TextEditingController endController;
@@ -328,6 +365,9 @@ class _LearningExperienceShell extends StatelessWidget {
     required this.activeStyle,
     required this.profile,
     required this.subjectLevel,
+    required this.lectureList,
+    required this.currentLectureId,
+    required this.onNextLecture,
     required this.onDownloadOriginal,
     required this.startController,
     required this.endController,
@@ -355,6 +395,14 @@ class _LearningExperienceShell extends StatelessWidget {
         videoType == 'transcript' ||
         (lecture?['video_summary'] as String? ?? '').trim().isNotEmpty ||
         (lecture?['video_transcript'] as String? ?? '').trim().isNotEmpty;
+    final currentLectureIndex =
+        lectureList.indexWhere((item) => item['id'] == currentLectureId);
+    final showNextLecture =
+        currentLectureIndex != -1 && currentLectureIndex < lectureList.length - 1;
+    final resolvedRoomName = lecture?['room_name']?.toString() ??
+        lecture?['room_title']?.toString() ??
+        lecture?['course_title']?.toString() ??
+        '강의실';
 
     // 모바일 (세로 스택) 레이아웃
     if (!useSplit) {
@@ -362,10 +410,15 @@ class _LearningExperienceShell extends StatelessWidget {
         children: [
           if (hasVideoStage) ...[
             _VideoStage(
-                videoUrl: videoUrl,
-                videoType: videoType,
-                videoStatus: videoStatus,
-                title: title),
+              videoUrl: videoUrl,
+              videoType: videoType,
+              videoStatus: videoStatus,
+              title: title,
+              roomName: resolvedRoomName,
+              lectureTitle: title,
+              showNextLecture: showNextLecture,
+              onNextLecture: onNextLecture,
+            ),
             const SizedBox(height: 16),
           ] else ...[
             _NotionDocument(style: activeStyle, title: title, content: content),
@@ -411,12 +464,16 @@ class _LearningExperienceShell extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (hasVideoStage)
+                if (hasVideoStage)
                     _VideoStage(
                       videoUrl: videoUrl,
                       videoType: videoType,
                       videoStatus: videoStatus,
                       title: title,
+                      roomName: resolvedRoomName,
+                      lectureTitle: title,
+                      showNextLecture: showNextLecture,
+                      onNextLecture: onNextLecture,
                     )
                   else
                     _NotionDocument(
@@ -776,6 +833,11 @@ String _normalizeVideoSummary(String raw) {
   var text = raw.trim();
   if (text.isEmpty) return '';
 
+  final directRecovered = _recoverVideoSummaryFromJsonText(text);
+  if (directRecovered.isNotEmpty) {
+    return directRecovered;
+  }
+
   if (text.startsWith('```')) {
     text = text
         .replaceFirst(RegExp(r'^```(?:json|markdown|md|text)?\s*'), '')
@@ -847,10 +909,15 @@ String _normalizeVideoSummary(String raw) {
 
 String _recoverVideoSummaryFromJsonText(String text) {
   final buffer = StringBuffer('## 영상 요약\n');
+  final normalized = text
+      .replaceAll('\r\n', '\n')
+      .replaceAll('\r', '\n')
+      .replaceAll(RegExp(r'^[^{\[]+'), '')
+      .trim();
   final transcriptMatch = RegExp(
     r'"transcript"\s*:\s*"((?:\\.|[^"\\])*)"',
     dotAll: true,
-  ).firstMatch(text);
+  ).firstMatch(normalized);
   final transcript = transcriptMatch == null
       ? ''
       : _unescapeJsonText(transcriptMatch.group(1) ?? '').trim();
@@ -860,7 +927,7 @@ String _recoverVideoSummaryFromJsonText(String text) {
 
   final segmentMatches = RegExp(
     r'"start_minute"\s*:\s*([0-9]+)\s*,\s*"end_minute"\s*:\s*([0-9]+)[\s\S]*?"text"\s*:\s*"((?:\\.|[^"\\])*)"',
-  ).allMatches(text);
+  ).allMatches(normalized);
   final segmentLines = <String>[];
   for (final match in segmentMatches.take(8)) {
     final body = _unescapeJsonText(match.group(3) ?? '').trim();
@@ -1935,6 +2002,10 @@ class _VideoStage extends StatelessWidget {
   final String videoType;
   final String videoStatus;
   final String title;
+  final String roomName;
+  final String lectureTitle;
+  final bool showNextLecture;
+  final VoidCallback? onNextLecture;
 
   static final Set<String> _registeredViewTypes = {};
 
@@ -1943,6 +2014,10 @@ class _VideoStage extends StatelessWidget {
     required this.videoType,
     required this.videoStatus,
     required this.title,
+    required this.roomName,
+    required this.lectureTitle,
+    required this.showNextLecture,
+    this.onNextLecture,
   });
 
   @override
@@ -2014,15 +2089,72 @@ class _VideoStage extends StatelessWidget {
               color: Color(0xFF0A0A0F),
               borderRadius: BorderRadius.vertical(bottom: Radius.circular(22)),
             ),
-            child: Text(
-              '영상 강의 · $title',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
-              ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        roomName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        lectureTitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (showNextLecture && onNextLecture != null) ...[
+                  const SizedBox(width: 16),
+                  GestureDetector(
+                    onTap: onNextLecture,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryLight,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '다음 강의',
+                            style: TextStyle(
+                              color: Color(0xFF243200),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          SizedBox(width: 4),
+                          Icon(
+                            Icons.arrow_forward_rounded,
+                            color: Color(0xFF243200),
+                            size: 16,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
         ],
