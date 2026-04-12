@@ -10,16 +10,16 @@ import '../../../../shared/widgets/fitlearn_logo.dart';
 
 // ── 컬러 ─────────────────────────────────────────────────────────
 class _C {
-  static const bg       = Color(0xFF0E0E11);
-  static const surface  = Color(0xFF13131A);
+  static const bg = Color(0xFF0E0E11);
+  static const surface = Color(0xFF13131A);
   static const surface2 = Color(0xFF1A1A24);
-  static const border   = Color(0xFF1E1E2A);
-  static const lime     = Color(0xFFC8F135);
+  static const border = Color(0xFF1E1E2A);
+  static const lime = Color(0xFFC8F135);
   static const limeDark = Color(0xFF1A2400);
   static const lavender = Color(0xFFA78BFA);
-  static const coral    = Color(0xFFFB7185);
-  static const textPri  = Color(0xFFF0F0F4);
-  static const textSec  = Color(0xFF8888A0);
+  static const coral = Color(0xFFFB7185);
+  static const textPri = Color(0xFFF0F0F4);
+  static const textSec = Color(0xFF8888A0);
   static const textMute = Color(0xFF4A4A5A);
 }
 
@@ -53,7 +53,11 @@ class _AuthPageState extends ConsumerState<AuthPage>
   }
 
   void _setError(String msg) {
-    if (mounted) setState(() { _loading = false; _error = msg; });
+    if (mounted)
+      setState(() {
+        _loading = false;
+        _error = msg;
+      });
   }
 
   Future<void> _routeAfterAuth(UserProfile profile) async {
@@ -95,7 +99,10 @@ class _AuthPageState extends ConsumerState<AuthPage>
 
   // ── 로그인 ─────────────────────────────────────────────────────
   Future<void> _signIn(String email, String password) async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: email.trim(),
@@ -104,9 +111,11 @@ class _AuthPageState extends ConsumerState<AuthPage>
       final uid = cred.user!.uid;
 
       // Firestore에서 역할 + diagnosis 읽기
-      final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final doc =
+          await FirebaseFirestore.instance.collection('users').doc(uid).get();
       final data = doc.data() ?? {};
-      final role = data['role'] == 'professor' ? UserRole.professor : UserRole.student;
+      final role =
+          data['role'] == 'professor' ? UserRole.professor : UserRole.student;
       final diagnosis = data['diagnosis'] as bool? ?? false;
 
       final profile = UserProfile(
@@ -116,7 +125,7 @@ class _AuthPageState extends ConsumerState<AuthPage>
         role: role,
         diagnosis: diagnosis,
       );
-      ref.read(authNotifierProvider.notifier).setProfile(profile);
+      await ref.read(authNotifierProvider.notifier).setProfile(profile);
 
       if (!mounted) return;
       await _routeAfterAuth(profile);
@@ -128,8 +137,12 @@ class _AuthPageState extends ConsumerState<AuthPage>
   }
 
   // ── 회원가입 ───────────────────────────────────────────────────
-  Future<void> _signUp(String name, String email, String password, UserRole role) async {
-    setState(() { _loading = true; _error = null; });
+  Future<void> _signUp(
+      String name, String email, String password, UserRole role) async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: email.trim(),
@@ -168,7 +181,7 @@ class _AuthPageState extends ConsumerState<AuthPage>
         role: role,
         diagnosis: false,
       );
-      ref.read(authNotifierProvider.notifier).setProfile(profile);
+      await ref.read(authNotifierProvider.notifier).setProfile(profile);
 
       if (!mounted) return;
       await _routeAfterAuth(profile);
@@ -201,8 +214,6 @@ class _AuthPageState extends ConsumerState<AuthPage>
                   child: Column(children: [
                     // 로고
                     Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      const FitLearnLogo(iconOnly: true, height: 40),
-                      const SizedBox(width: 10),
                       const FitLearnLogo(height: 34),
                     ]),
                     const SizedBox(height: 8),
@@ -245,12 +256,12 @@ class _AuthPageState extends ConsumerState<AuthPage>
                       decoration: BoxDecoration(
                         color: _C.coral.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                            color: _C.coral.withValues(alpha: 0.3)),
+                        border:
+                            Border.all(color: _C.coral.withValues(alpha: 0.3)),
                       ),
                       child: Text(_error!,
-                          style: const TextStyle(
-                              color: _C.coral, fontSize: 13)),
+                          style:
+                              const TextStyle(color: _C.coral, fontSize: 13)),
                     ),
                   ),
                 // 탭 콘텐츠
@@ -314,8 +325,12 @@ class _SignInFormState extends State<_SignInForm> {
           icon: Icons.lock_outline_rounded,
           obscure: _obscure,
           trailing: IconButton(
-            icon: Icon(_obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                color: _C.textMute, size: 18),
+            icon: Icon(
+                _obscure
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined,
+                color: _C.textMute,
+                size: 18),
             onPressed: () => setState(() => _obscure = !_obscure),
           ),
         ),
@@ -335,12 +350,13 @@ class _SignInFormState extends State<_SignInForm> {
             ),
             child: widget.loading
                 ? const SizedBox(
-                    width: 20, height: 20,
+                    width: 20,
+                    height: 20,
                     child: CircularProgressIndicator(
                         strokeWidth: 2, color: _C.limeDark))
                 : const Text('로그인',
-                    style: TextStyle(
-                        fontSize: 15, fontWeight: FontWeight.w700)),
+                    style:
+                        TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
           ),
         ),
       ]),
@@ -351,7 +367,8 @@ class _SignInFormState extends State<_SignInForm> {
 // ── 회원가입 폼 ───────────────────────────────────────────────────
 class _SignUpForm extends StatefulWidget {
   final bool loading;
-  final void Function(String name, String email, String password, UserRole role) onSubmit;
+  final void Function(String name, String email, String password, UserRole role)
+      onSubmit;
 
   const _SignUpForm({required this.loading, required this.onSubmit});
 
@@ -389,8 +406,12 @@ class _SignUpFormState extends State<_SignUpForm> {
           icon: Icons.lock_outline_rounded,
           obscure: _obscure,
           trailing: IconButton(
-            icon: Icon(_obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                color: _C.textMute, size: 18),
+            icon: Icon(
+                _obscure
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined,
+                color: _C.textMute,
+                size: 18),
             onPressed: () => setState(() => _obscure = !_obscure),
           ),
         ),
@@ -421,7 +442,8 @@ class _SignUpFormState extends State<_SignUpForm> {
           child: ElevatedButton(
             onPressed: widget.loading
                 ? null
-                : () => widget.onSubmit(_name.text, _email.text, _pw.text, _role),
+                : () =>
+                    widget.onSubmit(_name.text, _email.text, _pw.text, _role),
             style: ElevatedButton.styleFrom(
               backgroundColor: _C.lime,
               foregroundColor: _C.limeDark,
@@ -430,12 +452,13 @@ class _SignUpFormState extends State<_SignUpForm> {
             ),
             child: widget.loading
                 ? const SizedBox(
-                    width: 20, height: 20,
+                    width: 20,
+                    height: 20,
                     child: CircularProgressIndicator(
                         strokeWidth: 2, color: _C.limeDark))
                 : const Text('가입하기',
-                    style: TextStyle(
-                        fontSize: 15, fontWeight: FontWeight.w700)),
+                    style:
+                        TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
           ),
         ),
       ]),
@@ -466,12 +489,10 @@ class _RoleChip extends StatelessWidget {
         decoration: BoxDecoration(
           color: selected ? _C.limeDark : _C.surface2,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-              color: selected ? _C.lime : _C.border),
+          border: Border.all(color: selected ? _C.lime : _C.border),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon,
-              size: 16, color: selected ? _C.lime : _C.textSec),
+          Icon(icon, size: 16, color: selected ? _C.lime : _C.textSec),
           const SizedBox(width: 6),
           Text(label,
               style: TextStyle(

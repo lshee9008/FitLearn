@@ -70,8 +70,10 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
       _loading = true;
       _error = null;
     });
-    debugPrint('[API] lecture URL: /api/v1/lectures/${widget.roomId}/${widget.lectureId}');
-    debugPrint('[API] reforged URL: /api/v1/lectures/${widget.roomId}/${widget.lectureId}/reforged?user_id=${widget.userId}');
+    debugPrint(
+        '[API] lecture URL: /api/v1/lectures/${widget.roomId}/${widget.lectureId}');
+    debugPrint(
+        '[API] reforged URL: /api/v1/lectures/${widget.roomId}/${widget.lectureId}/reforged?user_id=${widget.userId}');
     try {
       final results = await Future.wait([
         ApiService().getLecture(widget.roomId, widget.lectureId),
@@ -1302,7 +1304,7 @@ class _ChatMessage extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,   // 핵심: 가운데 정렬
+        mainAxisAlignment: MainAxisAlignment.center, // 핵심: 가운데 정렬
         children: [
           Flexible(
             child: Container(

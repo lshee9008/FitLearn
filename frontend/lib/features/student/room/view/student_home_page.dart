@@ -9,21 +9,21 @@ import '../../../../shared/widgets/fitlearn_logo.dart';
 import 'subject_quiz_page.dart';
 
 class _C {
-  static const bg        = Color(0xFF0E0E11);
-  static const surface   = Color(0xFF13131A);
-  static const surface2  = Color(0xFF1A1A24);
-  static const border    = Color(0xFF1E1E2A);
-  static const lime      = Color(0xFFC8F135);
-  static const limeDark  = Color(0xFF1A2400);
-  static const mint      = Color(0xFF34D399);
-  static const coral     = Color(0xFFFB7185);
+  static const bg = Color(0xFF0E0E11);
+  static const surface = Color(0xFF13131A);
+  static const surface2 = Color(0xFF1A1A24);
+  static const border = Color(0xFF1E1E2A);
+  static const lime = Color(0xFFC8F135);
+  static const limeDark = Color(0xFF1A2400);
+  static const mint = Color(0xFF34D399);
+  static const coral = Color(0xFFFB7185);
   static const coralDark = Color(0xFF3D0A14);
-  static const amber     = Color(0xFFFBBF24);
-  static const lavender  = Color(0xFFA78BFA);
-  static const lavMid    = Color(0xFF1E1830);
-  static const textPri   = Color(0xFFF0F0F4);
-  static const textSec   = Color(0xFF8888A0);
-  static const textMute  = Color(0xFF4A4A5A);
+  static const amber = Color(0xFFFBBF24);
+  static const lavender = Color(0xFFA78BFA);
+  static const lavMid = Color(0xFF1E1830);
+  static const textPri = Color(0xFFF0F0F4);
+  static const textSec = Color(0xFF8888A0);
+  static const textMute = Color(0xFF4A4A5A);
 }
 
 class StudentHomePage extends ConsumerStatefulWidget {
@@ -35,11 +35,29 @@ class StudentHomePage extends ConsumerStatefulWidget {
 
 class _StudentHomePageState extends ConsumerState<StudentHomePage> {
   String _searchQuery = '';
+  bool _refreshingHub = false;
+  DateTime? _lastHubRefreshAt;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final profile = ref.read(authNotifierProvider);
+      if (profile != null) _refreshHub(profile.userId);
+    });
     Future.delayed(const Duration(milliseconds: 600), _checkDiagnosis);
+  }
+
+  void _refreshHubSoon(String? userId) {
+    if (userId == null || userId.isEmpty) return;
+    final now = DateTime.now();
+    if (_lastHubRefreshAt != null &&
+        now.difference(_lastHubRefreshAt!) < const Duration(seconds: 2)) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _refreshHub(userId);
+    });
   }
 
   Future<void> _checkDiagnosis() async {
@@ -71,70 +89,71 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
       builder: (_) => Dialog(
         backgroundColor: _C.surface,
         insetPadding: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: SizedBox(
           width: 320,
           child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(
-              width: 44, height: 44,
-              decoration: BoxDecoration(
-                color: _C.lavMid,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(Icons.psychology_rounded,
-                  color: Color(0xFFA78BFA), size: 22),
-            ),
-            const SizedBox(height: 12),
-            const Text('학습 유형 진단',
-                style: TextStyle(
-                    color: _C.textPri,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800)),
-            const SizedBox(height: 6),
-            const Text(
-              'AI가 맞는 학습 방식을 진단하고\n교안을 맞춤형으로 재가공합니다.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: _C.textSec, fontSize: 12, height: 1.5),
-            ),
-            const SizedBox(height: 18),
-            Row(children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _C.textSec,
-                    side: const BorderSide(color: _C.border),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                  ),
-                  child: const Text('나중에', style: TextStyle(fontSize: 13)),
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: _C.lavMid,
+                  borderRadius: BorderRadius.circular(12),
                 ),
+                child: const Icon(Icons.psychology_rounded,
+                    color: Color(0xFFA78BFA), size: 22),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    _goToDiagnosis();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFA78BFA),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
+              const SizedBox(height: 12),
+              const Text('학습 유형 진단',
+                  style: TextStyle(
+                      color: _C.textPri,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800)),
+              const SizedBox(height: 6),
+              const Text(
+                'AI가 맞는 학습 방식을 진단하고\n교안을 맞춤형으로 재가공합니다.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: _C.textSec, fontSize: 12, height: 1.5),
+              ),
+              const SizedBox(height: 18),
+              Row(children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _C.textSec,
+                      side: const BorderSide(color: _C.border),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                    child: const Text('나중에', style: TextStyle(fontSize: 13)),
                   ),
-                  child: const Text('지금 진단하기',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
                 ),
-              ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      _goToDiagnosis();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFA78BFA),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                    child: const Text('지금 진단하기',
+                        style: TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ]),
             ]),
-          ]),
-        ),
+          ),
         ),
       ),
     );
@@ -148,8 +167,21 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
   void _goToDiagnosis() => context.push('/student/diagnosis');
 
   void _refreshHub(String userId) {
+    if (_refreshingHub) return;
+    _refreshingHub = true;
+    _lastHubRefreshAt = DateTime.now();
     ref.invalidate(studentServiceHubProvider(userId));
     ref.invalidate(studentHomeSummaryProvider(userId));
+    ref.invalidate(currentStudentServiceHubProvider);
+    ref.invalidate(currentStudentHomeSummaryProvider);
+    Future<void>(() async {
+      try {
+        await ref.read(currentStudentServiceHubProvider.future);
+      } catch (_) {
+      } finally {
+        _refreshingHub = false;
+      }
+    });
   }
 
   Future<void> _joinByCode(String userId) async {
@@ -217,7 +249,9 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                room['synopsis'] as String? ?? room['description'] as String? ?? '',
+                room['synopsis'] as String? ??
+                    room['description'] as String? ??
+                    '',
                 style: const TextStyle(color: _C.textSec, height: 1.5),
               ),
               const SizedBox(height: 14),
@@ -280,7 +314,8 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
     try {
       final quiz = await ApiService().getRoomQuiz(roomId);
       final questions = quiz['questions'] as List<dynamic>? ?? [];
-      final needsQuiz = questions.isNotEmpty && (subjectLevel == null || subjectLevel.isEmpty);
+      final needsQuiz = questions.isNotEmpty &&
+          (subjectLevel == null || subjectLevel.isEmpty);
 
       if (needsQuiz && mounted) {
         final completed = await showDialog<bool>(
@@ -355,13 +390,15 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
     );
     if (selected == null) return;
 
-    await _goToLecture(selected, userId, roomId: roomId, subjectLevel: subjectLevel);
+    await _goToLecture(selected, userId,
+        roomId: roomId, subjectLevel: subjectLevel);
   }
 
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authNotifierProvider);
     final hubAsync = ref.watch(currentStudentServiceHubProvider);
+    _refreshHubSoon(user?.userId);
 
     return Scaffold(
       backgroundColor: _C.bg,
@@ -384,7 +421,8 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
     );
   }
 
-  Widget _buildMain(UserProfile? user, AsyncValue<StudentServiceHub?> hubAsync) {
+  Widget _buildMain(
+      UserProfile? user, AsyncValue<StudentServiceHub?> hubAsync) {
     final hub = hubAsync.valueOrNull;
     final activeRoom = hub?.activeRoom;
     final enrolledRooms = hub?.enrolledRooms ?? const <dynamic>[];
@@ -399,11 +437,12 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-	                _TopBar(
-	                  user: user,
-	                  onSearchChanged: (value) => setState(() => _searchQuery = value),
-	                  onJoinByCode: null,
-	                ),
+                _TopBar(
+                  user: user,
+                  onSearchChanged: (value) =>
+                      setState(() => _searchQuery = value),
+                  onJoinByCode: null,
+                ),
                 const SizedBox(height: 20),
                 _WelcomeBanner(
                   name: user?.name ?? '',
@@ -412,18 +451,20 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
                 const SizedBox(height: 24),
                 _SectionTitle(
                   title: '내 강의실',
-                  sub: enrolledRooms.isEmpty ? '수강 중인 강의가 없습니다' : '${enrolledRooms.length}개 수강 중',
+                  sub: enrolledRooms.isEmpty
+                      ? '수강 중인 강의가 없습니다'
+                      : '${enrolledRooms.length}개 수강 중',
                 ),
                 const SizedBox(height: 12),
                 if (hubAsync.isLoading)
                   const _LoadingPanel()
                 else if (enrolledRooms.isEmpty)
-	                  _EmptyStateCard(
-	                    title: '아직 수강 중인 강의실이 없습니다',
-	                    description: '첫 화면에서 원하는 강의를 결제하면 이곳에 학습 공간이 열립니다.',
-	                    actionLabel: '강의 둘러보기',
-	                    onAction: () => context.go('/'),
-	                  )
+                  _EmptyStateCard(
+                    title: '아직 수강 중인 강의실이 없습니다',
+                    description: '첫 화면에서 원하는 강의를 결제하면 이곳에 학습 공간이 열립니다.',
+                    actionLabel: '강의 둘러보기',
+                    onAction: () => context.go('/'),
+                  )
                 else
                   SizedBox(
                     height: 228,
@@ -432,16 +473,19 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
                       itemCount: enrolledRooms.length,
                       separatorBuilder: (_, __) => const SizedBox(width: 14),
                       itemBuilder: (_, index) {
-                        final room = enrolledRooms[index] as Map<String, dynamic>;
+                        final room =
+                            enrolledRooms[index] as Map<String, dynamic>;
                         return _EnrolledRoomCard(
                           room: room,
-                          highlighted: activeRoom?['room_id'] == room['room_id'],
+                          highlighted:
+                              activeRoom?['room_id'] == room['room_id'],
                           onEnter: user == null
                               ? null
                               : () => _enterRoom(
                                     room,
                                     user.userId,
-                                    subjectLevel: room['subject_level'] as String?,
+                                    subjectLevel:
+                                        room['subject_level'] as String?,
                                   ),
                         );
                       },
@@ -480,7 +524,9 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
                   const SizedBox(height: 24),
                   _SectionTitle(
                     title: '강의실 공지',
-                    sub: activeRoomNotices.isEmpty ? '새 공지 없음' : '${activeRoomNotices.length}개',
+                    sub: activeRoomNotices.isEmpty
+                        ? '새 공지 없음'
+                        : '${activeRoomNotices.length}개',
                   ),
                   const SizedBox(height: 12),
                   if (activeRoomNotices.isEmpty)
@@ -523,8 +569,10 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
                                       : () => _goToLecture(
                                             lecture,
                                             user.userId,
-                                            roomId: activeRoom['room_id'] as String,
-                                            subjectLevel: hub?.activeSubjectLevel,
+                                            roomId:
+                                                activeRoom['room_id'] as String,
+                                            subjectLevel:
+                                                hub?.activeSubjectLevel,
                                           ),
                                 ),
                               ))
@@ -612,13 +660,17 @@ class _SidebarState extends State<_Sidebar> {
                     if (index == 2) widget.onDiagnosis();
                   },
                   child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    margin:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 12),
                     decoration: BoxDecoration(
                       color: active ? _C.limeDark : Colors.transparent,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: active ? _C.lime.withValues(alpha: 0.2) : Colors.transparent,
+                        color: active
+                            ? _C.lime.withValues(alpha: 0.2)
+                            : Colors.transparent,
                       ),
                     ),
                     child: Row(
@@ -634,7 +686,8 @@ class _SidebarState extends State<_Sidebar> {
                           style: TextStyle(
                             color: active ? _C.lime : _C.textSec,
                             fontSize: 13,
-                            fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                            fontWeight:
+                                active ? FontWeight.w700 : FontWeight.w500,
                           ),
                         ),
                       ],
@@ -647,8 +700,10 @@ class _SidebarState extends State<_Sidebar> {
           const Divider(color: _C.border, height: 1),
           ListTile(
             onTap: widget.onLogout,
-            leading: const Icon(Icons.logout_rounded, color: _C.coral, size: 18),
-            title: const Text('로그아웃', style: TextStyle(color: _C.coral, fontSize: 13)),
+            leading:
+                const Icon(Icons.logout_rounded, color: _C.coral, size: 18),
+            title: const Text('로그아웃',
+                style: TextStyle(color: _C.coral, fontSize: 13)),
           ),
         ],
       ),
@@ -692,7 +747,7 @@ class _TopBar extends StatelessWidget {
             ),
           ),
         ),
-	        const SizedBox(width: 12),
+        const SizedBox(width: 12),
         Container(
           width: 40,
           height: 40,
@@ -704,7 +759,8 @@ class _TopBar extends StatelessWidget {
           child: Center(
             child: Text(
               (user?.name ?? '?').substring(0, 1),
-              style: const TextStyle(color: _C.textPri, fontWeight: FontWeight.w700),
+              style: const TextStyle(
+                  color: _C.textPri, fontWeight: FontWeight.w700),
             ),
           ),
         ),
@@ -762,14 +818,10 @@ class _WelcomeBanner extends StatelessWidget {
               ],
             ),
           ),
-          Container(
-            width: 78,
-            height: 78,
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: const Icon(Icons.school_rounded, color: _C.limeDark, size: 34),
+          FitLearnMarkBox(
+            size: 78,
+            backgroundColor: Colors.black.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(24),
           ),
         ],
       ),
@@ -797,7 +849,8 @@ class _MetricPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(label, style: const TextStyle(color: Color(0xFF314200), fontSize: 12)),
+          Text(label,
+              style: const TextStyle(color: Color(0xFF314200), fontSize: 12)),
           const SizedBox(width: 8),
           Text(
             value,
@@ -952,7 +1005,9 @@ class _LecturePickerDialog extends StatelessWidget {
                         color: watched ? _C.limeDark : _C.surface2,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: watched ? _C.lime.withValues(alpha: 0.5) : _C.border,
+                          color: watched
+                              ? _C.lime.withValues(alpha: 0.5)
+                              : _C.border,
                         ),
                       ),
                       child: Row(
@@ -1022,7 +1077,8 @@ class _EnrolledRoomCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final confirmedCount = room['confirmed_lecture_count'] as int? ?? 0;
     final completedCount = room['completed_lecture_count'] as int? ?? 0;
-    final progress = confirmedCount == 0 ? 0.0 : completedCount / confirmedCount;
+    final progress =
+        confirmedCount == 0 ? 0.0 : completedCount / confirmedCount;
     const accent = _C.lime;
 
     return Container(
@@ -1031,7 +1087,8 @@ class _EnrolledRoomCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: highlighted ? _C.surface2 : _C.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: highlighted ? accent.withValues(alpha: 0.4) : _C.border),
+        border: Border.all(
+            color: highlighted ? accent.withValues(alpha: 0.4) : _C.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1048,7 +1105,9 @@ class _EnrolledRoomCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            (room['synopsis'] as String? ?? room['description'] as String? ?? '강의 설명이 아직 등록되지 않았습니다.'),
+            (room['synopsis'] as String? ??
+                room['description'] as String? ??
+                '강의 설명이 아직 등록되지 않았습니다.'),
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(color: _C.textSec, height: 1.45),
@@ -1056,9 +1115,13 @@ class _EnrolledRoomCard extends StatelessWidget {
           const Spacer(),
           Row(
             children: [
-              _InfoText(icon: Icons.groups_2_outlined, text: '${room['student_count'] ?? 0}명'),
+              _InfoText(
+                  icon: Icons.groups_2_outlined,
+                  text: '${room['student_count'] ?? 0}명'),
               const SizedBox(width: 12),
-              _InfoText(icon: Icons.menu_book_rounded, text: '$completedCount / $confirmedCount'),
+              _InfoText(
+                  icon: Icons.menu_book_rounded,
+                  text: '$completedCount / $confirmedCount'),
             ],
           ),
           const SizedBox(height: 10),
@@ -1294,7 +1357,9 @@ class _DiscoverRoomCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            (room['synopsis'] as String? ?? room['description'] as String? ?? '강의 소개가 곧 등록됩니다.'),
+            (room['synopsis'] as String? ??
+                room['description'] as String? ??
+                '강의 소개가 곧 등록됩니다.'),
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(color: _C.textSec, height: 1.45),
@@ -1324,7 +1389,9 @@ class _DiscoverRoomCard extends StatelessWidget {
                 disabledBackgroundColor: _C.surface2,
                 disabledForegroundColor: _C.textMute,
               ),
-              icon: Icon(status == 'pending' ? Icons.hourglass_top_rounded : Icons.send_rounded),
+              icon: Icon(status == 'pending'
+                  ? Icons.hourglass_top_rounded
+                  : Icons.send_rounded),
               label: Text(
                 status == 'pending' ? '승인 대기 중' : '수강 신청',
                 style: const TextStyle(fontWeight: FontWeight.w800),
@@ -1440,7 +1507,8 @@ class _SubjectLevelBanner extends StatelessWidget {
           const SizedBox(width: 12),
           OutlinedButton.icon(
             onPressed: onAction,
-            icon: Icon(diagnosed ? Icons.refresh_rounded : Icons.play_arrow_rounded),
+            icon: Icon(
+                diagnosed ? Icons.refresh_rounded : Icons.play_arrow_rounded),
             label: Text(diagnosed ? '다시 진단' : '퀴즈 시작'),
           ),
         ],
@@ -1483,7 +1551,9 @@ class _LectureCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Icon(
-                confirmed ? Icons.menu_book_rounded : Icons.lock_outline_rounded,
+                confirmed
+                    ? Icons.menu_book_rounded
+                    : Icons.lock_outline_rounded,
                 color: confirmed ? _C.lime : _C.textMute,
               ),
             ),
@@ -1551,9 +1621,9 @@ class _RightPanelState extends State<_RightPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final enrolledRooms = widget.hub?.enrolledRooms
-            .cast<Map<String, dynamic>>() ??
-        const <Map<String, dynamic>>[];
+    final enrolledRooms =
+        widget.hub?.enrolledRooms.cast<Map<String, dynamic>>() ??
+            const <Map<String, dynamic>>[];
     final diagnosed = widget.user?.diagnosis == true;
     final doneCount = _todos.where((todo) => todo.$1).length;
     final totalCount = _todos.length;
@@ -1573,7 +1643,10 @@ class _RightPanelState extends State<_RightPanel> {
           ),
           const SizedBox(height: 16),
           const Text('수강 중인 강의',
-              style: TextStyle(color: _C.textPri, fontSize: 13, fontWeight: FontWeight.w700)),
+              style: TextStyle(
+                  color: _C.textPri,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700)),
           const SizedBox(height: 10),
           if (enrolledRooms.isEmpty)
             const _InlineHintCard(
@@ -1600,7 +1673,10 @@ class _RightPanelState extends State<_RightPanel> {
           const Divider(color: _C.border, height: 24),
           Row(children: [
             const Text('오늘 할 일',
-                style: TextStyle(color: _C.textPri, fontSize: 13, fontWeight: FontWeight.w700)),
+                style: TextStyle(
+                    color: _C.textPri,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700)),
             const Spacer(),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -1626,7 +1702,8 @@ class _RightPanelState extends State<_RightPanel> {
                 onTap: () => _toggle(i),
                 borderRadius: BorderRadius.circular(10),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                   decoration: BoxDecoration(
                     color: done ? _C.limeDark : _C.surface2,
                     borderRadius: BorderRadius.circular(10),
@@ -1636,7 +1713,9 @@ class _RightPanelState extends State<_RightPanel> {
                   ),
                   child: Row(children: [
                     Icon(
-                      done ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                      done
+                          ? Icons.check_circle_rounded
+                          : Icons.radio_button_unchecked_rounded,
                       color: done ? _C.lime : _C.textMute,
                       size: 16,
                     ),
@@ -1666,10 +1745,14 @@ class _RightPanelState extends State<_RightPanel> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('AI 학습 코치',
-                    style: TextStyle(color: _C.lime, fontSize: 11, fontWeight: FontWeight.w700)),
+                    style: TextStyle(
+                        color: _C.lime,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700)),
                 SizedBox(height: 6),
                 Text('오늘은 긴 요약보다 핵심 포인트 확인과 짧은 질문 정리가 학습 흐름을 유지하는 데 좋아요.',
-                    style: TextStyle(color: _C.textSec, fontSize: 11, height: 1.6)),
+                    style: TextStyle(
+                        color: _C.textSec, fontSize: 11, height: 1.6)),
               ],
             ),
           ),
@@ -1702,13 +1785,18 @@ class _AiDiagCard extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-          decoration: BoxDecoration(color: _C.lime, borderRadius: BorderRadius.circular(20)),
+          decoration: BoxDecoration(
+              color: _C.lime, borderRadius: BorderRadius.circular(20)),
           child: Text(diagnosed ? 'AI 분석 완료' : '진단 필요',
-              style: const TextStyle(color: _C.limeDark, fontSize: 10, fontWeight: FontWeight.w700)),
+              style: const TextStyle(
+                  color: _C.limeDark,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700)),
         ),
         const SizedBox(height: 8),
         Text(diagnosed ? '나의 학습 성향' : '학습 성향 진단',
-            style: TextStyle(color: _C.lavender, fontSize: 12, fontWeight: FontWeight.w700)),
+            style: TextStyle(
+                color: _C.lavender, fontSize: 12, fontWeight: FontWeight.w700)),
         const SizedBox(height: 8),
         if (diagnosed) ...[
           _row('상태', pill: '맞춤 교안 준비됨'),
@@ -1717,7 +1805,8 @@ class _AiDiagCard extends StatelessWidget {
         ],
         Container(
           padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: _C.bg, borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(
+              color: _C.bg, borderRadius: BorderRadius.circular(8)),
           child: const Text(
             '진단 결과는 교안 재해석, 영상 요약, 질문 답변의 설명 방식에 반영됩니다.',
             style: TextStyle(color: _C.textSec, fontSize: 11, height: 1.6),
@@ -1733,8 +1822,12 @@ class _AiDiagCard extends StatelessWidget {
               border: Border.all(color: _C.lavender.withValues(alpha: 0.4)),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Center(child: Text(diagnosed ? '진단 다시하기' : '진단하러 가기',
-                style: const TextStyle(color: _C.lavender, fontSize: 11, fontWeight: FontWeight.w600))),
+            child: Center(
+                child: Text(diagnosed ? '진단 다시하기' : '진단하러 가기',
+                    style: const TextStyle(
+                        color: _C.lavender,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600))),
           ),
         ),
       ]),
@@ -1745,12 +1838,20 @@ class _AiDiagCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Row(children: [
-        SizedBox(width: 44, child: Text(label, style: const TextStyle(color: _C.textSec, fontSize: 11))),
+        SizedBox(
+            width: 44,
+            child: Text(label,
+                style: const TextStyle(color: _C.textSec, fontSize: 11))),
         if (pill != null)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(color: _C.lavender, borderRadius: BorderRadius.circular(20)),
-            child: Text(pill, style: const TextStyle(color: _C.lavMid, fontSize: 10, fontWeight: FontWeight.w600)),
+            decoration: BoxDecoration(
+                color: _C.lavender, borderRadius: BorderRadius.circular(20)),
+            child: Text(pill,
+                style: const TextStyle(
+                    color: _C.lavMid,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600)),
           )
         else
           Expanded(
@@ -1759,7 +1860,8 @@ class _AiDiagCard extends StatelessWidget {
               maxLines: 2,
               softWrap: true,
               overflow: TextOverflow.visible,
-              style: const TextStyle(color: _C.textPri, fontSize: 12, fontWeight: FontWeight.w600),
+              style: const TextStyle(
+                  color: _C.textPri, fontSize: 12, fontWeight: FontWeight.w600),
             ),
           ),
       ]),
@@ -1775,8 +1877,12 @@ class _MyLectureRow extends StatelessWidget {
   final double progress;
   final Color color, colorBg;
   const _MyLectureRow({
-    required this.title, required this.sub, required this.label,
-    required this.progress, required this.color, required this.colorBg,
+    required this.title,
+    required this.sub,
+    required this.label,
+    required this.progress,
+    required this.color,
+    required this.colorBg,
   });
 
   @override
@@ -1790,44 +1896,49 @@ class _MyLectureRow extends StatelessWidget {
       ),
       child: Row(children: [
         Container(
-          width: 34, height: 34,
-          decoration: BoxDecoration(color: colorBg, borderRadius: BorderRadius.circular(8)),
-          child: Center(child: Text(label,
-              style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.w700))),
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+              color: colorBg, borderRadius: BorderRadius.circular(8)),
+          child: Center(
+              child: Text(label,
+                  style: TextStyle(
+                      color: color, fontSize: 9, fontWeight: FontWeight.w700))),
         ),
         const SizedBox(width: 10),
         Expanded(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start, 
+            crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min, // 추가: 내부 높이에 딱 맞게 설정
             children: [
               // ── 수정 포인트 02: 제목 maxLines 변경 ──────────────────
               Text(
-                title, 
+                title,
                 maxLines: 2, // 두 줄 허용
                 overflow: TextOverflow.ellipsis, // 세 줄부터 '...' 처리
                 style: const TextStyle(
-                  color: _C.textPri, 
+                  color: _C.textPri,
                   fontSize: 11, // 폰트 크기를 12 -> 11로 아주 살짝 줄이면 훨씬 안정적입니다
                   fontWeight: FontWeight.w600,
                   height: 1.2, // 줄 간격 추가
                 ),
               ),
               const SizedBox(height: 2),
-              
+
               // ── 수정 포인트 03: 서브텍스트 한 줄 유지 ────────────────
               Text(
-                sub, 
-                maxLines: 1, 
+                sub,
+                maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(color: _C.textSec, fontSize: 10),
               ),
-              
+
               const SizedBox(height: 5),
               ClipRRect(
                 borderRadius: BorderRadius.circular(2),
                 child: LinearProgressIndicator(
-                  value: progress, minHeight: 3,
+                  value: progress,
+                  minHeight: 3,
                   backgroundColor: _C.border,
                   valueColor: AlwaysStoppedAnimation(color),
                 ),
@@ -1893,7 +2004,9 @@ class _EmptyStateCard extends StatelessWidget {
         children: [
           Text(title,
               style: const TextStyle(
-                  color: _C.textPri, fontSize: 15, fontWeight: FontWeight.w700)),
+                  color: _C.textPri,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           Text(description,
               style: const TextStyle(color: _C.textSec, height: 1.5)),
@@ -1936,8 +2049,8 @@ class _InlineHintCard extends StatelessWidget {
                 color: _C.textSec, fontWeight: FontWeight.w600)),
         const SizedBox(height: 4),
         Text(body,
-            style: const TextStyle(
-                color: _C.textMute, fontSize: 12, height: 1.5)),
+            style:
+                const TextStyle(color: _C.textMute, fontSize: 12, height: 1.5)),
       ]),
     );
   }
@@ -1963,8 +2076,8 @@ class _TinyChip extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(
-            color: color, fontSize: 11, fontWeight: FontWeight.w700),
+        style:
+            TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -1984,8 +2097,7 @@ class _InfoText extends StatelessWidget {
     return Row(mainAxisSize: MainAxisSize.min, children: [
       Icon(icon, size: 13, color: _C.textMute),
       const SizedBox(width: 4),
-      Text(text,
-          style: const TextStyle(color: _C.textMute, fontSize: 12)),
+      Text(text, style: const TextStyle(color: _C.textMute, fontSize: 12)),
     ]);
   }
 }
