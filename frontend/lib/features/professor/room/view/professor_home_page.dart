@@ -52,17 +52,44 @@ class ProfessorHomePage extends ConsumerStatefulWidget {
 }
 
 class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
+  bool _refreshingRooms = false;
+  DateTime? _lastRoomRefreshAt;
   int _pageIndex = 0;
 
-  Future<void> _refreshRooms() async {
-    final user = ref.read(authNotifierProvider);
-    if (user != null) {
-      ref.invalidate(professorRoomsProvider(user.userId));
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _refreshRooms());
+    Future.delayed(const Duration(milliseconds: 450), () {
+      if (mounted) _refreshRooms();
+    });
+  }
+
+  void _refreshRoomsSoon() {
+    final now = DateTime.now();
+    if (_lastRoomRefreshAt != null &&
+        now.difference(_lastRoomRefreshAt!) < const Duration(seconds: 2)) {
+      return;
     }
-    ref.invalidate(currentProfessorRoomsProvider);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _refreshRooms();
+    });
+  }
+
+  Future<void> _refreshRooms() async {
+    if (_refreshingRooms) return;
+    final user = ref.read(authNotifierProvider);
+    if (user == null) return;
+    _refreshingRooms = true;
+    _lastRoomRefreshAt = DateTime.now();
     try {
+      ref.invalidate(professorRoomsProvider(user.userId));
+      ref.invalidate(currentProfessorRoomsProvider);
       await ref.read(currentProfessorRoomsProvider.future);
-    } catch (_) {}
+    } catch (_) {
+    } finally {
+      _refreshingRooms = false;
+    }
   }
 
   Future<void> _createRoom() async {
@@ -141,6 +168,7 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
   Widget build(BuildContext context) {
     final user = ref.watch(authNotifierProvider);
     final roomsAsync = ref.watch(currentProfessorRoomsProvider);
+    _refreshRoomsSoon();
     final rooms = roomsAsync.valueOrNull ?? const <dynamic>[];
     final totalStudents = rooms.fold<int>(
       0,
@@ -488,12 +516,10 @@ class _WelcomeBanner extends StatelessWidget {
             ],
           ),
         ),
-        Container(
-          width: 60,
-          height: 60,
-          decoration:
-              const BoxDecoration(color: _C.limeDeep, shape: BoxShape.circle),
-          child: const Icon(Icons.person, color: _C.bg, size: 30),
+        const FitLearnMarkBox(
+          size: 60,
+          backgroundColor: _C.limeDeep,
+          borderRadius: BorderRadius.all(Radius.circular(20)),
         ),
       ]),
     );
@@ -1039,12 +1065,10 @@ class _EmptyRooms extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Container(
-          width: 80,
-          height: 80,
-          decoration: BoxDecoration(color: _C.limeDark, shape: BoxShape.circle),
-          child:
-              const Icon(Icons.meeting_room_outlined, color: _C.lime, size: 36),
+        const FitLearnMarkBox(
+          size: 80,
+          backgroundColor: _C.limeDark,
+          borderRadius: BorderRadius.all(Radius.circular(28)),
         ),
         const SizedBox(height: 20),
         const Text('아직 강의 방이 없습니다',

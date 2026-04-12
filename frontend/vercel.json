@@ -1,5 +1,5 @@
 {
-  "buildCommand": "git clone https://github.com/flutter/flutter.git -b stable --depth 1 /opt/flutter && export PATH=$PATH:/opt/flutter/bin && flutter config --enable-web && flutter pub get && flutter build web --release",
+  "buildCommand": "git clone https://github.com/flutter/flutter.git -b stable --depth 1 /opt/flutter && export PATH=$PATH:/opt/flutter/bin && flutter config --enable-web && flutter pub get && flutter build web --release --pwa-strategy=none",
   "outputDirectory": "build/web",
   "framework": null
 }

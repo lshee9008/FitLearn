@@ -4,22 +4,23 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../features/auth/provider/auth_provider.dart';
 import '../../../../shared/services/api_service.dart';
+import '../../../../shared/widgets/fitlearn_logo.dart';
 
 // ── 컬러 ─────────────────────────────────────────────────────────
 class _C {
-  static const bg       = Color(0xFF0E0E11);
-  static const surface  = Color(0xFF13131A);
+  static const bg = Color(0xFF0E0E11);
+  static const surface = Color(0xFF13131A);
   static const surface2 = Color(0xFF1A1A24);
-  static const border   = Color(0xFF1E1E2A);
-  static const lime     = Color(0xFFC8F135);
+  static const border = Color(0xFF1E1E2A);
+  static const lime = Color(0xFFC8F135);
   static const limeDark = Color(0xFF1A2400);
   static const lavender = Color(0xFFA78BFA);
-  static const lavMid   = Color(0xFF1E1830);
-  static const coral    = Color(0xFFFB7185);
-  static const mint     = Color(0xFF34D399);
-  static const amber    = Color(0xFFFBBF24);
-  static const textPri  = Color(0xFFF0F0F4);
-  static const textSec  = Color(0xFF8888A0);
+  static const lavMid = Color(0xFF1E1830);
+  static const coral = Color(0xFFFB7185);
+  static const mint = Color(0xFF34D399);
+  static const amber = Color(0xFFFBBF24);
+  static const textPri = Color(0xFFF0F0F4);
+  static const textSec = Color(0xFF8888A0);
   static const textMute = Color(0xFF4A4A5A);
 }
 
@@ -115,8 +116,8 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('결제 오류: $e',
-                style: const TextStyle(color: _C.textPri)),
+            content:
+                Text('결제 오류: $e', style: const TextStyle(color: _C.textPri)),
             backgroundColor: _C.coral,
           ),
         );
@@ -144,7 +145,11 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
     final price = course['price'] as int? ?? 0;
     final loadError = (course['load_error'] as String?)?.isNotEmpty == true;
     final tags = ((course['tags'] as List?)?.cast<String>() ?? [])
-        .where((tag) => tag != 'online' && tag != 'offline' && tag != '온라인' && tag != '오프라인')
+        .where((tag) =>
+            tag != 'online' &&
+            tag != 'offline' &&
+            tag != '온라인' &&
+            tag != '오프라인')
         .toList();
     final curriculum = (course['curriculum'] as List?)?.cast<String>() ??
         ['모듈 1: 기초 개념', '모듈 2: 심화 학습', '모듈 3: 실습 프로젝트'];
@@ -176,9 +181,8 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
                           if (tags.isNotEmpty) ...[
                             Wrap(
                               spacing: 8,
-                              children: tags
-                                  .map((t) => _Tag(label: t))
-                                  .toList(),
+                              children:
+                                  tags.map((t) => _Tag(label: t)).toList(),
                             ),
                             const SizedBox(height: 16),
                           ],
@@ -202,9 +206,10 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
                           // 설명
                           _SectionTitle(title: '강의 소개'),
                           const SizedBox(height: 12),
-                          Text(description.isEmpty
-                              ? '이 강의는 학습자의 이해도를 높이기 위해 설계되었습니다. FitLearn AI가 여러분의 학습 유형에 맞게 교안을 재가공하여 최적의 학습 경험을 제공합니다.'
-                              : description,
+                          Text(
+                              description.isEmpty
+                                  ? '이 강의는 학습자의 이해도를 높이기 위해 설계되었습니다. FitLearn AI가 여러분의 학습 유형에 맞게 교안을 재가공하여 최적의 학습 경험을 제공합니다.'
+                                  : description,
                               style: const TextStyle(
                                   color: _C.textSec,
                                   fontSize: 14,
@@ -228,7 +233,9 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
           ),
           // ── 하단 고정 바 ────────────────────────────────────────
           Positioned(
-            left: 0, right: 0, bottom: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
             child: _BottomBar(
               price: price,
               enrolled: _enrolled,
@@ -256,15 +263,7 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
         GestureDetector(
           onTap: () => context.go('/'),
           child: Row(children: [
-            Container(
-              width: 28, height: 28,
-              decoration: BoxDecoration(
-                color: _C.lime,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.auto_awesome_mosaic_rounded,
-                  color: _C.limeDark, size: 16),
-            ),
+            const FitLearnMarkBox(size: 28),
             const SizedBox(width: 8),
             const Text('FitLearn',
                 style: TextStyle(
@@ -276,8 +275,8 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
         const Spacer(),
         TextButton.icon(
           onPressed: () => context.go('/'),
-          icon: const Icon(Icons.arrow_back_rounded,
-              color: _C.textSec, size: 16),
+          icon:
+              const Icon(Icons.arrow_back_rounded, color: _C.textSec, size: 16),
           label: const Text('목록으로',
               style: TextStyle(color: _C.textSec, fontSize: 13)),
         ),
@@ -295,8 +294,11 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
         borderRadius: BorderRadius.circular(20),
       ),
       child: Center(
-        child: Icon(_icons[idx.abs() % _icons.length],
-            color: Colors.white.withValues(alpha: 0.3), size: 80),
+        child: FitLearnMarkBox(
+          size: 96,
+          backgroundColor: Colors.black.withValues(alpha: 0.18),
+          borderRadius: BorderRadius.circular(30),
+        ),
       ),
     );
   }
@@ -318,12 +320,6 @@ final _gradients = [
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   ),
-];
-
-const _icons = [
-  Icons.code_rounded,
-  Icons.psychology_rounded,
-  Icons.brush_rounded,
 ];
 
 // ── 하단 고정 바 ─────────────────────────────────────────────────
@@ -387,7 +383,8 @@ class _BottomBar extends StatelessWidget {
                   ),
                   child: paying
                       ? const SizedBox(
-                          width: 20, height: 20,
+                          width: 20,
+                          height: 20,
                           child: CircularProgressIndicator(
                               strokeWidth: 2, color: _C.limeDark))
                       : const Text('결제하기',
@@ -408,8 +405,8 @@ class _BottomBar extends StatelessWidget {
                         borderRadius: BorderRadius.circular(12)),
                   ),
                   child: const Text('FitLearn으로 학습하기',
-                      style: TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.w700)),
+                      style:
+                          TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                 ),
               ),
             ],
@@ -439,9 +436,7 @@ class _SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(title,
         style: const TextStyle(
-            color: _C.textPri,
-            fontSize: 18,
-            fontWeight: FontWeight.w800));
+            color: _C.textPri, fontSize: 18, fontWeight: FontWeight.w800));
   }
 }
 
@@ -470,7 +465,8 @@ class _CurriculumList extends StatelessWidget {
             ),
             child: Row(children: [
               Container(
-                width: 28, height: 28,
+                width: 28,
+                height: 28,
                 decoration: BoxDecoration(
                   color: _C.surface2,
                   borderRadius: BorderRadius.circular(8),
@@ -485,8 +481,7 @@ class _CurriculumList extends StatelessWidget {
               ),
               const SizedBox(width: 14),
               Text(items[i],
-                  style: const TextStyle(
-                      color: _C.textSec, fontSize: 14)),
+                  style: const TextStyle(color: _C.textSec, fontSize: 14)),
             ]),
           );
         }),
@@ -510,8 +505,7 @@ class _FitLearnFeatureCard extends StatelessWidget {
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          const Icon(Icons.auto_awesome_rounded,
-              color: _C.lavender, size: 20),
+          const Icon(Icons.auto_awesome_rounded, color: _C.lavender, size: 20),
           const SizedBox(width: 8),
           const Text('FitLearn AI 맞춤 학습',
               style: TextStyle(
@@ -556,9 +550,7 @@ class _FeaturePill extends StatelessWidget {
         const SizedBox(width: 5),
         Text(label,
             style: const TextStyle(
-                color: _C.lavender,
-                fontSize: 12,
-                fontWeight: FontWeight.w600)),
+                color: _C.lavender, fontSize: 12, fontWeight: FontWeight.w600)),
       ]),
     );
   }
