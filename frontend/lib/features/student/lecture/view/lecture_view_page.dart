@@ -70,8 +70,10 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
       _loading = true;
       _error = null;
     });
-    debugPrint('[API] lecture URL: /api/v1/lectures/${widget.roomId}/${widget.lectureId}');
-    debugPrint('[API] reforged URL: /api/v1/lectures/${widget.roomId}/${widget.lectureId}/reforged?user_id=${widget.userId}');
+    debugPrint(
+        '[API] lecture URL: /api/v1/lectures/${widget.roomId}/${widget.lectureId}');
+    debugPrint(
+        '[API] reforged URL: /api/v1/lectures/${widget.roomId}/${widget.lectureId}/reforged?user_id=${widget.userId}');
     try {
       final results = await Future.wait([
         ApiService().getLecture(widget.roomId, widget.lectureId),
@@ -1183,7 +1185,7 @@ class _EmptyChatView extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           _PromptHint(
-            text: "0~5분 구간에서 GAN의 생성자와 판별자 관계를 쉽게 설명해줘",
+            text: "내 성향에 맞게 더 쉽게 설명해줘",
             onTap: onSelectPrompt,
           ),
           _PromptHint(
@@ -1302,7 +1304,7 @@ class _ChatMessage extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,   // 핵심: 가운데 정렬
+        mainAxisAlignment: MainAxisAlignment.center, // 핵심: 가운데 정렬
         children: [
           Flexible(
             child: Container(
