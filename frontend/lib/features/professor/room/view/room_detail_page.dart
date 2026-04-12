@@ -438,7 +438,9 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
       if (!isEditing || _lectureFile != null) {
         // 신규 생성 또는 파일 교체
         final user = ref.read(authNotifierProvider);
-        if (user == null) return;
+        if (user == null) {
+          throw Exception('로그인 정보를 확인하지 못했습니다. 다시 로그인 후 시도해주세요.');
+        }
 
         final data = await ApiService().uploadLecture(
           roomId:         widget.roomId,
@@ -456,9 +458,10 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
         );
 
         if (!mounted) return;
-        await context.push<bool>(
-          '/professor/lecture/${widget.roomId}/${data['lecture_id']}/review',
-          extra: data,
+        await _openCorePointReviewDialog(
+          roomId: widget.roomId,
+          lectureId: data['lecture_id'] as String? ?? '',
+          uploadData: data,
         );
         if (!mounted) return;
         setState(() { _uploadingLecture = false; _showLectureForm = false; });
