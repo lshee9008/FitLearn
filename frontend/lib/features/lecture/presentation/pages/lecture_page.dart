@@ -94,8 +94,19 @@ const _kMarkers = [
 // ════════════════════════════════════════════════════════════
 class LecturePage extends StatefulWidget {
   final String? videoUrl;
+  final String? roomName;
+  final String? lectureTitle;
+  final List<Map<String, dynamic>>? lectureList;
+  final String? currentLectureId;
 
-  const LecturePage({super.key, this.videoUrl});
+  const LecturePage({
+    super.key,
+    this.videoUrl,
+    this.roomName,
+    this.lectureTitle,
+    this.lectureList,
+    this.currentLectureId,
+  });
 
   @override
   State<LecturePage> createState() => _LecturePageState();
@@ -286,6 +297,34 @@ class _LecturePageState extends State<LecturePage> {
         '${(_totalSeconds % 60).toString().padLeft(2, '0')}';
   }
 
+  // ── 다음 강의 ─────────────────────────────────────────────
+  bool get _hasNextLecture {
+    final list = widget.lectureList;
+    if (list == null || list.isEmpty) return false;
+    final idx = list.indexWhere((l) => l['id'] == widget.currentLectureId);
+    return idx != -1 && idx < list.length - 1;
+  }
+
+  void _goNextLecture() {
+    final list = widget.lectureList;
+    if (list == null || list.isEmpty) return;
+    final idx = list.indexWhere((l) => l['id'] == widget.currentLectureId);
+    if (idx == -1 || idx >= list.length - 1) return;
+    final next = list[idx + 1];
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LecturePage(
+          videoUrl: next['video_url'] as String?,
+          roomName: widget.roomName,
+          lectureTitle: next['title'] as String?,
+          lectureList: list,
+          currentLectureId: next['id'] as String?,
+        ),
+      ),
+    );
+  }
+
   // ── 채팅 전송 ─────────────────────────────────────────────
   void _sendMessage() {
     final txt = _chatCtrl.text.trim();
@@ -387,10 +426,74 @@ class _LecturePageState extends State<LecturePage> {
   Widget _buildVideoArea() {
     return Column(
       children: [
-        Expanded(child: _buildVideoWidget()),   // ← 플레이스홀더 → 실제 위젯
+        Expanded(child: _buildVideoWidget()),
+        _buildVideoInfoBar(),
         _buildProgressBar(),
         _buildControlBar(),
       ],
+    );
+  }
+
+  // ── 영상 하단 정보 바 (강의명 + 다음 강의 버튼) ────────────
+  Widget _buildVideoInfoBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: _C.surface,
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  widget.roomName ?? _kSubject,
+                  style: const TextStyle(color: _C.text2, fontSize: 12),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  widget.lectureTitle ?? _kEpTitle,
+                  style: const TextStyle(
+                    color: _C.text1,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          if (_hasNextLecture) ...[
+            const SizedBox(width: 12),
+            GestureDetector(
+              onTap: _goNextLecture,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: _C.lime,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '다음 강의',
+                      style: TextStyle(
+                        color: _C.limeDark,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    SizedBox(width: 4),
+                    Icon(Icons.arrow_forward_rounded, color: _C.limeDark, size: 16),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
