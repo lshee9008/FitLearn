@@ -169,89 +169,91 @@ class _ProfessorHomePageState extends ConsumerState<ProfessorHomePage> {
             child: _pageIndex == 1
                 ? _ProfessorSettingsView(onLogout: _logout)
                 : RefreshIndicator(
-              onRefresh: _refreshRooms,
-              color: _C.lime,
-              backgroundColor: _C.surface,
-              child: CustomScrollView(
-                slivers: [
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(28, 24, 28, 0),
-                    sliver: SliverToBoxAdapter(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _TopBar(user: user, onLogout: _logout),
-                          const SizedBox(height: 20),
-                          _WelcomeBanner(
-                            name: user?.name ?? '',
-                            completionRate: avgCompletion,
-                            studentCount: totalStudents,
-                          ),
-                          const SizedBox(height: 20),
-                          _StatsRow(
-                            roomCount: rooms.length,
-                            studentCount: totalStudents,
-                            completionRate: avgCompletion,
-                          ),
-                          const SizedBox(height: 24),
-                          _SectionTitle(
-                            title: '내 강의 방',
-                            sub: '${rooms.length}개',
-                            trailing: _CreateRoomButton(onTap: _createRoom),
-                          ),
-                          const SizedBox(height: 12),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  // ── 로딩 ──────────────────────────────────────
-                  if (roomsAsync.isLoading)
-                    const SliverFillRemaining(
-                      child: Center(
-                        child: CircularProgressIndicator(
-                          color: _C.lime,
-                          strokeWidth: 2,
-                        ),
-                      ),
-                    )
-
-                  // ── 빈 상태 ───────────────────────────────────
-                  else if (roomsAsync.hasError)
-                    const SliverFillRemaining(
-                      child: Center(
-                        child: Text(
-                          '강의실 목록을 불러오지 못했습니다',
-                          style: TextStyle(color: _C.textSec, fontSize: 14),
-                        ),
-                      ),
-                    )
-                  else if (rooms.isEmpty)
-                    SliverFillRemaining(
-                      child: _EmptyRooms(onCreateRoom: _createRoom),
-                    )
-
-                  // ── 방 목록 ───────────────────────────────────
-                  else
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(28, 0, 28, 40),
-                      sliver: SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (_, i) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: _RoomCard(
-                              room: rooms[i] as Map<String, dynamic>,
-                              onDelete: () =>
-                                  _deleteRoom(rooms[i] as Map<String, dynamic>),
+                    onRefresh: _refreshRooms,
+                    color: _C.lime,
+                    backgroundColor: _C.surface,
+                    child: CustomScrollView(
+                      slivers: [
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(28, 24, 28, 0),
+                          sliver: SliverToBoxAdapter(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _TopBar(user: user, onLogout: _logout),
+                                const SizedBox(height: 20),
+                                _WelcomeBanner(
+                                  name: user?.name ?? '',
+                                  completionRate: avgCompletion,
+                                  studentCount: totalStudents,
+                                ),
+                                const SizedBox(height: 20),
+                                _StatsRow(
+                                  roomCount: rooms.length,
+                                  studentCount: totalStudents,
+                                  completionRate: avgCompletion,
+                                ),
+                                const SizedBox(height: 24),
+                                _SectionTitle(
+                                  title: '내 강의 방',
+                                  sub: '${rooms.length}개',
+                                  trailing:
+                                      _CreateRoomButton(onTap: _createRoom),
+                                ),
+                                const SizedBox(height: 12),
+                              ],
                             ),
                           ),
-                          childCount: rooms.length,
                         ),
-                      ),
+
+                        // ── 로딩 ──────────────────────────────────────
+                        if (roomsAsync.isLoading)
+                          const SliverFillRemaining(
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                color: _C.lime,
+                                strokeWidth: 2,
+                              ),
+                            ),
+                          )
+
+                        // ── 빈 상태 ───────────────────────────────────
+                        else if (roomsAsync.hasError)
+                          const SliverFillRemaining(
+                            child: Center(
+                              child: Text(
+                                '강의실 목록을 불러오지 못했습니다',
+                                style:
+                                    TextStyle(color: _C.textSec, fontSize: 14),
+                              ),
+                            ),
+                          )
+                        else if (rooms.isEmpty)
+                          SliverFillRemaining(
+                            child: _EmptyRooms(onCreateRoom: _createRoom),
+                          )
+
+                        // ── 방 목록 ───────────────────────────────────
+                        else
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(28, 0, 28, 40),
+                            sliver: SliverList(
+                              delegate: SliverChildBuilderDelegate(
+                                (_, i) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: _RoomCard(
+                                    room: rooms[i] as Map<String, dynamic>,
+                                    onDelete: () => _deleteRoom(
+                                        rooms[i] as Map<String, dynamic>),
+                                  ),
+                                ),
+                                childCount: rooms.length,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
-                ],
-              ),
-            ),
+                  ),
           ),
         ],
       ),
@@ -292,15 +294,10 @@ class _Sidebar extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
           child: Row(children: [
-            const FitLearnLogo(iconOnly: true, height: 34),
-            const SizedBox(width: 10),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const FitLearnLogo(height: 20),
-                const SizedBox(height: 3),
-                const Text('강사 포털',
-                    style: TextStyle(color: _C.textMute, fontSize: 10)),
               ],
             ),
           ]),
@@ -401,7 +398,8 @@ class _TopBar extends StatelessWidget {
           context: context,
           builder: (_) => AlertDialog(
             backgroundColor: _C.surface,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             title: const Text('알림', style: TextStyle(color: _C.textPri)),
             content: const Text('알림이 없습니다',
                 style: TextStyle(color: _C.textSec, fontSize: 13)),
@@ -413,7 +411,8 @@ class _TopBar extends StatelessWidget {
             ],
           ),
         ),
-        child: const Icon(Icons.notifications_outlined, color: _C.textSec, size: 22),
+        child: const Icon(Icons.notifications_outlined,
+            color: _C.textSec, size: 22),
       ),
       const SizedBox(width: 12),
       Container(
@@ -484,7 +483,8 @@ class _WelcomeBanner extends StatelessWidget {
               )),
               const SizedBox(height: 4),
               Text('등록 수강생 $studentCount명 기준으로 집계됩니다.',
-                  style: const TextStyle(color: Color(0xFF3A4A00), fontSize: 11)),
+                  style:
+                      const TextStyle(color: Color(0xFF3A4A00), fontSize: 11)),
             ],
           ),
         ),
@@ -619,10 +619,13 @@ class _ProfessorSettingsView extends StatelessWidget {
             borderRadius: BorderRadius.circular(18),
             border: Border.all(color: _C.border),
           ),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const Text('계정',
                 style: TextStyle(
-                    color: _C.textPri, fontSize: 16, fontWeight: FontWeight.w800)),
+                    color: _C.textPri,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800)),
             const SizedBox(height: 8),
             const Text('탈퇴 기능은 결제/수강 데이터 보존 정책과 함께 서버에서 처리되어야 합니다.',
                 style: TextStyle(color: _C.textSec, fontSize: 12, height: 1.5)),
@@ -644,8 +647,8 @@ class _ProfessorSettingsView extends StatelessWidget {
                     backgroundColor: _C.surface,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16)),
-                    title: const Text('탈퇴하기',
-                        style: TextStyle(color: _C.textPri)),
+                    title:
+                        const Text('탈퇴하기', style: TextStyle(color: _C.textPri)),
                     content: const Text(
                       '탈퇴 API와 결제 데이터 보존 정책 연결 후 활성화됩니다.',
                       style: TextStyle(color: _C.textSec, fontSize: 13),
@@ -653,8 +656,8 @@ class _ProfessorSettingsView extends StatelessWidget {
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(context),
-                        child: const Text('확인',
-                            style: TextStyle(color: _C.lime)),
+                        child:
+                            const Text('확인', style: TextStyle(color: _C.lime)),
                       ),
                     ],
                   ),
@@ -873,7 +876,8 @@ class _RoomCardState extends State<_RoomCard> {
                   if (isLoading) ...[
                     const SizedBox(width: 10),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: _C.limeDark,
                         borderRadius: BorderRadius.circular(8),
