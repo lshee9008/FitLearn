@@ -152,7 +152,7 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(
-              widget.title,
+              _roomName.isNotEmpty ? _roomName : widget.title,
               style: const TextStyle(
                 color: AppColors.textPrimary,
                 fontSize: 17,
@@ -192,6 +192,22 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
         ),
       ]),
     );
+  }
+
+  String get _roomName =>
+      _lectureMeta?['room_name']?.toString() ??
+      _lectureMeta?['room_title']?.toString() ??
+      _lectureMeta?['course_title']?.toString() ??
+      '';
+
+  List<Map<String, dynamic>> get _sortedLectures {
+    final sorted = [..._lectureList];
+    sorted.sort((a, b) {
+      final aWeek = (a['week'] as num? ?? 999).toInt();
+      final bWeek = (b['week'] as num? ?? 999).toInt();
+      return aWeek.compareTo(bWeek);
+    });
+    return sorted;
   }
 
   String _levelLabel(String level) {
@@ -266,24 +282,42 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
     }
   }
 
-  void _goNextLecture() {
-    if (_lectureList.isEmpty) return;
-    final currentIndex =
-        _lectureList.indexWhere((lecture) => lecture['id'] == widget.lectureId);
-    if (currentIndex == -1 || currentIndex >= _lectureList.length - 1) return;
-
-    final nextLecture = _lectureList[currentIndex + 1];
-    final nextLectureId = nextLecture['id']?.toString();
-    if (nextLectureId == null || nextLectureId.isEmpty) return;
-
+  void _goPrevLecture() {
+    final sorted = _sortedLectures;
+    final idx = sorted.indexWhere((l) => l['id'] == widget.lectureId);
+    if (idx <= 0) return;
+    final prev = sorted[idx - 1];
+    final prevId = prev['id']?.toString();
+    if (prevId == null || prevId.isEmpty) return;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (_) => LectureViewPage(
           roomId: widget.roomId,
-          lectureId: nextLectureId,
+          lectureId: prevId,
           userId: widget.userId,
-          title: nextLecture['title']?.toString().trim().isNotEmpty == true
-              ? nextLecture['title'].toString()
+          title: prev['title']?.toString().trim().isNotEmpty == true
+              ? prev['title'].toString()
+              : '이전 강의',
+        ),
+      ),
+    );
+  }
+
+  void _goNextLecture() {
+    final sorted = _sortedLectures;
+    final idx = sorted.indexWhere((l) => l['id'] == widget.lectureId);
+    if (idx == -1 || idx >= sorted.length - 1) return;
+    final next = sorted[idx + 1];
+    final nextId = next['id']?.toString();
+    if (nextId == null || nextId.isEmpty) return;
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => LectureViewPage(
+          roomId: widget.roomId,
+          lectureId: nextId,
+          userId: widget.userId,
+          title: next['title']?.toString().trim().isNotEmpty == true
+              ? next['title'].toString()
               : '다음 강의',
         ),
       ),
@@ -321,6 +355,7 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
                 subjectLevel: _subjectLevel,
                 lectureList: _lectureList,
                 currentLectureId: widget.lectureId,
+                onPrevLecture: _goPrevLecture,
                 onNextLecture: _goNextLecture,
                 onDownloadOriginal: _downloadOriginal,
                 startController: _segmentStartCtrl,
@@ -348,6 +383,7 @@ class _LearningExperienceShell extends StatelessWidget {
   final String? subjectLevel;
   final List<Map<String, dynamic>> lectureList;
   final String currentLectureId;
+  final VoidCallback onPrevLecture;
   final VoidCallback onNextLecture;
   final VoidCallback onDownloadOriginal;
   final TextEditingController startController;
@@ -367,6 +403,7 @@ class _LearningExperienceShell extends StatelessWidget {
     required this.subjectLevel,
     required this.lectureList,
     required this.currentLectureId,
+    required this.onPrevLecture,
     required this.onNextLecture,
     required this.onDownloadOriginal,
     required this.startController,
@@ -395,14 +432,17 @@ class _LearningExperienceShell extends StatelessWidget {
         videoType == 'transcript' ||
         (lecture?['video_summary'] as String? ?? '').trim().isNotEmpty ||
         (lecture?['video_transcript'] as String? ?? '').trim().isNotEmpty;
+    final sortedList = [...lectureList]
+      ..sort((a, b) {
+        final aWeek = (a['week'] as num? ?? 999).toInt();
+        final bWeek = (b['week'] as num? ?? 999).toInt();
+        return aWeek.compareTo(bWeek);
+      });
     final currentLectureIndex =
-        lectureList.indexWhere((item) => item['id'] == currentLectureId);
-    final showNextLecture =
-        currentLectureIndex != -1 && currentLectureIndex < lectureList.length - 1;
-    final resolvedRoomName = lecture?['room_name']?.toString() ??
-        lecture?['room_title']?.toString() ??
-        lecture?['course_title']?.toString() ??
-        '강의실';
+        sortedList.indexWhere((item) => item['id'] == currentLectureId);
+    final showPrevLecture = currentLectureIndex > 0;
+    final showNextLecture = currentLectureIndex != -1 &&
+        currentLectureIndex < sortedList.length - 1;
 
     // 모바일 (세로 스택) 레이아웃
     if (!useSplit) {
@@ -414,9 +454,10 @@ class _LearningExperienceShell extends StatelessWidget {
               videoType: videoType,
               videoStatus: videoStatus,
               title: title,
-              roomName: resolvedRoomName,
               lectureTitle: title,
+              showPrevLecture: showPrevLecture,
               showNextLecture: showNextLecture,
+              onPrevLecture: onPrevLecture,
               onNextLecture: onNextLecture,
             ),
             const SizedBox(height: 16),
@@ -464,15 +505,16 @@ class _LearningExperienceShell extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                if (hasVideoStage)
+                  if (hasVideoStage)
                     _VideoStage(
                       videoUrl: videoUrl,
                       videoType: videoType,
                       videoStatus: videoStatus,
                       title: title,
-                      roomName: resolvedRoomName,
                       lectureTitle: title,
+                      showPrevLecture: showPrevLecture,
                       showNextLecture: showNextLecture,
+                      onPrevLecture: onPrevLecture,
                       onNextLecture: onNextLecture,
                     )
                   else
@@ -2002,9 +2044,10 @@ class _VideoStage extends StatelessWidget {
   final String videoType;
   final String videoStatus;
   final String title;
-  final String roomName;
   final String lectureTitle;
+  final bool showPrevLecture;
   final bool showNextLecture;
+  final VoidCallback? onPrevLecture;
   final VoidCallback? onNextLecture;
 
   static final Set<String> _registeredViewTypes = {};
@@ -2014,9 +2057,10 @@ class _VideoStage extends StatelessWidget {
     required this.videoType,
     required this.videoStatus,
     required this.title,
-    required this.roomName,
     required this.lectureTitle,
+    required this.showPrevLecture,
     required this.showNextLecture,
+    this.onPrevLecture,
     this.onNextLecture,
   });
 
@@ -2092,68 +2136,96 @@ class _VideoStage extends StatelessWidget {
             child: Row(
               children: [
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        roomName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.textMuted,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        lectureTitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    lectureTitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
-                if (showNextLecture && onNextLecture != null) ...[
-                  const SizedBox(width: 16),
-                  GestureDetector(
-                    onTap: onNextLecture,
+                const SizedBox(width: 12),
+                Opacity(
+                  opacity: showPrevLecture ? 1.0 : 0.32,
+                  child: GestureDetector(
+                    onTap: showPrevLecture ? onPrevLecture : null,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
+                          horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
-                        color: AppColors.primaryLight,
+                        color: const Color(0xFF1A1D26),
                         borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                            color: AppColors.borderLight
+                                .withValues(alpha: 0.4)),
                       ),
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          Icon(Icons.arrow_back_rounded,
+                              color: AppColors.textSecondary, size: 15),
+                          SizedBox(width: 4),
                           Text(
-                            '다음 강의',
+                            '이전 강의',
                             style: TextStyle(
-                              color: Color(0xFF243200),
+                              color: AppColors.textSecondary,
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
                             ),
-                          ),
-                          SizedBox(width: 4),
-                          Icon(
-                            Icons.arrow_forward_rounded,
-                            color: Color(0xFF243200),
-                            size: 16,
                           ),
                         ],
                       ),
                     ),
                   ),
-                ],
+                ),
+                const SizedBox(width: 8),
+                Opacity(
+                  opacity: showNextLecture ? 1.0 : 0.32,
+                  child: GestureDetector(
+                    onTap: showNextLecture ? onNextLecture : null,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: showNextLecture
+                            ? AppColors.primaryLight
+                            : const Color(0xFF1A1D26),
+                        borderRadius: BorderRadius.circular(10),
+                        border: showNextLecture
+                            ? null
+                            : Border.all(
+                                color: AppColors.borderLight
+                                    .withValues(alpha: 0.4)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '다음 강의',
+                            style: TextStyle(
+                              color: showNextLecture
+                                  ? const Color(0xFF243200)
+                                  : AppColors.textSecondary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.arrow_forward_rounded,
+                            color: showNextLecture
+                                ? const Color(0xFF243200)
+                                : AppColors.textSecondary,
+                            size: 15,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
