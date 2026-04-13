@@ -9,7 +9,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["auth"])
 firebase = FirebaseService()
 
-
 @router.post("/auth/register", response_model=UserProfile)
 async def register(body: RegisterRequest):
     try:
