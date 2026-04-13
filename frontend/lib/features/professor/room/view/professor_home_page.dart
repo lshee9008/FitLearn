@@ -849,9 +849,10 @@ class _RoomCardState extends State<_RoomCard> {
         if (!mounted) return;
         context.push('/student/lecture', extra: {
           'room_id': roomId,
-          'lecture_id': lecture['lecture_id'] as String? ?? '',
+          'lecture_id': lecture['lecture_id']?.toString() ?? '',
           'user_id': 'professor-preview',
           'title': lecture['title'] as String? ?? subject,
+          'room_title': subject,
         });
       } catch (_) {
         if (mounted) context.push('/professor/room/$roomId');

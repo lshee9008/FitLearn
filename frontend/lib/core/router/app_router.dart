@@ -48,11 +48,13 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/student/subject_quiz/:roomId',
-      builder: (_, state) => SubjectQuizPage(roomId: state.pathParameters['roomId']!),
+      builder: (_, state) =>
+          SubjectQuizPage(roomId: state.pathParameters['roomId']!),
     ),
     GoRoute(
       path: '/student/diagnosis/result',
-      builder: (_, state) => DiagnosisResultPage(result: state.extra as DiagnosisResult),
+      builder: (_, state) =>
+          DiagnosisResultPage(result: state.extra as DiagnosisResult),
     ),
     GoRoute(
       path: '/student/lecture',
@@ -60,9 +62,10 @@ final appRouter = GoRouter(
         final extra = state.extra as Map<String, dynamic>;
         return LectureViewPage(
           roomId: extra['room_id'] as String,
-          lectureId: extra['lecture_id'] as String,
+          lectureId: extra['lecture_id']?.toString() ?? '',
           userId: extra['user_id'] as String,
           title: extra['title'] as String? ?? '교안',
+          roomTitle: extra['room_title'] as String? ?? '',
         );
       },
     ),
@@ -78,11 +81,13 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/professor/room/:roomId',
-      builder: (_, state) => RoomDetailPage(roomId: state.pathParameters['roomId']!),
+      builder: (_, state) =>
+          RoomDetailPage(roomId: state.pathParameters['roomId']!),
     ),
     GoRoute(
       path: '/professor/lecture/:roomId/upload',
-      builder: (_, state) => LectureUploadPage(roomId: state.pathParameters['roomId']!),
+      builder: (_, state) =>
+          LectureUploadPage(roomId: state.pathParameters['roomId']!),
     ),
     GoRoute(
       path: '/professor/lecture/:roomId/:lectureId/review',
@@ -94,7 +99,8 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/professor/dashboard/:roomId',
-      builder: (_, state) => DashboardPage(roomId: state.pathParameters['roomId']!),
+      builder: (_, state) =>
+          DashboardPage(roomId: state.pathParameters['roomId']!),
     ),
     // ── Legacy (backward compat) ───────────────────────────────────
     GoRoute(path: '/onboarding', redirect: (_, __) => '/'),

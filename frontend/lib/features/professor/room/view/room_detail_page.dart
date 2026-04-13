@@ -698,7 +698,7 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
                         child: IndexedStack(
                           index: _selectedIndex,
                           children: [
-                            _buildLectures(lectures),
+                            _buildLectures(lectures, roomName: roomName),
                             _buildNotices(room, notices),
                             _buildStudents(students, pendingApplications),
                           ],
@@ -735,7 +735,7 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
   }
 
   // ── 교안 탭 ───────────────────────────────────────────────────
-  Widget _buildLectures(List<dynamic> lectures) {
+  Widget _buildLectures(List<dynamic> lectures, {String roomName = ''}) {
     if (_showLectureForm) return _buildLectureForm();
 
     // 강의가 없고 폼이 아직 표시안 된 상태면 신규 생성 폼을 바로 보여줌
@@ -788,10 +788,11 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
               hasMaterial: hasMat,
               onView: () => context.push('/student/lecture', extra: {
                 'room_id': widget.roomId,
-                'lecture_id': lec['lecture_id'] as String? ?? '',
+                'lecture_id': lec['lecture_id']?.toString() ?? '',
                 'user_id': ref.read(authNotifierProvider)?.userId ??
                     'professor-preview',
                 'title': lec['title'] as String? ?? '강의',
+                'room_title': roomName,
               }),
               onEdit: () => _openEditForm(lec),
               onDelete: () => _deleteLecture(lec),

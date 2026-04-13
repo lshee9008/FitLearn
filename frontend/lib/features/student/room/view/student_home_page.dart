@@ -308,6 +308,7 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
     String userId, {
     required String roomId,
     required String? subjectLevel,
+    String roomTitle = '',
   }) async {
     if (userId.isEmpty) return;
 
@@ -355,9 +356,10 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
     if (!mounted) return;
     context.push('/student/lecture', extra: {
       'room_id': roomId,
-      'lecture_id': lecture['lecture_id'],
+      'lecture_id': lecture['lecture_id']?.toString() ?? '',
       'user_id': userId,
       'title': lecture['title'],
+      'room_title': roomTitle,
     });
   }
 
@@ -573,6 +575,9 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
                                                 activeRoom['room_id'] as String,
                                             subjectLevel:
                                                 hub?.activeSubjectLevel,
+                                            roomTitle: activeRoom['subject']
+                                                    as String? ??
+                                                '',
                                           ),
                                 ),
                               ))

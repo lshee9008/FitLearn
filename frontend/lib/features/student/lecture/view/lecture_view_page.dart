@@ -6,6 +6,7 @@ import 'dart:ui_web' as ui_web;
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/services/api_service.dart';
 import '../../../../shared/widgets/app_card.dart';
@@ -24,6 +25,7 @@ class LectureViewPage extends ConsumerStatefulWidget {
   final String lectureId;
   final String userId;
   final String title;
+  final String roomTitle;
 
   const LectureViewPage({
     super.key,
@@ -31,6 +33,7 @@ class LectureViewPage extends ConsumerStatefulWidget {
     required this.lectureId,
     required this.userId,
     required this.title,
+    this.roomTitle = '',
   });
 
   @override
@@ -152,7 +155,11 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(
-              _roomName.isNotEmpty ? _roomName : widget.title,
+              _roomName.isNotEmpty
+                  ? _roomName
+                  : widget.roomTitle.isNotEmpty
+                      ? widget.roomTitle
+                      : widget.title,
               style: const TextStyle(
                 color: AppColors.textPrimary,
                 fontSize: 17,
@@ -284,44 +291,40 @@ class _LectureViewPageState extends ConsumerState<LectureViewPage> {
 
   void _goPrevLecture() {
     final sorted = _sortedLectures;
-    final idx = sorted.indexWhere((l) => l['id'] == widget.lectureId);
+    final idx = sorted.indexWhere(
+        (l) => (l['id'] ?? l['lecture_id'])?.toString() == widget.lectureId);
     if (idx <= 0) return;
     final prev = sorted[idx - 1];
-    final prevId = prev['id']?.toString();
+    final prevId = (prev['id'] ?? prev['lecture_id'])?.toString();
     if (prevId == null || prevId.isEmpty) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => LectureViewPage(
-          roomId: widget.roomId,
-          lectureId: prevId,
-          userId: widget.userId,
-          title: prev['title']?.toString().trim().isNotEmpty == true
-              ? prev['title'].toString()
-              : '이전 강의',
-        ),
-      ),
-    );
+    context.pushReplacement('/student/lecture', extra: {
+      'room_id': widget.roomId,
+      'lecture_id': prevId,
+      'user_id': widget.userId,
+      'title': prev['title']?.toString().trim().isNotEmpty == true
+          ? prev['title'].toString()
+          : '이전 강의',
+      'room_title': widget.roomTitle,
+    });
   }
 
   void _goNextLecture() {
     final sorted = _sortedLectures;
-    final idx = sorted.indexWhere((l) => l['id'] == widget.lectureId);
+    final idx = sorted.indexWhere(
+        (l) => (l['id'] ?? l['lecture_id'])?.toString() == widget.lectureId);
     if (idx == -1 || idx >= sorted.length - 1) return;
     final next = sorted[idx + 1];
-    final nextId = next['id']?.toString();
+    final nextId = (next['id'] ?? next['lecture_id'])?.toString();
     if (nextId == null || nextId.isEmpty) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => LectureViewPage(
-          roomId: widget.roomId,
-          lectureId: nextId,
-          userId: widget.userId,
-          title: next['title']?.toString().trim().isNotEmpty == true
-              ? next['title'].toString()
-              : '다음 강의',
-        ),
-      ),
-    );
+    context.pushReplacement('/student/lecture', extra: {
+      'room_id': widget.roomId,
+      'lecture_id': nextId,
+      'user_id': widget.userId,
+      'title': next['title']?.toString().trim().isNotEmpty == true
+          ? next['title'].toString()
+          : '다음 강의',
+      'room_title': widget.roomTitle,
+    });
   }
 
   Widget _buildContent() {
@@ -432,14 +435,13 @@ class _LearningExperienceShell extends StatelessWidget {
         videoType == 'transcript' ||
         (lecture?['video_summary'] as String? ?? '').trim().isNotEmpty ||
         (lecture?['video_transcript'] as String? ?? '').trim().isNotEmpty;
-    final sortedList = [...lectureList]
-      ..sort((a, b) {
+    final sortedList = [...lectureList]..sort((a, b) {
         final aWeek = (a['week'] as num? ?? 999).toInt();
         final bWeek = (b['week'] as num? ?? 999).toInt();
         return aWeek.compareTo(bWeek);
       });
-    final currentLectureIndex =
-        sortedList.indexWhere((item) => item['id'] == currentLectureId);
+    final currentLectureIndex = sortedList.indexWhere((item) =>
+        (item['id'] ?? item['lecture_id'])?.toString() == currentLectureId);
     final showPrevLecture = currentLectureIndex > 0;
     final showNextLecture = currentLectureIndex != -1 &&
         currentLectureIndex < sortedList.length - 1;
@@ -2159,8 +2161,8 @@ class _VideoStage extends StatelessWidget {
                         color: const Color(0xFF1A1D26),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                            color: AppColors.borderLight
-                                .withValues(alpha: 0.4)),
+                            color:
+                                AppColors.borderLight.withValues(alpha: 0.4)),
                       ),
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
@@ -2699,7 +2701,6 @@ class _CodeBlock extends StatelessWidget {
     );
   }
 }
-
 // ── 로딩 / 에러 ──────────────────────────────────────────────────────────────
 
 class _LoadingView extends StatelessWidget {
