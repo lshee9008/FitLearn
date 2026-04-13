@@ -240,8 +240,8 @@ class ApiService {
   Future<Map<String, dynamic>> uploadLecture({
     required String roomId,
     required String professorUid,
-    required List<int> fileBytes,
-    required String fileName,
+    List<int>? fileBytes, // [수정됨] null 허용
+    String? fileName, // [수정됨] null 허용
     int weekNumber = 0,
     String lectureTitle = '',
     String lectureId = '',
@@ -255,7 +255,10 @@ class ApiService {
     final formData = FormData.fromMap({
       'room_id': roomId,
       'professor_uid': professorUid,
-      'file': MultipartFile.fromBytes(fileBytes, filename: fileName),
+      // [수정됨] 파일이 있을 때만 전송하도록 조건 추가
+      if (fileBytes != null)
+        'file': MultipartFile.fromBytes(fileBytes,
+            filename: fileName ?? 'upload.bin'),
       'week_number': weekNumber,
       'lecture_title': lectureTitle,
       'lecture_id': lectureId,

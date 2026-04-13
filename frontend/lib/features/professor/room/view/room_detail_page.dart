@@ -9,30 +9,53 @@ import '../../lecture/view/core_point_review_page.dart';
 
 // ── 지원 확장자 ────────────────────────────────────────────────────
 const _allowedExtensions = [
-  'pdf', 'ppt', 'pptx', 'docx', 'hwp', 'hwpx', 'md', 'txt',
-  'py', 'js', 'ts', 'java', 'c', 'cpp', 'cs', 'go', 'rs', 'kt', 'swift',
-  'jpg', 'jpeg', 'png', 'webp', 'csv', 'json', 'xml',
+  'pdf',
+  'ppt',
+  'pptx',
+  'docx',
+  'hwp',
+  'hwpx',
+  'md',
+  'txt',
+  'py',
+  'js',
+  'ts',
+  'java',
+  'c',
+  'cpp',
+  'cs',
+  'go',
+  'rs',
+  'kt',
+  'swift',
+  'jpg',
+  'jpeg',
+  'png',
+  'webp',
+  'csv',
+  'json',
+  'xml',
 ];
 const _videoExtensions = ['mp4', 'mov', 'webm', 'm4v'];
 
 // ── 컬러 ─────────────────────────────────────────────────────────
 class _C {
-  static const bg        = Color(0xFF0E0E11);
-  static const surface   = Color(0xFF13131A);
-  static const surface2  = Color(0xFF1A1A24);
-  static const border    = Color(0xFF1E1E2A);
-  static const border2   = Color(0xFF252532);
-  static const lime      = Color(0xFFC8F135);
-  static const limeDark  = Color(0xFF1A2400);
-  static const lavender  = Color(0xFFA78BFA);
-  static const lavMid    = Color(0xFF1E1830);
-  static const coral     = Color(0xFFFB7185);
+  static const bg = Color(0xFF0E0E11);
+  static const surface = Color(0xFF13131A);
+  static const surface2 = Color(0xFF1A1A24);
+  static const border = Color(0xFF1E1E2A);
+  static const border2 = Color(0xFF252532);
+  static const lime = Color(0xFFC8F135);
+  static const limeDark = Color(0xFF1A2400);
+  static const lavender = Color(0xFFA78BFA);
+  static const lavMid = Color(0xFF1E1830);
+  static const coral = Color(0xFFFB7185);
   static const coralDark = Color(0xFF3D0A14);
-  static const amber     = Color(0xFFFBBF24);
-  static const mint      = Color(0xFF34D399);
-  static const textPri   = Color(0xFFF0F0F4);
-  static const textSec   = Color(0xFF8888A0);
-  static const textMute  = Color(0xFF4A4A5A);
+  static const amber = Color(0xFFFBBF24);
+  static const mint = Color(0xFF34D399);
+  static const textPri = Color(0xFFF0F0F4);
+  static const textSec = Color(0xFF8888A0);
+  static const textMute = Color(0xFF4A4A5A);
 }
 
 // ── 학습 유형 유틸 ────────────────────────────────────────────────
@@ -88,7 +111,7 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
   bool _uploadingLecture = false;
   String? _uploadError;
   final _lectureTitleCtrl = TextEditingController();
-  final _videoUrlCtrl     = TextEditingController();
+  final _videoUrlCtrl = TextEditingController();
   final _roomNameCtrl = TextEditingController();
   final _roomDescCtrl = TextEditingController();
   final _roomCurriculumCtrl = TextEditingController();
@@ -134,9 +157,9 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
   // ── 폼 열기: 신규 ─────────────────────────────────────────────
   void _openCreateForm() {
     _editingLecture = null;
-    _lectureFile    = null;
-    _videoFile      = null;
-    _uploadError    = null;
+    _lectureFile = null;
+    _videoFile = null;
+    _uploadError = null;
     _lectureTitleCtrl.clear();
     _videoUrlCtrl.clear();
     setState(() => _showLectureForm = true);
@@ -145,11 +168,11 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
   // ── 폼 열기: 수정 ─────────────────────────────────────────────
   void _openEditForm(Map<String, dynamic> lec) {
     _editingLecture = lec;
-    _lectureFile    = null;
-    _videoFile      = null;
-    _uploadError    = null;
+    _lectureFile = null;
+    _videoFile = null;
+    _uploadError = null;
     _lectureTitleCtrl.text = lec['title'] as String? ?? '';
-    _videoUrlCtrl.text     = lec['video_url'] as String? ?? '';
+    _videoUrlCtrl.text = lec['video_url'] as String? ?? '';
     setState(() => _showLectureForm = true);
   }
 
@@ -167,8 +190,9 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
         _uploadError = null;
         if (_lectureTitleCtrl.text.trim().isEmpty) {
           final name = f.name;
-          _lectureTitleCtrl.text =
-              name.contains('.') ? name.substring(0, name.lastIndexOf('.')) : name;
+          _lectureTitleCtrl.text = name.contains('.')
+              ? name.substring(0, name.lastIndexOf('.'))
+              : name;
         }
       });
     }
@@ -181,7 +205,10 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
       withData: true,
     );
     if (r != null && r.files.isNotEmpty) {
-      setState(() { _videoFile = r.files.first; _uploadError = null; });
+      setState(() {
+        _videoFile = r.files.first;
+        _uploadError = null;
+      });
     }
   }
 
@@ -294,7 +321,9 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
       for (var i = 0; i < _lectureDrafts.length; i++) {
         final draft = _lectureDrafts[i];
         final title = draft.titleCtrl.text.trim();
-        if (title.isEmpty && draft.materialFile == null && draft.videoFile == null) continue;
+        if (title.isEmpty &&
+            draft.materialFile == null &&
+            draft.videoFile == null) continue;
         if (draft.materialFile == null) {
           shellLectures.add({
             'title': title.isEmpty ? '${i + 1}강' : title,
@@ -348,7 +377,8 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
         }
       }
       if (shellLectures.isNotEmpty) {
-        final shellResult = await ApiService().createLectureShells(roomId, shellLectures);
+        final shellResult =
+            await ApiService().createLectureShells(roomId, shellLectures);
         final created = (shellResult['lectures'] as List<dynamic>? ?? const []);
         for (var i = 0; i < created.length && i < shellDrafts.length; i++) {
           final draft = shellDrafts[i];
@@ -421,76 +451,100 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
     );
   }
 
-  // ── 업로드 / 저장 ─────────────────────────────────────────────
+  // ── 업로드 / 저장 로직 수정 ─────────────────────────────────────────────
   bool get _canSubmit {
     if (_uploadingLecture) return false;
     final hasTitle = _lectureTitleCtrl.text.trim().isNotEmpty;
     if (_editingLecture != null) return hasTitle; // 수정: 파일 없어도 메타 저장 가능
-    return hasTitle && _lectureFile != null;       // 신규: 파일 필수
+    return hasTitle && _lectureFile != null; // 신규: 파일 필수
   }
 
   Future<void> _submitLecture() async {
     if (!_canSubmit) return;
     final isEditing = _editingLecture != null;
-    setState(() { _uploadingLecture = true; _uploadError = null; });
+    setState(() {
+      _uploadingLecture = true;
+      _uploadError = null;
+    });
 
     try {
-      if (!isEditing || _lectureFile != null) {
-        // 신규 생성 또는 파일 교체
+      // 교안(문서) 파일이나, 영상 파일 둘 중 하나라도 새로 선택했다면 통합 업로드 API 호출
+      if (!isEditing || _lectureFile != null || _videoFile != null) {
         final user = ref.read(authNotifierProvider);
         if (user == null) {
           throw Exception('로그인 정보를 확인하지 못했습니다. 다시 로그인 후 시도해주세요.');
         }
 
         final data = await ApiService().uploadLecture(
-          roomId:         widget.roomId,
-          professorUid:   user.userId,
-          fileBytes:      _lectureFile!.bytes!,
-          fileName:       _lectureFile!.name,
-          weekNumber:     isEditing ? (_editingLecture!['week_number'] as int? ?? 0) : 0,
-          lectureTitle:   _lectureTitleCtrl.text.trim(),
-          lectureId:      isEditing ? (_editingLecture!['lecture_id'] as String? ?? '') : '',
-          orderIndex:     isEditing ? (_editingLecture!['order_index'] as int? ?? 0) : 0,
-          videoUrl:       '',
-          materialUrl:    '',
+          roomId: widget.roomId,
+          professorUid: user.userId,
+          fileBytes: _lectureFile?.bytes, // 문서가 없을 땐 null 전송
+          fileName: _lectureFile?.name,
+          weekNumber:
+              isEditing ? (_editingLecture!['week_number'] as int? ?? 0) : 0,
+          lectureTitle: _lectureTitleCtrl.text.trim(),
+          lectureId: isEditing
+              ? (_editingLecture!['lecture_id'] as String? ?? '')
+              : '',
+          orderIndex:
+              isEditing ? (_editingLecture!['order_index'] as int? ?? 0) : 0,
+          videoUrl: '',
+          materialUrl: '',
           videoFileBytes: _videoFile?.bytes,
-          videoFileName:  _videoFile?.name,
+          videoFileName: _videoFile?.name,
         );
 
         if (!mounted) return;
-        await _openCorePointReviewDialog(
-          roomId: widget.roomId,
-          lectureId: data['lecture_id'] as String? ?? '',
-          uploadData: data,
-        );
+
+        // 새 교안(문서)이 업로드된 경우(또는 완전 신규)에만 핵심포인트 다이얼로그 호출
+        if (!isEditing || _lectureFile != null) {
+          await _openCorePointReviewDialog(
+            roomId: widget.roomId,
+            lectureId: data['lecture_id'] as String? ?? '',
+            uploadData: data,
+          );
+        }
+
         if (!mounted) return;
-        setState(() { _uploadingLecture = false; _showLectureForm = false; });
+        setState(() {
+          _uploadingLecture = false;
+          _showLectureForm = false;
+        });
         ref.invalidate(professorRoomDetailProvider(widget.roomId));
       } else {
-        // 파일 변경 없이 메타만 수정
+        // 영상도 문서도 변경 없이 메타(제목)만 수정
         await ApiService().updateLectureMeta(
           widget.roomId,
           _editingLecture!['lecture_id'] as String,
           {
-            'title':     _lectureTitleCtrl.text.trim(),
+            'title': _lectureTitleCtrl.text.trim(),
           },
         );
         ref.invalidate(professorRoomDetailProvider(widget.roomId));
-        if (mounted) setState(() { _showLectureForm = false; _uploadingLecture = false; });
+        if (mounted)
+          setState(() {
+            _showLectureForm = false;
+            _uploadingLecture = false;
+          });
       }
     } catch (e) {
-      if (mounted) setState(() { _uploadError = '오류: $e'; _uploadingLecture = false; });
+      if (mounted)
+        setState(() {
+          _uploadError = '오류: $e';
+          _uploadingLecture = false;
+        });
     }
   }
 
   // ── 공지 생성 ─────────────────────────────────────────────────
   Future<void> _createNotice(Map<String, dynamic> room) async {
-    final titleCtrl   = TextEditingController();
+    final titleCtrl = TextEditingController();
     final contentCtrl = TextEditingController();
     final created = await showDialog<bool>(
       context: context,
       builder: (_) => _DialogShell(
-        title: '공지 작성', width: 460,
+        title: '공지 작성',
+        width: 460,
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           _DialogField(ctrl: titleCtrl, label: '제목'),
           const SizedBox(height: 12),
@@ -498,7 +552,10 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
         ]),
         actions: [
           _DlgBtn(label: '취소', onTap: () => Navigator.pop(context, false)),
-          _DlgBtn(label: '등록', primary: true, onTap: () => Navigator.pop(context, true)),
+          _DlgBtn(
+              label: '등록',
+              primary: true,
+              onTap: () => Navigator.pop(context, true)),
         ],
       ),
     );
@@ -513,23 +570,27 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
       ref.invalidate(professorRoomDetailProvider(widget.roomId));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('공지 등록 오류: $e')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('공지 등록 오류: $e')));
     }
   }
 
   // ── 공지 삭제 ─────────────────────────────────────────────────
   Future<void> _deleteNotice(Map<String, dynamic> notice) async {
     try {
-      await ApiService().deleteNotice(widget.roomId, notice['notice_id'] as String);
+      await ApiService()
+          .deleteNotice(widget.roomId, notice['notice_id'] as String);
       ref.invalidate(professorRoomDetailProvider(widget.roomId));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('공지 삭제 오류: $e')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('공지 삭제 오류: $e')));
     }
   }
 
   // ── 강의 순서 이동 ────────────────────────────────────────────
-  Future<void> _moveLecture(List<dynamic> lectures, int index, int delta) async {
+  Future<void> _moveLecture(
+      List<dynamic> lectures, int index, int delta) async {
     final nextIndex = index + delta;
     if (nextIndex < 0 || nextIndex >= lectures.length) return;
     final reordered = [...lectures];
@@ -545,23 +606,27 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
       ref.invalidate(professorRoomDetailProvider(widget.roomId));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('강의 정렬 오류: $e')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('강의 정렬 오류: $e')));
     }
   }
 
   // ── 강의 삭제 ─────────────────────────────────────────────────
   Future<void> _deleteLecture(Map<String, dynamic> lecture) async {
     try {
-      await ApiService().deleteLecture(widget.roomId, lecture['lecture_id'] as String);
+      await ApiService()
+          .deleteLecture(widget.roomId, lecture['lecture_id'] as String);
       ref.invalidate(professorRoomDetailProvider(widget.roomId));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('강의 삭제 오류: $e')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('강의 삭제 오류: $e')));
     }
   }
 
   // ── 수강 신청 처리 ────────────────────────────────────────────
-  Future<void> _reviewApplication(Map<String, dynamic> application, String status) async {
+  Future<void> _reviewApplication(
+      Map<String, dynamic> application, String status) async {
     try {
       await ApiService().reviewRoomApplication(
         roomId: widget.roomId,
@@ -572,7 +637,8 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
       ref.invalidate(currentProfessorRoomsProvider);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('신청 처리 오류: $e')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('신청 처리 오류: $e')));
     }
   }
 
@@ -590,11 +656,11 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
     }
 
     final summaryAsync = ref.watch(professorRoomDetailProvider(widget.roomId));
-    final summary      = summaryAsync.valueOrNull;
-    final room         = summary?.room;
-    final lectures     = summary?.lectures     ?? const <dynamic>[];
-    final students     = summary?.students     ?? const <dynamic>[];
-    final notices      = summary?.notices      ?? const <dynamic>[];
+    final summary = summaryAsync.valueOrNull;
+    final room = summary?.room;
+    final lectures = summary?.lectures ?? const <dynamic>[];
+    final students = summary?.students ?? const <dynamic>[];
+    final notices = summary?.notices ?? const <dynamic>[];
     final applications = summary?.applications ?? const <dynamic>[];
 
     final pendingApplications = applications
@@ -609,7 +675,9 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
         _buildTopBar(roomName),
         Expanded(
           child: summaryAsync.isLoading
-              ? const Center(child: CircularProgressIndicator(color: _C.lime, strokeWidth: 2))
+              ? const Center(
+                  child:
+                      CircularProgressIndicator(color: _C.lime, strokeWidth: 2))
               : summaryAsync.hasError || room == null
                   ? const Center(
                       child: Text('강의실 데이터를 불러오지 못했습니다',
@@ -652,7 +720,8 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(children: [
         IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: _C.textSec, size: 16),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded,
+              color: _C.textSec, size: 16),
           onPressed: () => context.go('/professor/home'),
           splashRadius: 18,
         ),
@@ -669,13 +738,12 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
   Widget _buildLectures(List<dynamic> lectures) {
     if (_showLectureForm) return _buildLectureForm();
 
-    // 강의가 없고 폼이 아직 표시안 된 상태면 신귝c 생성 폼을 바로 보여줄
+    // 강의가 없고 폼이 아직 표시안 된 상태면 신규 생성 폼을 바로 보여줌
     if (lectures.isEmpty) {
-      // 쉬로 이룰 새 세게: 신귝c 생성 폼 (header + form)
       return Column(children: [
         _TabHeader(
           title: '교안 관리',
-          sub: '첫 번째 괕의를 등록해주세요',
+          sub: '첫 번째 강의를 등록해주세요',
           action: _ActionBtn(
             label: '강의 추가',
             icon: Icons.upload_file_rounded,
@@ -691,7 +759,6 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
       _TabHeader(
         title: '교안 관리',
         sub: '${lectures.length}개의 강의 항목',
-        // 우측 상단 자료 업로드 버튼 제거
         action: _ActionBtn(
           label: '강의 추가',
           icon: Icons.upload_file_rounded,
@@ -704,15 +771,15 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
           padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
           itemCount: lectures.length,
           itemBuilder: (_, i) {
-            final lec       = lectures[i] as Map<String, dynamic>;
+            final lec = lectures[i] as Map<String, dynamic>;
             final confirmed = lec['confirmed'] as bool? ?? false;
-            final order     = lec['order_index'] as int? ?? (i + 1);
-            final hasVideo  =
+            final order = lec['order_index'] as int? ?? (i + 1);
+            final hasVideo =
                 (lec['video_url'] as String? ?? '').trim().isNotEmpty ||
-                (lec['video_asset_url'] as String? ?? '').trim().isNotEmpty;
-            final hasMat    =
+                    (lec['video_asset_url'] as String? ?? '').trim().isNotEmpty;
+            final hasMat =
                 (lec['original_file_url'] as String? ?? '').trim().isNotEmpty ||
-                (lec['material_url'] as String? ?? '').trim().isNotEmpty;
+                    (lec['material_url'] as String? ?? '').trim().isNotEmpty;
             return _LectureCard(
               lec: lec,
               order: order,
@@ -722,14 +789,16 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
               onView: () => context.push('/student/lecture', extra: {
                 'room_id': widget.roomId,
                 'lecture_id': lec['lecture_id'] as String? ?? '',
-                'user_id':
-                    ref.read(authNotifierProvider)?.userId ?? 'professor-preview',
+                'user_id': ref.read(authNotifierProvider)?.userId ??
+                    'professor-preview',
                 'title': lec['title'] as String? ?? '강의',
               }),
               onEdit: () => _openEditForm(lec),
               onDelete: () => _deleteLecture(lec),
               onUp: i == 0 ? null : () => _moveLecture(lectures, i, -1),
-              onDown: i == lectures.length - 1 ? null : () => _moveLecture(lectures, i, 1),
+              onDown: i == lectures.length - 1
+                  ? null
+                  : () => _moveLecture(lectures, i, 1),
             );
           },
         ),
@@ -739,14 +808,15 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
 
   Widget _buildRoomCreateLectures() {
     return Column(children: [
-      _TabHeader(
+      const _TabHeader(
         title: '교안 관리',
         sub: '새 강의실 생성과 강의 자료 등록을 한 번에 진행합니다',
       ),
       Expanded(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(28, 24, 28, 40),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const _SectionHeader(index: '01', title: '강의 정보'),
             const SizedBox(height: 20),
             const _FieldLabel('강의명'),
@@ -796,7 +866,8 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
                 onPickVideo: () => _pickDraftVideo(draft),
                 onPickMaterial: () => _pickDraftMaterial(draft),
                 onRemoveVideo: () => setState(() => draft.videoFile = null),
-                onRemoveMaterial: () => setState(() => draft.materialFile = null),
+                onRemoveMaterial: () =>
+                    setState(() => draft.materialFile = null),
                 onRemoveLecture: _lectureDrafts.length == 1
                     ? null
                     : () => _removeLectureDraft(index),
@@ -856,13 +927,12 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
           onTap: () => setState(() => _showLectureForm = false),
         ),
       ),
-
       Expanded(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(28, 24, 28, 40),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-
-            // 섭션 01: 강의 정보
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            // 섹션 01: 강의 정보
             const _SectionHeader(index: '01', title: '강의 정보'),
             const SizedBox(height: 20),
 
@@ -885,9 +955,7 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
             ),
 
             // 선택된 영상 파일 미리보기
-            if (isEditing &&
-                _videoFile == null &&
-                existingVideoUrl.isNotEmpty)
+            if (isEditing && _videoFile == null && existingVideoUrl.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Text('$existingVideoName · 새 파일을 선택하면 교체됩니다.',
@@ -896,7 +964,7 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
 
             const SizedBox(height: 32),
 
-            // 섭션 02: 강의 자료
+            // 섹션 02: 강의 자료
             const _SectionHeader(index: '02', title: '강의 자료'),
             const SizedBox(height: 16),
 
@@ -925,7 +993,8 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
                         iconColor: _C.lime,
                         iconBg: _C.lime.withValues(alpha: 0.12),
                         name: _lectureFile!.name,
-                        sub: '${(_lectureFile!.size / 1024).toStringAsFixed(1)} KB',
+                        sub:
+                            '${(_lectureFile!.size / 1024).toStringAsFixed(1)} KB',
                         onRemove: () => setState(() => _lectureFile = null),
                       )
                     : isEditing && existingFileName != null
@@ -950,7 +1019,8 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
                               child: const Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(Icons.add_rounded, color: _C.textMute, size: 14),
+                                  Icon(Icons.add_rounded,
+                                      color: _C.textMute, size: 14),
                                   SizedBox(width: 4),
                                   Text('새 파일로 교체',
                                       style: TextStyle(
@@ -962,7 +1032,8 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
                             ),
                           ])
                         : Column(children: [
-                            const Icon(Icons.upload_rounded, color: _C.textMute, size: 32),
+                            const Icon(Icons.upload_rounded,
+                                color: _C.textMute, size: 32),
                             const SizedBox(height: 10),
                             const Text('파일을 선택하세요',
                                 style: TextStyle(
@@ -970,8 +1041,7 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
                                     fontSize: 14,
                                     fontWeight: FontWeight.w600)),
                             const SizedBox(height: 4),
-                            const Text(
-                                'PDF · PPT · DOCX · HWP · 코드파일 · 이미지',
+                            const Text('PDF · PPT · DOCX · HWP · 코드파일 · 이미지',
                                 style: TextStyle(
                                     color: _C.textMute, fontSize: 11)),
                           ]),
@@ -992,41 +1062,44 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: _C.border),
               ),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('AI 분석 파이프라인',
-                    style: TextStyle(
-                        color: _C.textMute,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.8)),
-                const SizedBox(height: 12),
-                ...[
-                  ('텍스트 추출', '다형식 파싱 — PDF·PPT·HWP·코드·이미지'),
-                  ('전처리',     '노이즈 제거 · 구조 정규화'),
-                  ('핵심 추출',  'RAG 기반 핵심 포인트 5개 도출'),
-                  ('난이도 분류', 'Sweller CLT 기반 인지부하 추정'),
-                  ('학습 목표',  '학습 목표 및 검토 질문 자동 생성'),
-                ].map((e) => Padding(
-                      padding: const EdgeInsets.only(bottom: 7),
-                      child: Row(children: [
-                        Container(
-                          width: 5, height: 5,
-                          decoration: const BoxDecoration(
-                              color: _C.lime, shape: BoxShape.circle),
-                        ),
-                        const SizedBox(width: 10),
-                        Text(e.$1,
-                            style: const TextStyle(
-                                color: _C.textSec,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600)),
-                        const SizedBox(width: 6),
-                        Text('\u2014 ${e.$2}',
-                            style: const TextStyle(
-                                color: _C.textMute, fontSize: 11)),
-                      ]),
-                    )),
-              ]),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('AI 분석 파이프라인',
+                        style: TextStyle(
+                            color: _C.textMute,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.8)),
+                    const SizedBox(height: 12),
+                    ...[
+                      ('텍스트 추출', '다형식 파싱 — PDF·PPT·HWP·코드·이미지'),
+                      ('전처리', '노이즈 제거 · 구조 정규화'),
+                      ('핵심 추출', 'RAG 기반 핵심 포인트 5개 도출'),
+                      ('난이도 분류', 'Sweller CLT 기반 인지부하 추정'),
+                      ('학습 목표', '학습 목표 및 검토 질문 자동 생성'),
+                    ].map((e) => Padding(
+                          padding: const EdgeInsets.only(bottom: 7),
+                          child: Row(children: [
+                            Container(
+                              width: 5,
+                              height: 5,
+                              decoration: const BoxDecoration(
+                                  color: _C.lime, shape: BoxShape.circle),
+                            ),
+                            const SizedBox(width: 10),
+                            Text(e.$1,
+                                style: const TextStyle(
+                                    color: _C.textSec,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600)),
+                            const SizedBox(width: 6),
+                            Text('— ${e.$2}',
+                                style: const TextStyle(
+                                    color: _C.textMute, fontSize: 11)),
+                          ]),
+                        )),
+                  ]),
             ),
 
             if (_uploadError != null) ...[
@@ -1039,7 +1112,8 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
                   border: Border.all(color: _C.coral.withValues(alpha: 0.25)),
                 ),
                 child: Row(children: [
-                  const Icon(Icons.warning_amber_rounded, color: _C.coral, size: 15),
+                  const Icon(Icons.warning_amber_rounded,
+                      color: _C.coral, size: 15),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(_uploadError!,
@@ -1059,36 +1133,45 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
                 width: double.infinity,
                 height: 50,
                 decoration: BoxDecoration(
-                  color: _canSubmit ? _C.lime : _C.surface2,
+                  color: _uploadingLecture
+                      ? _C.lime
+                      : (_canSubmit ? _C.lime : _C.surface2),
                   borderRadius: BorderRadius.circular(14),
-                  border: _canSubmit ? null : Border.all(color: _C.border),
+                  border: (_uploadingLecture || _canSubmit)
+                      ? null
+                      : Border.all(color: _C.border),
                 ),
                 child: Center(
                   child: _uploadingLecture
-                      ? const Row(
+                      ? Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            SizedBox(
-                              width: 15, height: 15,
+                            const SizedBox(
+                              width: 15,
+                              height: 15,
                               child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: _C.limeDark),
+                                  strokeWidth: 2.5, color: _C.limeDark),
                             ),
-                            SizedBox(width: 10),
-                            Text('AI 분석 중...',
-                                style: TextStyle(
-                                    color: _C.limeDark,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700)),
+                            const SizedBox(width: 10),
+                            Text(
+                              isEditing && _lectureFile == null
+                                  ? '업로드 및 저장 중...'
+                                  : '업로드 및 AI 분석 중...',
+                              style: const TextStyle(
+                                  color: _C.limeDark,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800),
+                            ),
                           ],
                         )
                       : Text(
                           isEditing && _lectureFile == null
-                              ? '수정사항 저장'
+                              ? (_videoFile != null ? '영상 업로드 및 저장' : '수정사항 저장')
                               : '분석 시작 — 핵심 포인트 추출',
                           style: TextStyle(
                             color: _canSubmit ? _C.limeDark : _C.textMute,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
                 ),
@@ -1118,7 +1201,6 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
         const SizedBox(height: 8),
         _FormField(ctrl: _lectureTitleCtrl, hint: '강의 제목을 입력하세요'),
         const SizedBox(height: 20),
-
         const _FieldLabel('영상 파일'),
         const SizedBox(height: 8),
         GestureDetector(
@@ -1154,9 +1236,8 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
                   style: TextStyle(
                     color: _videoFile != null ? _C.lavender : _C.textMute,
                     fontSize: 13,
-                    fontWeight: _videoFile != null
-                        ? FontWeight.w600
-                        : FontWeight.w400,
+                    fontWeight:
+                        _videoFile != null ? FontWeight.w600 : FontWeight.w400,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -1171,11 +1252,9 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
             ]),
           ),
         ),
-
         const SizedBox(height: 32),
         const _SectionHeader(index: '02', title: '강의 자료'),
         const SizedBox(height: 16),
-
         GestureDetector(
           onTap: _uploadingLecture ? null : _pickFile,
           child: AnimatedContainer(
@@ -1225,34 +1304,37 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
                           child: const Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.add_rounded, color: _C.textMute, size: 14),
+                              Icon(Icons.add_rounded,
+                                  color: _C.textMute, size: 14),
                               SizedBox(width: 4),
                               Text('새 파일로 교체',
                                   style: TextStyle(
-                                      color: _C.textMute, fontSize: 12, fontWeight: FontWeight.w500)),
+                                      color: _C.textMute,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500)),
                             ],
                           ),
                         ),
                       ])
                     : Column(children: [
-                        const Icon(Icons.upload_rounded, color: _C.textMute, size: 32),
+                        const Icon(Icons.upload_rounded,
+                            color: _C.textMute, size: 32),
                         const SizedBox(height: 10),
                         const Text('파일을 선택하세요',
                             style: TextStyle(
-                                color: _C.textSec, fontSize: 14, fontWeight: FontWeight.w600)),
+                                color: _C.textSec,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600)),
                         const SizedBox(height: 4),
                         const Text('PDF · PPT · DOCX · HWP · 코드파일 · 이미지',
                             style: TextStyle(color: _C.textMute, fontSize: 11)),
                       ]),
           ),
         ),
-
         const SizedBox(height: 6),
         const Text('* 이미지 파일은 OCR로, 코드 파일은 텍스트로 읽습니다',
             style: TextStyle(color: _C.textMute, fontSize: 11)),
-
         const SizedBox(height: 24),
-
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -1260,37 +1342,44 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: _C.border),
           ),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const Text('AI 분석 파이프라인',
                 style: TextStyle(
-                    color: _C.textMute, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
+                    color: _C.textMute,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8)),
             const SizedBox(height: 12),
             ...[
               ('텍스트 추출', '다형식 파싱 — PDF·PPT·HWP·코드·이미지'),
-              ('전처리',     '노이즈 제거 · 구조 정규화'),
-              ('핵심 추출',  'RAG 기반 핵심 포인트 5개 도출'),
+              ('전처리', '노이즈 제거 · 구조 정규화'),
+              ('핵심 추출', 'RAG 기반 핵심 포인트 5개 도출'),
               ('난이도 분류', 'Sweller CLT 기반 인지부하 추정'),
-              ('학습 목표',  '학습 목표 및 검토 질문 자동 생성'),
+              ('학습 목표', '학습 목표 및 검토 질문 자동 생성'),
             ].map((e) => Padding(
                   padding: const EdgeInsets.only(bottom: 7),
                   child: Row(children: [
                     Container(
-                      width: 5, height: 5,
+                      width: 5,
+                      height: 5,
                       decoration: const BoxDecoration(
                           color: _C.lime, shape: BoxShape.circle),
                     ),
                     const SizedBox(width: 10),
                     Text(e.$1,
                         style: const TextStyle(
-                            color: _C.textSec, fontSize: 11, fontWeight: FontWeight.w600)),
+                            color: _C.textSec,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600)),
                     const SizedBox(width: 6),
                     Text('— ${e.$2}',
-                        style: const TextStyle(color: _C.textMute, fontSize: 11)),
+                        style:
+                            const TextStyle(color: _C.textMute, fontSize: 11)),
                   ]),
                 )),
           ]),
         ),
-
         if (_uploadError != null) ...[
           const SizedBox(height: 16),
           Container(
@@ -1301,7 +1390,8 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
               border: Border.all(color: _C.coral.withValues(alpha: 0.25)),
             ),
             child: Row(children: [
-              const Icon(Icons.warning_amber_rounded, color: _C.coral, size: 15),
+              const Icon(Icons.warning_amber_rounded,
+                  color: _C.coral, size: 15),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(_uploadError!,
@@ -1310,9 +1400,7 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
             ]),
           ),
         ],
-
         const SizedBox(height: 28),
-
         GestureDetector(
           onTap: _canSubmit ? _submitLecture : null,
           child: AnimatedContainer(
@@ -1320,34 +1408,45 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
             width: double.infinity,
             height: 50,
             decoration: BoxDecoration(
-              color: _canSubmit ? _C.lime : _C.surface2,
+              color: _uploadingLecture
+                  ? _C.lime
+                  : (_canSubmit ? _C.lime : _C.surface2),
               borderRadius: BorderRadius.circular(14),
-              border: _canSubmit ? null : Border.all(color: _C.border),
+              border: (_uploadingLecture || _canSubmit)
+                  ? null
+                  : Border.all(color: _C.border),
             ),
             child: Center(
               child: _uploadingLecture
-                  ? const Row(
+                  ? Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        SizedBox(
-                          width: 15, height: 15,
+                        const SizedBox(
+                          width: 15,
+                          height: 15,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2, color: _C.limeDark),
+                              strokeWidth: 2.5, color: _C.limeDark),
                         ),
-                        SizedBox(width: 10),
-                        Text('AI 분석 중...',
-                            style: TextStyle(
-                                color: _C.limeDark, fontSize: 14, fontWeight: FontWeight.w700)),
+                        const SizedBox(width: 10),
+                        Text(
+                          isEditing && _lectureFile == null
+                              ? '업로드 및 저장 중...'
+                              : '업로드 및 AI 분석 중...',
+                          style: const TextStyle(
+                              color: _C.limeDark,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800),
+                        ),
                       ],
                     )
                   : Text(
                       isEditing && _lectureFile == null
-                          ? '수정사항 저장'
+                          ? (_videoFile != null ? '영상 업로드 및 저장' : '수정사항 저장')
                           : '분석 시작 — 핵심 포인트 추출',
                       style: TextStyle(
                         color: _canSubmit ? _C.limeDark : _C.textMute,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
             ),
@@ -1378,7 +1477,8 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
                 itemCount: notices.length,
                 itemBuilder: (_, i) => _NoticeCard(
                   notice: notices[i] as Map<String, dynamic>,
-                  onDelete: () => _deleteNotice(notices[i] as Map<String, dynamic>),
+                  onDelete: () =>
+                      _deleteNotice(notices[i] as Map<String, dynamic>),
                 ),
               ),
       ),
@@ -1404,100 +1504,114 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: _C.coral.withValues(alpha: 0.2)),
                 ),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    const Icon(Icons.pending_rounded, color: _C.coral, size: 15),
-                    const SizedBox(width: 6),
-                    const Text('수강 신청 대기',
-                        style: TextStyle(
-                            color: _C.coral,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700)),
-                    const Spacer(),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: _C.coral.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: _C.coral.withValues(alpha: 0.3)),
-                      ),
-                      child: Text('${pendingApplications.length}명',
-                          style: const TextStyle(
-                              color: _C.coral,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700)),
-                    ),
-                  ]),
-                  const SizedBox(height: 12),
-                  ...pendingApplications.map((app) => Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: _C.surface,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: _C.border),
-                          ),
-                          child: Row(children: [
-                            _Avatar(
-                                name: app['student_name'] as String? ?? '?',
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        const Icon(Icons.pending_rounded,
+                            color: _C.coral, size: 15),
+                        const SizedBox(width: 6),
+                        const Text('수강 신청 대기',
+                            style: TextStyle(
                                 color: _C.coral,
-                                bg: _C.coralDark),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(app['student_name'] as String? ?? '',
-                                        style: const TextStyle(
-                                            color: _C.textPri,
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 13)),
-                                    if ((app['note'] as String? ?? '').trim().isNotEmpty)
-                                      Text(app['note'] as String,
-                                          style: const TextStyle(
-                                              color: _C.textSec, fontSize: 11)),
-                                  ]),
-                            ),
-                            GestureDetector(
-                              onTap: () => _reviewApplication(app, 'rejected'),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 7),
-                                decoration: BoxDecoration(
-                                  color: _C.coralDark,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                      color: _C.coral.withValues(alpha: 0.3)),
-                                ),
-                                child: const Text('반려',
-                                    style: TextStyle(
-                                        color: _C.coral,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600)),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            GestureDetector(
-                              onTap: () => _reviewApplication(app, 'approved'),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 7),
-                                decoration: BoxDecoration(
-                                  color: _C.lime,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Text('승인',
-                                    style: TextStyle(
-                                        color: _C.limeDark,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700)),
-                              ),
-                            ),
-                          ]),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700)),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: _C.coral.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                                color: _C.coral.withValues(alpha: 0.3)),
+                          ),
+                          child: Text('${pendingApplications.length}명',
+                              style: const TextStyle(
+                                  color: _C.coral,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700)),
                         ),
-                      )),
-                ]),
+                      ]),
+                      const SizedBox(height: 12),
+                      ...pendingApplications.map((app) => Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: _C.surface,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: _C.border),
+                              ),
+                              child: Row(children: [
+                                _Avatar(
+                                    name: app['student_name'] as String? ?? '?',
+                                    color: _C.coral,
+                                    bg: _C.coralDark),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                            app['student_name'] as String? ??
+                                                '',
+                                            style: const TextStyle(
+                                                color: _C.textPri,
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 13)),
+                                        if ((app['note'] as String? ?? '')
+                                            .trim()
+                                            .isNotEmpty)
+                                          Text(app['note'] as String,
+                                              style: const TextStyle(
+                                                  color: _C.textSec,
+                                                  fontSize: 11)),
+                                      ]),
+                                ),
+                                GestureDetector(
+                                  onTap: () =>
+                                      _reviewApplication(app, 'rejected'),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 7),
+                                    decoration: BoxDecoration(
+                                      color: _C.coralDark,
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                          color:
+                                              _C.coral.withValues(alpha: 0.3)),
+                                    ),
+                                    child: const Text('반려',
+                                        style: TextStyle(
+                                            color: _C.coral,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600)),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                GestureDetector(
+                                  onTap: () =>
+                                      _reviewApplication(app, 'approved'),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 7),
+                                    decoration: BoxDecoration(
+                                      color: _C.lime,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Text('승인',
+                                        style: TextStyle(
+                                            color: _C.limeDark,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700)),
+                                  ),
+                                ),
+                              ]),
+                            ),
+                          )),
+                    ]),
               ),
               const SizedBox(height: 16),
             ],
@@ -1505,9 +1619,10 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
               const _EmptyState(icon: '👩‍🎓', message: '아직 입장한 학생이 없습니다')
             else
               ...students.map((raw) {
-                final s          = raw as Map<String, dynamic>;
-                final style      = s['primary_style'] as String?;
-                final styleColor = style != null ? _StyleUtil.color(style) : _C.lavender;
+                final s = raw as Map<String, dynamic>;
+                final style = s['primary_style'] as String?;
+                final styleColor =
+                    style != null ? _StyleUtil.color(style) : _C.lavender;
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Container(
@@ -1523,9 +1638,10 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
                           color: styleColor,
                           bg: _C.lavMid),
                       const SizedBox(width: 12),
-                      Expanded(child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
+                      Expanded(
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
                             Text(s['name'] as String? ?? '',
                                 style: const TextStyle(
                                     color: _C.textPri,
@@ -1533,11 +1649,11 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
                                     fontSize: 13)),
                             if (style != null)
                               Text(
-                                '${_StyleUtil.emoji(style)} $style'
-                                '${(s['social_type'] as String?)?.isNotEmpty == true ? " · ${s['social_type']}" : ""}'
-                                '${(s['cognitive_type'] as String?)?.isNotEmpty == true ? " · ${s['cognitive_type']}" : ""}',
-                                style: const TextStyle(
-                                    color: _C.textMute, fontSize: 11)),
+                                  '${_StyleUtil.emoji(style)} $style'
+                                  '${(s['social_type'] as String?)?.isNotEmpty == true ? " · ${s['social_type']}" : ""}'
+                                  '${(s['cognitive_type'] as String?)?.isNotEmpty == true ? " · ${s['cognitive_type']}" : ""}',
+                                  style: const TextStyle(
+                                      color: _C.textMute, fontSize: 11)),
                           ])),
                       if (style != null)
                         Container(
@@ -1570,7 +1686,7 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
     final ctrlSynopsis = TextEditingController(text: room['synopsis'] ?? '');
     final ctrlConcepts = TextEditingController(
         text: ((room['core_concepts'] as List<dynamic>?) ?? []).join(', '));
-    final ctrlYoutube  = TextEditingController(text: room['youtube_url'] ?? '');
+    final ctrlYoutube = TextEditingController(text: room['youtube_url'] ?? '');
 
     return Column(children: [
       const _TabHeader(title: '강의실 설정', sub: '강의 정보 및 AI 학습 설정을 관리합니다'),
@@ -1584,7 +1700,8 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
               borderRadius: BorderRadius.circular(18),
               border: Border.all(color: _C.border),
             ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const _FieldLabel('강의 줄거리 / 목표'),
               const SizedBox(height: 8),
               _SettingsField(ctrl: ctrlSynopsis, maxLines: 3),
@@ -1602,9 +1719,9 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
                       .toList();
                   try {
                     await ApiService().updateRoomMeta(widget.roomId, {
-                      'synopsis':      ctrlSynopsis.text.trim(),
+                      'synopsis': ctrlSynopsis.text.trim(),
                       'core_concepts': concepts,
-                      'youtube_url':   ctrlYoutube.text.trim(),
+                      'youtube_url': ctrlYoutube.text.trim(),
                     });
                     ref.invalidate(professorRoomDetailProvider(widget.roomId));
                     if (!mounted) return;
@@ -1617,9 +1734,10 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
                   }
                 },
                 child: Container(
-                  width: double.infinity, height: 50,
+                  width: double.infinity,
+                  height: 50,
                   decoration: BoxDecoration(
-                    color: _C.lime, borderRadius: BorderRadius.circular(14)),
+                      color: _C.lime, borderRadius: BorderRadius.circular(14)),
                   child: const Center(
                     child: Text('변경사항 저장 및 AI 재생성',
                         style: TextStyle(
@@ -1638,7 +1756,7 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// 왼쪽 사이드 패널 (교안 업로드 버튼 제거됨)
+// 왼쪽 사이드 패널
 // ══════════════════════════════════════════════════════════════════
 class _LeftPanel extends StatelessWidget {
   final int selectedIndex;
@@ -1668,7 +1786,8 @@ class _LeftPanel extends StatelessWidget {
         // 네비 목록
         Padding(
           padding: const EdgeInsets.all(20),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const Text('강의 관리',
                 style: TextStyle(
                     fontSize: 10,
@@ -1676,9 +1795,27 @@ class _LeftPanel extends StatelessWidget {
                     color: _C.textMute,
                     letterSpacing: 1.5)),
             const SizedBox(height: 12),
-            _NavItem(icon: Icons.menu_book_rounded,  label: '교안 관리', index: 0, accentColor: _C.lime,     selected: selectedIndex == 0, onTap: onSelect),
-            _NavItem(icon: Icons.campaign_rounded,   label: '공지사항', index: 1, accentColor: _C.amber,    selected: selectedIndex == 1, onTap: onSelect),
-            _NavItem(icon: Icons.people_rounded,     label: '수강생',   index: 2, accentColor: _C.lavender, selected: selectedIndex == 2, onTap: onSelect),
+            _NavItem(
+                icon: Icons.menu_book_rounded,
+                label: '교안 관리',
+                index: 0,
+                accentColor: _C.lime,
+                selected: selectedIndex == 0,
+                onTap: onSelect),
+            _NavItem(
+                icon: Icons.campaign_rounded,
+                label: '공지사항',
+                index: 1,
+                accentColor: _C.amber,
+                selected: selectedIndex == 1,
+                onTap: onSelect),
+            _NavItem(
+                icon: Icons.people_rounded,
+                label: '수강생',
+                index: 2,
+                accentColor: _C.lavender,
+                selected: selectedIndex == 2,
+                onTap: onSelect),
           ]),
         ),
 
@@ -1687,7 +1824,8 @@ class _LeftPanel extends StatelessWidget {
         // 통계 요약
         Padding(
           padding: const EdgeInsets.all(20),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const Text('강의실 현황',
                 style: TextStyle(
                     fontSize: 10,
@@ -1695,14 +1833,20 @@ class _LeftPanel extends StatelessWidget {
                     color: _C.textMute,
                     letterSpacing: 1.5)),
             const SizedBox(height: 12),
-            _StatRow(label: '총 수강생', value: '${students.length}명', color: _C.lavender),
+            _StatRow(
+                label: '총 수강생',
+                value: '${students.length}명',
+                color: _C.lavender),
             const SizedBox(height: 8),
-            _StatRow(label: '강의 항목', value: '${lectures.length}개', color: _C.lime),
+            _StatRow(
+                label: '강의 항목', value: '${lectures.length}개', color: _C.lime),
             const SizedBox(height: 8),
-            _StatRow(label: '공지사항',  value: '${notices.length}개',  color: _C.amber),
+            _StatRow(
+                label: '공지사항', value: '${notices.length}개', color: _C.amber),
             if (pendingCount > 0) ...[
               const SizedBox(height: 8),
-              _StatRow(label: '승인 대기', value: '$pendingCount명', color: _C.coral),
+              _StatRow(
+                  label: '승인 대기', value: '$pendingCount명', color: _C.coral),
             ],
           ]),
         ),
@@ -1744,13 +1888,15 @@ class _NavItem extends StatelessWidget {
         ),
         child: Row(children: [
           Container(
-            width: 30, height: 30,
+            width: 30,
+            height: 30,
             decoration: BoxDecoration(
-              color: selected ? accentColor.withValues(alpha: 0.15) : _C.surface2,
+              color:
+                  selected ? accentColor.withValues(alpha: 0.15) : _C.surface2,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon, size: 15,
-                color: selected ? accentColor : _C.textMute),
+            child: Icon(icon,
+                size: 15, color: selected ? accentColor : _C.textMute),
           ),
           const SizedBox(width: 10),
           Text(label,
@@ -1761,9 +1907,10 @@ class _NavItem extends StatelessWidget {
           if (selected) ...[
             const Spacer(),
             Container(
-              width: 4, height: 4,
-              decoration: const BoxDecoration(
-                  color: _C.lime, shape: BoxShape.circle),
+              width: 4,
+              height: 4,
+              decoration:
+                  const BoxDecoration(color: _C.lime, shape: BoxShape.circle),
             ),
           ],
         ]),
@@ -1777,7 +1924,8 @@ class _StatRow extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
-  const _StatRow({required this.label, required this.value, required this.color});
+  const _StatRow(
+      {required this.label, required this.value, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -1880,7 +2028,8 @@ class _LectureCard extends StatelessWidget {
           child: Column(children: [
             Row(children: [
               Container(
-                width: 36, height: 36,
+                width: 36,
+                height: 36,
                 decoration: BoxDecoration(
                   color: _C.surface2,
                   borderRadius: BorderRadius.circular(10),
@@ -1894,9 +2043,10 @@ class _LectureCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              Expanded(child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+              Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                     Text(lec['title'] as String? ?? '',
                         style: const TextStyle(
                             color: _C.textPri,
@@ -1927,29 +2077,51 @@ class _LectureCard extends StatelessWidget {
                     ),
                   ])),
               Column(children: [
-                _ArrowBtn(icon: Icons.keyboard_arrow_up_rounded,   enabled: onUp != null,   onTap: onUp),
-                _ArrowBtn(icon: Icons.keyboard_arrow_down_rounded, enabled: onDown != null, onTap: onDown),
+                _ArrowBtn(
+                    icon: Icons.keyboard_arrow_up_rounded,
+                    enabled: onUp != null,
+                    onTap: onUp),
+                _ArrowBtn(
+                    icon: Icons.keyboard_arrow_down_rounded,
+                    enabled: onDown != null,
+                    onTap: onDown),
               ]),
             ]),
             const SizedBox(height: 12),
             Row(children: [
               _MetaPill(
-                icon: hasVideo ? Icons.ondemand_video_rounded : Icons.videocam_off_rounded,
+                icon: hasVideo
+                    ? Icons.ondemand_video_rounded
+                    : Icons.videocam_off_rounded,
                 label: hasVideo ? '영상 연결됨' : '영상 없음',
                 color: hasVideo ? _C.lavender : _C.textMute,
               ),
               const SizedBox(width: 8),
               _MetaPill(
-                icon: hasMaterial ? Icons.attach_file_rounded : Icons.note_add_outlined,
+                icon: hasMaterial
+                    ? Icons.attach_file_rounded
+                    : Icons.note_add_outlined,
                 label: hasMaterial ? '자료 연결됨' : '자료 없음',
                 color: hasMaterial ? _C.mint : _C.textMute,
               ),
               const Spacer(),
-              _ActionBtn(label: '보기', icon: Icons.visibility_rounded, color: _C.lime, onTap: onView),
+              _ActionBtn(
+                  label: '보기',
+                  icon: Icons.visibility_rounded,
+                  color: _C.lime,
+                  onTap: onView),
               const SizedBox(width: 6),
-              _ActionBtn(label: '편집', icon: Icons.edit_rounded,          color: _C.textSec, onTap: onEdit),
+              _ActionBtn(
+                  label: '편집',
+                  icon: Icons.edit_rounded,
+                  color: _C.textSec,
+                  onTap: onEdit),
               const SizedBox(width: 6),
-              _ActionBtn(label: '삭제', icon: Icons.delete_outline_rounded, color: _C.coral,   onTap: onDelete),
+              _ActionBtn(
+                  label: '삭제',
+                  icon: Icons.delete_outline_rounded,
+                  color: _C.coral,
+                  onTap: onDelete),
             ]),
           ]),
         ),
@@ -1989,7 +2161,8 @@ class _NoticeCard extends StatelessWidget {
         ),
         Padding(
           padding: const EdgeInsets.all(16),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               Expanded(
                 child: Text(title,
@@ -2023,7 +2196,8 @@ class _SectionHeader extends StatelessWidget {
   final String index;
   final String title;
   final Widget? trailing;
-  const _SectionHeader({required this.index, required this.title, this.trailing});
+  const _SectionHeader(
+      {required this.index, required this.title, this.trailing});
 
   @override
   Widget build(BuildContext context) {
@@ -2037,9 +2211,7 @@ class _SectionHeader extends StatelessWidget {
       const SizedBox(width: 10),
       Text(title,
           style: const TextStyle(
-              color: _C.textPri,
-              fontSize: 15,
-              fontWeight: FontWeight.w800)),
+              color: _C.textPri, fontSize: 15, fontWeight: FontWeight.w800)),
       const SizedBox(width: 12),
       Expanded(child: Container(height: 1, color: _C.border)),
       if (trailing != null) ...[
@@ -2071,27 +2243,24 @@ class _FileRowContent extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(children: [
       Container(
-        width: 40, height: 40,
+        width: 40,
+        height: 40,
         decoration: BoxDecoration(
             color: iconBg, borderRadius: BorderRadius.circular(10)),
         child: Icon(icon, color: iconColor, size: 20),
       ),
       const SizedBox(width: 14),
-      Expanded(child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(name,
-                style: const TextStyle(
-                    color: _C.textPri,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 2),
-            Text(sub,
-                style: const TextStyle(
-                    color: _C.textMute, fontSize: 11)),
-          ])),
+      Expanded(
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(name,
+            style: const TextStyle(
+                color: _C.textPri, fontSize: 13, fontWeight: FontWeight.w600),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis),
+        const SizedBox(height: 2),
+        Text(sub, style: const TextStyle(color: _C.textMute, fontSize: 11)),
+      ])),
       if (onRemove != null)
         GestureDetector(
           onTap: onRemove,
@@ -2100,8 +2269,6 @@ class _FileRowContent extends StatelessWidget {
     ]);
   }
 }
-
-
 
 class _InlineFileButton extends StatelessWidget {
   final String label;
@@ -2209,9 +2376,7 @@ class _LectureDraftCard extends StatelessWidget {
             ),
             child: Text('${index + 1}강',
                 style: const TextStyle(
-                    color: _C.lime,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900)),
+                    color: _C.lime, fontSize: 11, fontWeight: FontWeight.w900)),
           ),
           const SizedBox(width: 10),
           const Expanded(
@@ -2224,7 +2389,8 @@ class _LectureDraftCard extends StatelessWidget {
           if (onRemoveLecture != null)
             GestureDetector(
               onTap: onRemoveLecture,
-              child: const Icon(Icons.close_rounded, color: _C.textMute, size: 18),
+              child:
+                  const Icon(Icons.close_rounded, color: _C.textMute, size: 18),
             ),
         ]),
         const SizedBox(height: 14),
@@ -2233,7 +2399,8 @@ class _LectureDraftCard extends StatelessWidget {
         Row(children: [
           Expanded(
             child: _InlineFileButton(
-              label: draft.videoFile == null ? '영상 파일 넣기' : draft.videoFile!.name,
+              label:
+                  draft.videoFile == null ? '영상 파일 넣기' : draft.videoFile!.name,
               icon: Icons.video_file_rounded,
               color: _C.lavender,
               onTap: onPickVideo,
@@ -2243,7 +2410,9 @@ class _LectureDraftCard extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: _InlineFileButton(
-              label: draft.materialFile == null ? '교안 파일 넣기' : draft.materialFile!.name,
+              label: draft.materialFile == null
+                  ? '교안 파일 넣기'
+                  : draft.materialFile!.name,
               icon: Icons.insert_drive_file_rounded,
               color: _C.lime,
               onTap: onPickMaterial,
@@ -2274,7 +2443,8 @@ class _InlineError extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(
           child: Text(message,
-              style: const TextStyle(color: _C.coral, fontSize: 12, height: 1.4)),
+              style:
+                  const TextStyle(color: _C.coral, fontSize: 12, height: 1.4)),
         ),
       ]),
     );
@@ -2305,10 +2475,10 @@ class _PrimarySubmitButton extends StatelessWidget {
         width: double.infinity,
         height: 52,
         decoration: BoxDecoration(
-          color: enabled ? _C.lime : _C.surface2,
+          color: loading ? _C.lime : (enabled ? _C.lime : _C.surface2),
           borderRadius: BorderRadius.circular(15),
-          border: enabled ? null : Border.all(color: _C.border),
-          boxShadow: enabled
+          border: (loading || enabled) ? null : Border.all(color: _C.border),
+          boxShadow: (loading || enabled)
               ? [
                   BoxShadow(
                     color: _C.lime.withValues(alpha: 0.16),
@@ -2325,7 +2495,7 @@ class _PrimarySubmitButton extends StatelessWidget {
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(
-                      strokeWidth: 2,
+                      strokeWidth: 2.5,
                       color: _C.limeDark,
                     ),
                   ),
@@ -2333,13 +2503,13 @@ class _PrimarySubmitButton extends StatelessWidget {
                   Text(loadingLabel,
                       style: const TextStyle(
                           color: _C.limeDark,
-                          fontSize: 14,
+                          fontSize: 15,
                           fontWeight: FontWeight.w800)),
                 ])
               : Text(label,
                   style: TextStyle(
                       color: enabled ? _C.limeDark : _C.textMute,
-                      fontSize: 14,
+                      fontSize: 15,
                       fontWeight: FontWeight.w800)),
         ),
       ),
@@ -2359,12 +2529,12 @@ class _ArrowBtn extends StatelessWidget {
     return GestureDetector(
       onTap: enabled ? onTap : null,
       child: Container(
-        width: 28, height: 28,
+        width: 28,
+        height: 28,
         margin: const EdgeInsets.only(bottom: 2),
         decoration: BoxDecoration(
-          color: _C.surface2, borderRadius: BorderRadius.circular(6)),
-        child: Icon(icon, size: 16,
-            color: enabled ? _C.textSec : _C.textMute),
+            color: _C.surface2, borderRadius: BorderRadius.circular(6)),
+        child: Icon(icon, size: 16, color: enabled ? _C.textSec : _C.textMute),
       ),
     );
   }
@@ -2411,7 +2581,8 @@ class _MetaPill extends StatelessWidget {
   final IconData icon;
   final String label;
   final Color color;
-  const _MetaPill({required this.icon, required this.label, required this.color});
+  const _MetaPill(
+      {required this.icon, required this.label, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -2444,9 +2615,10 @@ class _Avatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final initial = name.isNotEmpty ? name.substring(0, 1) : '?';
     return Container(
-      width: 36, height: 36,
-      decoration: BoxDecoration(
-          color: bg, borderRadius: BorderRadius.circular(10)),
+      width: 36,
+      height: 36,
+      decoration:
+          BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
       child: Center(
         child: Text(initial,
             style: TextStyle(
@@ -2598,10 +2770,9 @@ class _DialogShell extends StatelessWidget {
             const SizedBox(height: 20),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
-              children: actions
-                  .expand((w) => [w, const SizedBox(width: 8)])
-                  .toList()
-                ..removeLast(),
+              children:
+                  actions.expand((w) => [w, const SizedBox(width: 8)]).toList()
+                    ..removeLast(),
             ),
           ]),
         ),
@@ -2657,7 +2828,8 @@ class _DlgBtn extends StatelessWidget {
   final String label;
   final bool primary;
   final VoidCallback onTap;
-  const _DlgBtn({required this.label, required this.onTap, this.primary = false});
+  const _DlgBtn(
+      {required this.label, required this.onTap, this.primary = false});
 
   @override
   Widget build(BuildContext context) {
