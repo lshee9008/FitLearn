@@ -326,31 +326,13 @@ _DEMO_CORE_POINTS = [
     {"id": 4, "content": "Felder-Silverman 4차원 연속 스펙트럼 모델", "priority": 3, "topic": "학습 스타일", "difficulty": "중"},
 ]
 
-
-def _resolve_video_meta(has_video_file: bool, title: str) -> dict:
-    if has_video_file:
-        return {
-            "video_type": "upload",
-            "video_url": "",
-            "video_title": title,
-            "video_status": "processing",
-            "video_source": "uploaded_file",
-        }
-    return {
-        "video_type": "none",
-        "video_url": "",
-        "video_title": "",
-        "video_status": "none",
-        "video_source": "none",
-    }
-
-
 @router.post("/lectures/upload", response_model=LectureUploadResponse)
 async def upload_lecture(
     background_tasks: BackgroundTasks,
     room_id: str = Form(...),
     professor_uid: str = Form(...),
-    file: UploadFile = File(...),
+    # [핵심 수정 부분] file을 필수가 아닌 Optional(| None)로 변경했습니다!
+    file: UploadFile | None = File(None), 
     week_number: int = Form(0),
     lecture_title: str = Form(""),
     lecture_id: str = Form(""),
@@ -361,84 +343,113 @@ async def upload_lecture(
     video_file: UploadFile | None = File(None),
 ):
     """
-    파일 업로드 → 8단계 AI 파이프라인
-    지원: PDF, PPT/PPTX, DOCX, HWP/HWPX, MD, TXT, 이미지, 코드파일
-    week_number: 주차 (0=미지정), lecture_title: 교수 입력 제목
+    강의 업로드 및 수정. 
+    - 새 파일(교안)이 있으면 AI가 새롭게 텍스트를 추출하고 분석합니다.
+    - 기존 강의 편집 시 새 파일이 없으면 기존 교안 데이터(core_points 등)를 유지합니다.
     """
-    resolved_title = lecture_title.strip() or file.filename or "교안"
+    # 1. 기존 강의 데이터 확보 (편집 모드 시)
+    existing = {}
+    if lecture_id:
+        existing = await firebase.get_lecture(room_id, lecture_id) or {}
+
+    resolved_title = lecture_title.strip() or (file.filename if file else "") or existing.get("title", "교안")
     logger.info(f"[upload] room={room_id} professor={professor_uid} "
-                f"file={file.filename} week={week_number} title={resolved_title}")
-    content = await file.read()
+                f"file={'yes' if file else 'no'} video={'yes' if video_file else 'no'} title={resolved_title}")
 
-    try:
-        text = await file_svc.extract_text(content, file.filename or "upload.txt")
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    # 2. 교안(문서) 파이프라인 처리
+    if file:
+        content = await file.read()
+        try:
+            text = await file_svc.extract_text(content, file.filename or "upload.txt")
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
 
-    if not text or (text.startswith("[") and "실패" in text):
-        raise HTTPException(
-            status_code=422,
-            detail=f"파일에서 텍스트를 추출할 수 없습니다. ({file.filename})"
-        )
+        if not text or (text.startswith("[") and "실패" in text):
+            raise HTTPException(status_code=422, detail=f"파일에서 텍스트 추출 실패. ({file.filename})")
 
-    if video_url.strip():
-        logger.info("[upload] video_url 입력은 더 이상 분석에 사용하지 않음")
+        try:
+            result = await pipeline.run(text)
+        except Exception as e:
+            logger.error(f"[upload] 파이프라인 실패: {e}", exc_info=True)
+            raise HTTPException(status_code=502, detail=f"AI 분석 실패: {e}")
+        core_points = result.get("core_points", [])
+    else:
+        # 새 파일이 없으면 기존 데이터 사용
+        if not existing:
+            raise HTTPException(status_code=400, detail="새 강의 등록 시 교안 파일은 필수입니다.")
+        content = None
+        text = existing.get("original_text", "")
+        core_points = existing.get("core_points", [])
+        result = {
+            "core_points": core_points, "lecture_summary": "", 
+            "topics": [], "learning_objectives": [], "estimated_difficulty": "중", "word_count": 0
+        }
+
+    # 3. 비디오/부가정보 상태 보존 로직 (우선순위: 새 파일 > 기존 값)
+    final_video_url = existing.get("video_url", "")
+    final_video_type = existing.get("video_type", "none")
+    final_video_title = existing.get("video_title", "")
+    final_video_status = existing.get("video_status", "none")
+    final_video_source = existing.get("video_source", "none")
     transcript_text = video_transcript_text.strip()
-    video_meta = _resolve_video_meta(video_file is not None, resolved_title)
+    
+    if video_file is not None:
+        final_video_type = "upload"
+        final_video_status = "processing"
+        final_video_source = "uploaded_file"
+        final_video_title = resolved_title
+    elif video_url.strip() and video_url.strip() != existing.get("video_url"):
+        final_video_url = video_url.strip()
+        final_video_type = "youtube"
+        final_video_status = "ready"
+        final_video_source = "url"
+        final_video_title = resolved_title
 
-    try:
-        result = await pipeline.run(text)
-    except Exception as e:
-        logger.error(f"[upload] 파이프라인 실패: {e}", exc_info=True)
-        raise HTTPException(status_code=502, detail=f"AI 분석 실패: {e}")
-
-    lecture_id = await firebase.save_lecture(
+    # 4. DB 병합 저장
+    new_lecture_id = await firebase.save_lecture(
         room_id,
         title=resolved_title,
         original_text=text,
-        core_points=result["core_points"],
+        core_points=core_points,
         week_number=week_number,
         lecture_id=lecture_id,
         order_index=order_index,
-        video_url=video_meta["video_url"],
-        video_type=video_meta["video_type"],
-        video_title=video_meta["video_title"],
-        video_status=video_meta["video_status"],
-        video_source=video_meta["video_source"],
-        material_url=material_url,
+        video_url=final_video_url,
+        video_type=final_video_type,
+        video_title=final_video_title,
+        video_status=final_video_status,
+        video_source=final_video_source,
+        material_url=material_url or existing.get("material_url", ""),
     )
     
-    # Storage 원본 파일 업로드 (백그라운드 또는 비동기 대기. MVP이므로 대기)
-    try:
-        content_type = file.content_type or "application/octet-stream"
-        await firebase.upload_original_file(
-            room_id, lecture_id, content, file.filename or "upload.bin", content_type
-        )
-    except Exception as e:
-        logger.warning(f"[upload] 원본 파일 Storage 업로드 실패: {e}")
+    # 교안 파일은 없고 영상만 추가됐는데 기존 교안이 확정(confirmed) 상태였다면 유지!
+    if existing.get("confirmed") and not file:
+        await firebase.update_lecture_meta(room_id, new_lecture_id, {"confirmed": True})
 
+    # 5. 새 교안 파일이 있으면 Storage 업로드
+    if file and content:
+        try:
+            content_type = file.content_type or "application/octet-stream"
+            await firebase.upload_original_file(
+                room_id, new_lecture_id, content, file.filename or "upload.bin", content_type
+            )
+        except Exception as e:
+            logger.warning(f"[upload] 원본 교안 파일 Storage 업로드 실패: {e}")
+
+    # 6. 새 영상 파일 업로드 및 분석 큐 등록
     if video_file is not None:
         try:
             video_content = await video_file.read()
             if video_content:
-                video_filename = video_file.filename or "video.bin"
-                video_content_type = video_file.content_type or "application/octet-stream"
+                video_filename = video_file.filename or "video.mp4"
+                video_content_type = video_file.content_type or "video/mp4"
                 video_public_url = await firebase.upload_lecture_asset(
-                    room_id,
-                    lecture_id,
-                    video_content,
-                    video_filename,
-                    video_content_type,
-                    "video",
+                    room_id, new_lecture_id, video_content, video_filename, video_content_type, "video"
                 )
                 if not video_public_url:
-                    video_public_url = await _save_local_video_asset(
-                        video_content,
-                        video_filename,
-                        video_content_type,
-                    )
-                    logger.warning(f"[upload] Firebase Storage 미사용 — 로컬 영상 URL 폴백 lecture={lecture_id}")
-                await firebase.update_lecture_meta(room_id, lecture_id, {
+                    video_public_url = await _save_local_video_asset(video_content, video_filename, video_content_type)
+                
+                await firebase.update_lecture_meta(room_id, new_lecture_id, {
                     "video_url": video_public_url,
                     "video_asset_url": video_public_url,
                     "video_status": "ready",
@@ -447,32 +458,21 @@ async def upload_lecture(
                     "transcription_status": "queued",
                     "summary_status": "processing",
                 })
+                
                 if transcript_text:
                     background_tasks.add_task(
-                        _process_transcript_text,
-                        room_id,
-                        lecture_id,
-                        transcript_text,
-                        resolved_title,
-                        text,
-                        result["core_points"],
+                        _process_transcript_text, room_id, new_lecture_id, transcript_text, resolved_title, text, core_points
                     )
                 else:
                     background_tasks.add_task(
-                        _process_uploaded_video_transcript,
-                        room_id,
-                        lecture_id,
-                        video_content,
-                        video_filename,
-                        video_content_type,
-                        resolved_title,
-                        text,
-                        result["core_points"],
+                        _process_uploaded_video_transcript, room_id, new_lecture_id, video_content, video_filename, video_content_type, resolved_title, text, core_points
                     )
         except Exception as e:
             logger.warning(f"[upload] 영상 파일 Storage 업로드 실패: {e}")
+            
+    # 영상은 없지만 대본만 새로 추가된 경우
     elif transcript_text:
-        await firebase.update_lecture_meta(room_id, lecture_id, {
+        await firebase.update_lecture_meta(room_id, new_lecture_id, {
             "video_type": "transcript",
             "video_source": "transcript_text",
             "video_status": "ready",
@@ -480,21 +480,15 @@ async def upload_lecture(
             "summary_status": "processing",
         })
         background_tasks.add_task(
-            _process_transcript_text,
-            room_id,
-            lecture_id,
-            transcript_text,
-            resolved_title,
-            text,
-            result["core_points"],
+            _process_transcript_text, room_id, new_lecture_id, transcript_text, resolved_title, text, core_points
         )
 
-    logger.info(f"[upload] 완료 lecture_id={lecture_id} points={len(result['core_points'])}")
+    logger.info(f"[upload] 성공 완료 lecture_id={new_lecture_id}")
 
     return LectureUploadResponse(
-        lecture_id=lecture_id,
+        lecture_id=new_lecture_id,
         title=resolved_title,
-        core_points=[CorePoint(**cp) for cp in result["core_points"]],
+        core_points=[CorePoint(**cp) for cp in core_points] if core_points else [],
         lecture_summary=result.get("lecture_summary", ""),
         topics=result.get("topics", []),
         learning_objectives=result.get("learning_objectives", []),
