@@ -7,6 +7,17 @@ FitLearn은 교수자가 업로드한 강의 자료를 AI가 분석하고, 학�
 
 강의 자료는 PDF, PPT/PPTX, DOCX, HWP/HWPX, Markdown, 텍스트, 코드 파일, 이미지 등 다양한 형식을 지원합니다. 업로드된 자료는 텍스트 추출, 시각자료/OCR 보조 분석, 핵심 포인트 추출, 교수 검토, 학생 맞춤형 재해석 과정을 거쳐 Notion 문서처럼 읽기 쉬운 마크다운 기반 학습 자료로 변환됩니다.
 
+### 🚀 바로 체험하기 (회원가입 불필요)
+
+**https://fit-learn-phi.vercel.app**
+
+| 체험 | 흐름 |
+|---|---|
+| 학생 | 「학생으로 바로 체험」 → 1분(6문항) 성향 진단 → 데모 강의 맞춤 교안이 **실시간 스트리밍**으로 생성 → 6가지 설명 방식 전환 · 원본과 나란히 비교 · 교안 근거 AI 튜터 질문 |
+| 교수 | 「교수 대시보드 체험」 → 개인 데모 강의실(가상 수강생 8명) → 수강생 성향 대시보드 · AI 수업 인사이트 → 샘플 교안 업로드로 AI 핵심 포인트 추출·검토 |
+
+> 백엔드는 무료 인스턴스라 한동안 접속이 없으면 잠듭니다. 첫 접속 시 서버를 깨우는 데 최대 1분이 걸릴 수 있으며, 화면에 진행 상황이 표시됩니다.
+
 ---
 
 ## 1. 개발 동기
@@ -133,7 +144,7 @@ graph TB
 | Frontend | Flutter, Dart, Riverpod, GoRouter, Dio, Flutter Markdown |
 | Auth / Data | Firebase Auth, Cloud Firestore, Firebase Storage |
 | Backend | Python, FastAPI, Uvicorn, Pydantic |
-| AI | Gemini API, google-genai, google-generativeai |
+| AI | Gemini API (기본 `gemini-3.5-flash` + 폴백 체인, SSE 스트리밍) |
 | File Parsing | PyPDF2, pdfplumber, PyMuPDF, python-pptx, python-docx |
 | RAG / Search | LangChain, FAISS, 자체 교육 이론 지식 베이스 |
 | Cache / Monitoring | Redis, Sentry |
@@ -204,10 +215,12 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-`backend/.env.development` 또는 실행 환경에 아래 값을 설정합니다.
+`backend/.env`(서버 시작 시 자동 로드) 또는 실행 환경에 아래 값을 설정합니다. Firebase 자격증명이 없으면 **인메모리 저장소로 자동 전환**되어 데모 강의와 함께 바로 실행됩니다.
 
 ```bash
 GEMINI_API_KEY=your_gemini_api_key
+GEMINI_MODEL=gemini-3.5-flash            # 선택 (기본값)
+GEMINI_MODEL_FALLBACKS=gemini-flash-latest,gemini-2.5-flash  # 선택
 FIREBASE_PROJECT_ID=your_firebase_project_id
 FIREBASE_CREDENTIALS='{"type":"service_account", "...":"..."}'
 FIREBASE_STORAGE_BUCKET=your_bucket_name
@@ -249,7 +262,7 @@ flutter run -d chrome
 
 ### 9.4 테스트 및 정적 분석
 
-백엔드 테스트:
+백엔드 테스트 (외부 API 없이 인메모리로 실행되는 스모크 테스트):
 
 ```bash
 cd backend
@@ -295,6 +308,10 @@ flutter build web --dart-define=API_BASE_URL=https://fitlearn-backend.onrender.c
 | `POST /api/v1/lectures/upload` | 교안/영상 업로드 및 교안 분석 |
 | `POST /api/v1/lectures/{room_id}/{lecture_id}/confirm` | 교수 핵심 포인트 확정 |
 | `GET /api/v1/lectures/{room_id}/{lecture_id}/reforged` | 학생 맞춤 교안 생성/조회 |
+| `POST /api/v1/demo/bootstrap` | 원클릭 체험 계정 생성 (학생: 데모 강의 자동 수강 / 교수: 개인 데모 강의실) |
+| `GET /api/v1/lectures/{room_id}/{lecture_id}/reforged/stream` | 맞춤 교안 SSE 스트리밍 (스타일 전환·캐시) |
+| `GET /api/v1/lectures/{room_id}/{lecture_id}/ask/stream` | 교안 근거 AI 튜터 SSE 스트리밍 |
+| `POST /api/v1/diagnosis/quick` | 6문항 빠른 성향 진단 (AI 호출 없이 즉시) |
 | `POST /api/v1/diagnosis` | 학습 성향 진단 |
 | `GET /api/v1/rooms/{room_id}/quiz` | 과목 수준 진단 퀴즈 조회 |
 | `POST /api/v1/rooms/{room_id}/quiz/submit` | 과목 수준 진단 퀴즈 제출 |
