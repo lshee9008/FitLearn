@@ -150,6 +150,21 @@ class DiagnosisNotifier extends _$DiagnosisNotifier {
     return result.value!;
   }
 
+  /// 6문항 빠른 진단 — 서버에서 규칙 기반으로 즉시 계산
+  Future<DiagnosisResult> submitQuick({
+    required String userId,
+    required Map<String, String> answers,
+  }) async {
+    state = const AsyncLoading();
+    final result = await AsyncValue.guard(() async {
+      final data = await ApiService().runQuickDiagnosis(userId: userId, answers: answers);
+      return _parse(data);
+    });
+    state = result;
+    if (result.hasError) throw result.error!;
+    return result.value!;
+  }
+
   Future<void> loadExisting(String userId) async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {

@@ -96,7 +96,7 @@ abstract class _C {
   static const lavDark    = Color(0xFF1E1A3A);
   static const yellow     = Color(0xFFFFE566);
   static const text1      = Color(0xFFF0F0F4);
-  static const text2      = Color(0xFF8888A0);
+  static const text2      = Color(0xFF9D9DB0);
   static const text3      = Color(0xFF4A4A58);
 }
 

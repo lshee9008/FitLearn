@@ -1014,3 +1014,68 @@ async def stream_reforged(
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive"},
     )
+
+
+@router.get("/lectures/{room_id}/{lecture_id}/ask/stream")
+@limiter.limit("20/minute")
+async def stream_lecture_question(
+    request: Request,
+    room_id: str,
+    lecture_id: str,
+    question: str,
+    user_id: str = "",
+    style: str = "",
+):
+    """교안 근거 AI 튜터 — 학생 성향에 맞춘 짧은 답변 SSE 스트리밍."""
+    from services.llm import stream_gemini_text
+
+    async def _events():
+        yield ": stream-open\n\n"
+        q = (question or "").strip()[:500]
+        if not q:
+            yield _sse({"type": "error", "message": "질문을 입력해주세요."})
+            return
+        lecture = await firebase.get_lecture(room_id, lecture_id)
+        if not lecture:
+            yield _sse({"type": "error", "message": "교안을 찾을 수 없습니다."})
+            return
+        profile = await _resolve_student_profile(user_id, room_id) if user_id else {}
+        target = _normalize_learning_style(style or profile.get("learning_style", "읽기형"))
+        prompt = f"""당신은 이 강의의 친절한 AI 튜터입니다. 학생 질문에 한국어로 답하세요.
+
+[규칙]
+- 아래 원본 교안과 교수 핵심 포인트를 근거로 답하고, 근거에 없는 내용은 "교안에서 다루지 않은 내용"이라고 밝힌 뒤 일반적인 설명을 짧게 덧붙이세요.
+- '{target}' 학습자에게 맞는 방식으로 설명하세요 ({STYLE_TAGLINES.get(target, '')}).
+- 400~700자, 마크다운 사용. 필요하면 짧은 예시나 코드. 마지막 줄에 '👉 다음으로 확인해볼 것:' 한 문장.
+- 인사말·메타 설명 금지.
+
+[교수 핵심 포인트]
+{_core_points_text(lecture.get('core_points', []))}
+
+[원본 교안]
+{(lecture.get('original_text') or '')[:12000]}
+
+[학생 질문]
+{q}"""
+        buffer: list[str] = []
+        try:
+            async for chunk in stream_gemini_text(
+                prompt, temperature=0.5, max_output_tokens=2048, timeout=60.0, feature="lecture-ask"
+            ):
+                buffer.append(chunk)
+                yield _sse({"type": "delta", "text": chunk})
+                if await request.is_disconnected():
+                    return
+            yield _sse({"type": "done", "content": _clean_markdown("".join(buffer))})
+        except Exception as e:
+            logger.warning(f"[ask/stream] 실패: {e}")
+            if buffer:
+                yield _sse({"type": "done", "content": _clean_markdown("".join(buffer))})
+            else:
+                yield _sse({"type": "error", "message": "지금은 답변을 만들 수 없어요. 잠시 후 다시 질문해주세요."})
+
+    return StreamingResponse(
+        _events(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive"},
+    )

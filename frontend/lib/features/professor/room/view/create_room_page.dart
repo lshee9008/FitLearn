@@ -27,8 +27,8 @@ class _C {
   static const lavMid   = Color(0xFF1E1830);
   static const coral    = Color(0xFFFB7185);
   static const textPri  = Color(0xFFF0F0F4);
-  static const textSec  = Color(0xFF8888A0);
-  static const textMute = Color(0xFF4A4A5A);
+  static const textSec  = Color(0xFF9D9DB0);
+  static const textMute = Color(0xFF6E6E80);
 }
 
 // ─── 강의 입력 모델 ───────────────────────────────────────────────

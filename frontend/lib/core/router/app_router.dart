@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import '../../features/auth/view/welcome_page.dart';
 import '../../features/auth/presentation/pages/auth_page.dart';
@@ -5,10 +6,11 @@ import '../../features/landing/presentation/pages/landing_page.dart';
 import '../../features/landing/presentation/pages/course_detail_page.dart';
 import '../../features/student/diagnosis/view/diagnosis_page.dart';
 import '../../features/student/diagnosis/view/diagnosis_result_page.dart';
+import '../../features/student/diagnosis/view/quick_diagnosis_page.dart';
 import '../../features/student/diagnosis/provider/diagnosis_provider.dart';
 import '../../features/student/room/view/student_home_page.dart';
 import '../../features/student/room/view/subject_quiz_page.dart';
-import '../../features/student/lecture/view/lecture_view_page.dart';
+import '../../features/student/lecture/view/lecture_reader_page.dart';
 import '../../features/professor/room/view/professor_home_page.dart';
 import '../../features/professor/room/view/room_detail_page.dart';
 import '../../features/professor/lecture/view/upload_page.dart';
@@ -47,6 +49,10 @@ final appRouter = GoRouter(
       builder: (_, __) => const DiagnosisPage(),
     ),
     GoRoute(
+      path: '/student/diagnosis/quick',
+      builder: (_, state) => QuickDiagnosisPage(next: state.uri.queryParameters['next']),
+    ),
+    GoRoute(
       path: '/student/subject_quiz/:roomId',
       builder: (_, state) =>
           SubjectQuizPage(roomId: state.pathParameters['roomId']!),
@@ -57,16 +63,22 @@ final appRouter = GoRouter(
           DiagnosisResultPage(result: state.extra as DiagnosisResult),
     ),
     GoRoute(
+      path: '/learn/:roomId/:lectureId',
+      builder: (_, state) => LectureReaderPage(
+        key: ValueKey(state.uri.path),
+        roomId: state.pathParameters['roomId']!,
+        lectureId: state.pathParameters['lectureId']!,
+      ),
+    ),
+    GoRoute(
+      // 하위호환: extra 기반 구 경로 → /learn 경로로 정규화
       path: '/student/lecture',
-      builder: (_, state) {
-        final extra = state.extra as Map<String, dynamic>;
-        return LectureViewPage(
-          roomId: extra['room_id'] as String,
-          lectureId: extra['lecture_id']?.toString() ?? '',
-          userId: extra['user_id'] as String,
-          title: extra['title'] as String? ?? '교안',
-          roomTitle: extra['room_title'] as String? ?? '',
-        );
+      redirect: (_, state) {
+        final extra = state.extra;
+        if (extra is Map && extra['room_id'] != null && extra['lecture_id'] != null) {
+          return '/learn/${extra['room_id']}/${extra['lecture_id']}';
+        }
+        return '/student/home';
       },
     ),
 

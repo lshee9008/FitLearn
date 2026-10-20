@@ -54,8 +54,8 @@ class _C {
   static const amber = Color(0xFFFBBF24);
   static const mint = Color(0xFF34D399);
   static const textPri = Color(0xFFF0F0F4);
-  static const textSec = Color(0xFF8888A0);
-  static const textMute = Color(0xFF4A4A5A);
+  static const textSec = Color(0xFF9D9DB0);
+  static const textMute = Color(0xFF6E6E80);
 }
 
 // ── 학습 유형 유틸 ────────────────────────────────────────────────
@@ -786,14 +786,8 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
               confirmed: confirmed,
               hasVideo: hasVideo,
               hasMaterial: hasMat,
-              onView: () => context.push('/student/lecture', extra: {
-                'room_id': widget.roomId,
-                'lecture_id': lec['lecture_id']?.toString() ?? '',
-                'user_id': ref.read(authNotifierProvider)?.userId ??
-                    'professor-preview',
-                'title': lec['title'] as String? ?? '강의',
-                'room_title': roomName,
-              }),
+              onView: () =>
+                  context.push('/learn/${widget.roomId}/${lec['lecture_id']}'),
               onEdit: () => _openEditForm(lec),
               onDelete: () => _deleteLecture(lec),
               onUp: i == 0 ? null : () => _moveLecture(lectures, i, -1),

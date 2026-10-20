@@ -22,8 +22,8 @@ class _C {
   static const lavender = Color(0xFFA78BFA);
   static const lavMid = Color(0xFF1E1830);
   static const textPri = Color(0xFFF0F0F4);
-  static const textSec = Color(0xFF8888A0);
-  static const textMute = Color(0xFF4A4A5A);
+  static const textSec = Color(0xFF9D9DB0);
+  static const textMute = Color(0xFF6E6E80);
 }
 
 class StudentHomePage extends ConsumerStatefulWidget {
@@ -354,13 +354,7 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
     }
 
     if (!mounted) return;
-    context.push('/student/lecture', extra: {
-      'room_id': roomId,
-      'lecture_id': lecture['lecture_id']?.toString() ?? '',
-      'user_id': userId,
-      'title': lecture['title'],
-      'room_title': roomTitle,
-    });
+    context.push('/learn/$roomId/${lecture['lecture_id']}');
   }
 
   Future<void> _enterRoom(

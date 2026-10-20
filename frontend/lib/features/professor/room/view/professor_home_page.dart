@@ -29,8 +29,8 @@ class _C {
   static const blue = Color(0xFF60A5FA);
   static const blueDark = Color(0xFF1E3A5F);
   static const textPri = Color(0xFFF0F0F4);
-  static const textSec = Color(0xFF8888A0);
-  static const textMute = Color(0xFF4A4A5A);
+  static const textSec = Color(0xFF9D9DB0);
+  static const textMute = Color(0xFF6E6E80);
 }
 
 // ── 강의 아이템 모델 ──────────────────────────────────────────
@@ -847,13 +847,7 @@ class _RoomCardState extends State<_RoomCard> {
               orElse: () => lectures.cast<Map<String, dynamic>>().first,
             );
         if (!mounted) return;
-        context.push('/student/lecture', extra: {
-          'room_id': roomId,
-          'lecture_id': lecture['lecture_id']?.toString() ?? '',
-          'user_id': 'professor-preview',
-          'title': lecture['title'] as String? ?? subject,
-          'room_title': subject,
-        });
+        context.push('/learn/$roomId/${lecture['lecture_id']}');
       } catch (_) {
         if (mounted) context.push('/professor/room/$roomId');
       }
@@ -1377,8 +1371,8 @@ class _CreateRoomDialogState extends State<_CreateRoomDialog> {
   static const _limeDark = Color(0xFF1A2400);
   static const _border = Color(0xFF1E1E2A);
   static const _textPri = Color(0xFFF0F0F4);
-  static const _textSec = Color(0xFF8888A0);
-  static const _textMute = Color(0xFF4A4A5A);
+  static const _textSec = Color(0xFF9D9DB0);
+  static const _textMute = Color(0xFF6E6E80);
   static const _btnGhost = Color(0xFF13131A);
 
   @override
@@ -1788,7 +1782,7 @@ class _SummarySection extends StatelessWidget {
   static const _surf = Color(0xFF13131A);
   static const _lime = Color(0xFFC8F135);
   static const _border = Color(0xFF1E1E2A);
-  static const _textMute = Color(0xFF4A4A5A);
+  static const _textMute = Color(0xFF6E6E80);
 
   @override
   Widget build(BuildContext context) {
@@ -1826,7 +1820,7 @@ class _SummaryLink extends StatelessWidget {
 
   static const _lime = Color(0xFFC8F135);
   static const _limeDark = Color(0xFF1A2400);
-  static const _textSec = Color(0xFF8888A0);
+  static const _textSec = Color(0xFF9D9DB0);
 
   @override
   Widget build(BuildContext context) {
@@ -1878,7 +1872,7 @@ class _AttachCardState extends State<_AttachCard> {
   static const _lime = Color(0xFFC8F135);
   static const _border = Color(0xFF1E1E2A);
   static const _textPri = Color(0xFFF0F0F4);
-  static const _textMute = Color(0xFF4A4A5A);
+  static const _textMute = Color(0xFF6E6E80);
 
   @override
   void initState() {
@@ -1971,8 +1965,8 @@ class _EditRoomDialogState extends State<_EditRoomDialog> {
   static const _limeDark = Color(0xFF1A2400);
   static const _border = Color(0xFF1E1E2A);
   static const _textPri = Color(0xFFF0F0F4);
-  static const _textSec = Color(0xFF8888A0);
-  static const _textMute = Color(0xFF4A4A5A);
+  static const _textSec = Color(0xFF9D9DB0);
+  static const _textMute = Color(0xFF6E6E80);
   static const _btnGhost = Color(0xFF13131A);
 
   @override
@@ -2287,8 +2281,8 @@ class _InviteCodeDialogState extends State<_InviteCodeDialog> {
   static const _lime = Color(0xFFC8F135);
   static const _limeDark = Color(0xFF1A2400);
   static const _border = Color(0xFF1E1E2A);
-  static const _textSec = Color(0xFF8888A0);
-  static const _textMute = Color(0xFF4A4A5A);
+  static const _textSec = Color(0xFF9D9DB0);
+  static const _textMute = Color(0xFF6E6E80);
 
   Future<void> _copyCode() async {
     await Clipboard.setData(ClipboardData(text: widget.code));
@@ -2443,7 +2437,7 @@ class _RoomTypeChip extends StatelessWidget {
   static const _border = Color(0xFF1E1E2A);
   static const _surf = Color(0xFF13131A);
   static const _textPri = Color(0xFFF0F0F4);
-  static const _textSec = Color(0xFF8888A0);
+  static const _textSec = Color(0xFF9D9DB0);
 
   @override
   Widget build(BuildContext context) {

@@ -76,39 +76,48 @@ String firebaseErrorToKorean(Object e) {
 const bool kDemoMode = true;
 // ─────────────────────────────────────────────────────────────────────────────
 
-@riverpod
+@Riverpod(keepAlive: true)
 class AuthNotifier extends _$AuthNotifier {
+  Future<void>? _loading;
+
   @override
   UserProfile? build() {
-    _loadFromPrefs();
+    _loading = _loadFromPrefs();
     return null;
   }
 
+  /// 저장된 세션 로딩이 끝날 때까지 기다린 뒤 현재 사용자 반환 (새로고침 직후 대비)
+  Future<UserProfile?> ready() async {
+    await _loading;
+    return state;
+  }
+
   // ── 데모 로그인 (인증 없이 역할만 선택) ──────────────────────────────────
-  Future<void> demoLogin(UserRole role) async {
+  /// 방문자별 고유 데모 계정을 준비하고 바로 이동할 정보를 돌려준다.
+  /// 같은 브라우저로 재방문하면 이전 체험 계정을 이어서 사용한다.
+  Future<Map<String, dynamic>> demoLogin(UserRole role) async {
+    final prefs = await SharedPreferences.getInstance();
+    final idKey = 'demo_id_${role.name}';
+    final data = await ApiService().demoBootstrap(
+      role: role == UserRole.student ? 'student' : 'professor',
+      userId: prefs.getString(idKey) ?? '',
+    );
     final profile = UserProfile(
-      userId: 'demo-${role.name}-001',
-      name: role == UserRole.student ? '데모 학생' : '데모 교수',
+      userId: data['user_id'] as String,
+      name: data['name'] as String? ?? (role == UserRole.student ? '체험 학생' : '체험 교수'),
       email: '',
       role: role,
     );
-    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(idKey, profile.userId);
     await prefs.setString('user_id', profile.userId);
     await prefs.setString('user_name', profile.name);
     await prefs.setString('user_role', profile.roleValue);
     await prefs.setString('user_email', '');
-    try {
-      await ApiService().register(
-        userId: profile.userId,
-        name: profile.name,
-        role: profile.roleValue,
-        email: '',
-      );
-    } catch (_) {
-      await ApiService().markActive(profile.userId).catchError((_) {});
-    }
     state = profile;
+    return data;
   }
+
+  bool get isDemo => state?.userId.startsWith('demo-') ?? false;
 
   Future<void> _loadFromPrefs() async {
     final prefs = await SharedPreferences.getInstance();
@@ -299,10 +308,15 @@ class AuthNotifier extends _$AuthNotifier {
 
   // ── 로그아웃 ──────────────────────────────────────────────────
   Future<void> logout() async {
-    await FirebaseAuth.instance.signOut();
-    await _googleSignIn.signOut();
+    try {
+      await FirebaseAuth.instance.signOut();
+      await _googleSignIn.signOut();
+    } catch (_) {}
     final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
+    // 데모 체험 ID(demo_id_*)는 유지해 재방문 시 이어서 체험할 수 있게 한다.
+    for (final key in ['user_id', 'user_name', 'user_role', 'user_email']) {
+      await prefs.remove(key);
+    }
     state = null;
   }
 }

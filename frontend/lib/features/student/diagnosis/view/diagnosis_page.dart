@@ -23,8 +23,8 @@ class _C {
   static const amber     = Color(0xFFFBBF24);
   static const amberDark = Color(0xFF3D2800);
   static const textPri   = Color(0xFFF0F0F4);
-  static const textSec   = Color(0xFF8888A0);
-  static const textMute  = Color(0xFF4A4A5A);
+  static const textSec   = Color(0xFF9D9DB0);
+  static const textMute  = Color(0xFF6E6E80);
 }
 
 // ════════════════════════════════════════════════════════════

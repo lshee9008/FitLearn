@@ -39,6 +39,33 @@ class ApiService {
     await _dio.post('/api/v1/auth/active/$userId');
   }
 
+  // ── Demo ──────────────────────────────────────────────────────
+
+  /// 원클릭 체험 — 방문자별 데모 계정 준비 (학생: 데모 강의 자동 수강, 교수: 개인 강의실 사본)
+  Future<Map<String, dynamic>> demoBootstrap({
+    required String role,
+    String userId = '',
+  }) async {
+    final res = await _dio.post('/api/v1/demo/bootstrap', data: {
+      'role': role,
+      'user_id': userId,
+    });
+    return Map<String, dynamic>.from(res.data as Map);
+  }
+
+  /// Render 무료 인스턴스 콜드스타트 대비 — 서버를 미리 깨운다.
+  Future<bool> ping({Duration timeout = const Duration(seconds: 70)}) async {
+    try {
+      final res = await _dio.get(
+        ApiConstants.health,
+        options: Options(receiveTimeout: timeout),
+      );
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
   // ── Courses ────────────────────────────────────────────────────
 
   Future<List<dynamic>> getCourses() async {
@@ -228,6 +255,17 @@ class ApiService {
       if (roomId != null) 'room_id': roomId,
     });
     return res.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> runQuickDiagnosis({
+    required String userId,
+    required Map<String, String> answers,
+  }) async {
+    final res = await _dio.post('/api/v1/diagnosis/quick', data: {
+      'user_id': userId,
+      'answers': answers,
+    });
+    return Map<String, dynamic>.from(res.data as Map);
   }
 
   Future<Map<String, dynamic>> getDiagnosis(String userId) async {

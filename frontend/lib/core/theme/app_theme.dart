@@ -1,46 +1,56 @@
 import 'package:flutter/material.dart';
+import 'tokens.dart';
 
+export 'tokens.dart';
+
+/// 레거시 화면 호환용 팔레트 — 실제 값은 [FL] 디자인 토큰을 따른다.
 class AppColors {
-  // Backgrounds — 다크 블랙/딥그레이
-  static const Color bg = Color(0xFF0A0A0F);
-  static const Color bgCard = Color(0xFF1A1A2E);
-  static const Color bgSurface = Color(0xFF141420);
+  static const Color bg = FL.bg;
+  static const Color bgCard = FL.surface2;
+  static const Color bgSurface = FL.surface;
 
-  // Brand — 초록 포인트
-  static const Color primary = Color(0xFF10B981);
-  static const Color primaryLight = Color(0xFF34D399);
-  static const Color primaryGlow = Color(0xFF059669);
-  static const Color secondary = Color(0xFF0EA5E9);
-  static const Color accent = Color(0xFF34D399);
-  static const Color gold = Color(0xFFF59E0B);
-  static const Color rose = Color(0xFFF43F5E);
+  static const Color primary = FL.lime;
+  static const Color primaryLight = FL.lime;
+  static const Color primaryGlow = FL.limeDeep;
+  static const Color secondary = FL.lavender;
+  static const Color accent = FL.mint;
+  static const Color gold = FL.amber;
+  static const Color rose = FL.coral;
 
-  // Text
-  static const Color textPrimary = Color(0xFFF8FAFC);
-  static const Color textSecondary = Color(0xFFCBD5E1);
-  static const Color textMuted = Color(0xFF64748B);
+  static const Color textPrimary = FL.text;
+  static const Color textSecondary = FL.textSec;
+  static const Color textMuted = FL.textMute;
 
-  // Borders
-  static const Color border = Color(0xFF1E293B);
-  static const Color borderLight = Color(0xFF334155);
+  static const Color border = FL.border;
+  static const Color borderLight = FL.borderStrong;
 
-  // Learning type colors
-  static const Color visual = Color(0xFF7C3AED);    // 시각형
-  static const Color auditory = Color(0xFF0EA5E9);   // 청각형
-  static const Color reading = Color(0xFF10B981);    // 읽기형
-  static const Color kinesthetic = Color(0xFFF59E0B); // 운동형
+  static const Color visual = FL.lavender;
+  static const Color auditory = FL.sky;
+  static const Color reading = FL.mint;
+  static const Color kinesthetic = FL.amber;
 }
 
 class AppTheme {
   static ThemeData get dark => ThemeData(
     useMaterial3: true,
+    splashFactory: InkSparkle.splashFactory,
+    snackBarTheme: SnackBarThemeData(
+      backgroundColor: FL.surface3,
+      contentTextStyle: const TextStyle(color: FL.text, fontSize: 14),
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ),
+    tooltipTheme: TooltipThemeData(
+      decoration: BoxDecoration(color: FL.surface3, borderRadius: BorderRadius.circular(8)),
+      textStyle: const TextStyle(color: FL.text, fontSize: 12),
+    ),
     brightness: Brightness.dark,
     scaffoldBackgroundColor: AppColors.bg,
     colorScheme: const ColorScheme.dark(
       primary: AppColors.primary,
       secondary: AppColors.secondary,
       surface: AppColors.bgCard,
-      onPrimary: Color(0xFF0A0A0F),
+      onPrimary: FL.limeInk,
       onSecondary: Colors.white,
       onSurface: AppColors.textPrimary,
       error: AppColors.rose,
@@ -77,7 +87,7 @@ class AppTheme {
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
+        foregroundColor: FL.limeInk,
         elevation: 0,
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

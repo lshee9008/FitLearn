@@ -52,6 +52,7 @@ dependencies:
 
   # 마크다운 렌더링
   flutter_markdown: ^0.7.4+1
+  markdown: ^7.2.0
 
   # 파일 처리
   file_picker: ^8.0.0+1
