@@ -125,11 +125,14 @@ class LecturePipeline:
         """
         핵심 포인트 추출 + 주제 분류 + 전체 요약 + 학습 목표 — 단일 Gemini 호출
         """
-        prompt = f"""당신은 교육 전문가입니다. 교육심리학 이론에 기반하여 다음 교안을 분석하세요.
+        prompt = f"""당신은 대학 강의 조교입니다. 아래 교안을 읽고, 학생이 이 강의에서 반드시 이해해야 할 '내용상의 핵심'을 뽑으세요.
 
-[참조 이론]
-• {CLT_CONTEXT}
-• {VARK_CONTEXT}
+[중요]
+- 교안의 품질·구성·자료 형식을 평가하거나 비평하지 마세요. 오직 강의 '내용'에서 핵심을 뽑습니다.
+- 각 핵심 포인트는 교안에 실제로 나온 개념·원리·절차·코드에 근거한 1~2문장의 사실 진술이어야 합니다.
+  좋은 예: "버블 정렬은 인접한 두 원소를 비교해 교환하며, 시간 복잡도는 O(n²)이다"
+  나쁜 예: "교안에 시각 자료가 부족하다", "학습자의 인지부하를 줄여야 한다"
+- 실습 코드가 있으면 "~ 코드로 ~을 직접 구현한다"처럼 실습 포인트도 포함하세요.
 
 [교안 내용]
 {text}
@@ -139,13 +142,13 @@ class LecturePipeline:
   "core_points": [
     {{
       "id": 1,
-      "content": "핵심 포인트 내용 (1-2문장, 명확하고 구체적으로)",
+      "content": "핵심 포인트 (1-2문장, 교안 내용 기반의 사실 진술)",
       "priority": 5,
-      "topic": "소속 주제명",
-      "difficulty": "상"
+      "topic": "소속 주제명 (예: 버블 정렬)",
+      "difficulty": "중"
     }}
   ],
-  "lecture_summary": "교안 전체 2-3문장 요약",
+  "lecture_summary": "교안 전체 내용 2-3문장 요약",
   "topics": ["주제1", "주제2", "주제3"],
   "learning_objectives": [
     "학습자는 ~을 설명할 수 있다",
@@ -155,11 +158,10 @@ class LecturePipeline:
 }}
 
 규칙:
-- core_points: 5-7개, priority는 5(최중요)~1(보통), difficulty는 상|중|하
-- topics: 3-5개의 핵심 주제 분류
-- learning_objectives: Bloom 분류 기반 3-5개 (이해/적용/분석/종합/평가)
-- estimated_difficulty: 전체 난이도 상|중|하
-- JSON만 출력하세요"""
+- core_points: 4-7개, priority는 5(가장 중요)~1, difficulty는 상|중|하
+- topics: 교안에 나온 주제 3-5개
+- learning_objectives: Bloom 분류 동사 기반 3-5개
+- JSON만 출력"""
 
         response = _Resp(await generate_gemini_text(prompt, temperature=0.2, max_output_tokens=4096, timeout=60.0, feature="pipeline"))
         return _extract_json(response.text)

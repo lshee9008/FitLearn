@@ -1,25 +1,21 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="FitLearn - AI 맞춤 학습 플랫폼">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0E0E11">
+  <meta name="description" content="FitLearn — 1분 성향 진단으로 같은 교안을 나에게 맞는 설명 방식(시각형·청각형·실습형 등)으로 실시간 재구성하는 AI 맞춤 학습 엔진. 로그인 없이 바로 체험하세요.">
   <meta name="application-name" content="FitLearn">
+
+  <!-- Open Graph (링크 공유 미리보기) -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="FitLearn — 같은 교안, 나에게 맞는 설명으로">
+  <meta property="og:description" content="1분 성향 진단 → 교수님 교안을 내 방식으로 실시간 재구성. 회원가입 없이 바로 체험해보세요.">
+  <meta property="og:image" content="icons/Icon-512.png">
+  <meta property="og:locale" content="ko_KR">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
@@ -27,21 +23,50 @@
   <meta name="apple-mobile-web-app-title" content="FitLearn">
   <link rel="apple-touch-icon" href="icons/Icon-192.png?v=2">
 
-  <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png?v=2"/>
 
-  <title>FitLearn</title>
+  <title>FitLearn — AI 맞춤 학습</title>
   <link rel="manifest" href="manifest.json">
+
+  <style>
+    html, body { margin: 0; height: 100%; background: #0E0E11; }
+    #fl-splash {
+      position: fixed; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 18px;
+      background: radial-gradient(circle at 70% 20%, #1A2108 0%, #0E0E11 55%);
+      font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+      transition: opacity .35s ease;
+    }
+    #fl-splash img { width: 64px; height: 64px; border-radius: 18px; }
+    #fl-splash .brand { color: #F0F0F4; font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+    #fl-splash .brand b { color: #C8F135; }
+    #fl-splash .hint { color: #6E6E80; font-size: 13px; }
+    #fl-splash .bar { width: 160px; height: 3px; border-radius: 99px; background: #22222E; overflow: hidden; }
+    #fl-splash .bar::after {
+      content: ""; display: block; width: 40%; height: 100%; background: #C8F135; border-radius: 99px;
+      animation: fl-load 1.1s ease-in-out infinite;
+    }
+    @keyframes fl-load { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
+  </style>
 </head>
 <body>
+  <div id="fl-splash">
+    <img src="icons/Icon-192.png?v=2" alt="">
+    <div class="brand"><b>Fit</b>Learn</div>
+    <div class="bar"></div>
+    <div class="hint">맞춤 학습 공간을 준비하고 있어요</div>
+  </div>
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker
-        .getRegistrations()
-        .then((registrations) => {
-          registrations.forEach((registration) => registration.unregister());
-        });
+      navigator.serviceWorker.getRegistrations().then((rs) => rs.forEach((r) => r.unregister()));
     }
+    // Flutter 첫 프레임이 그려지면 스플래시 제거
+    window.addEventListener('flutter-first-frame', function () {
+      var s = document.getElementById('fl-splash');
+      if (!s) return;
+      s.style.opacity = '0';
+      setTimeout(function () { s.remove(); }, 400);
+    });
   </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>

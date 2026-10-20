@@ -98,6 +98,19 @@ flutter:
     - assets/brand/fitlearn_logo_icon.png
     - assets/brand/fitlearn_logo_wordmark.png
 
+  # Pretendard Std (SIL OFL 1.1) — 첫 화면부터 한글이 깨지지 않도록 번들
+  fonts:
+    - family: Pretendard
+      fonts:
+        - asset: assets/fonts/PretendardStd-Regular.otf
+          weight: 400
+        - asset: assets/fonts/PretendardStd-SemiBold.otf
+          weight: 600
+        - asset: assets/fonts/PretendardStd-Bold.otf
+          weight: 700
+        - asset: assets/fonts/PretendardStd-ExtraBold.otf
+          weight: 800
+
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg

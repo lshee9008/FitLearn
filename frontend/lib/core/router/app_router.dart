@@ -1,6 +1,5 @@
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
-import '../../features/auth/view/welcome_page.dart';
 import '../../features/auth/presentation/pages/auth_page.dart';
 import '../../features/landing/presentation/pages/landing_page.dart';
 import '../../features/landing/presentation/pages/course_detail_page.dart';
@@ -34,10 +33,7 @@ final appRouter = GoRouter(
       builder: (_, state) =>
           CourseDetailPage(courseId: state.pathParameters['courseId']!),
     ),
-    GoRoute(
-      path: '/welcome',
-      builder: (_, __) => const WelcomePage(),
-    ),
+    GoRoute(path: '/welcome', redirect: (_, __) => '/'),
 
     // ── Student ───────────────────────────────────────────────────
     GoRoute(

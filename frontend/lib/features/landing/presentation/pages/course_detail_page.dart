@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../features/auth/provider/auth_provider.dart';
 import '../../../../shared/services/api_service.dart';
 import '../../../../shared/widgets/fitlearn_logo.dart';
@@ -90,16 +89,15 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
   }
 
   Future<void> _pay() async {
-    final profile = ref.read(authNotifierProvider);
-    if (profile == null) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('pendingCourseId', widget.courseId);
-      if (!mounted) return;
-      context.push('/auth');
-      return;
-    }
     setState(() => _paying = true);
+    var profile = await ref.read(authNotifierProvider.notifier).ready();
     try {
+      // 비로그인 방문자는 체험 계정을 자동으로 만들어 바로 수강하게 한다
+      if (profile == null || profile.role != UserRole.student) {
+        await ref.read(authNotifierProvider.notifier).demoLogin(UserRole.student);
+        profile = ref.read(authNotifierProvider);
+      }
+      if (profile == null) throw Exception('체험 계정을 준비하지 못했습니다.');
       final result = await ApiService().enrollCourse(
         courseId: widget.courseId,
         userId: profile.userId,
@@ -117,7 +115,7 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content:
-                Text('결제 오류: $e', style: const TextStyle(color: _C.textPri)),
+                Text('수강 등록에 실패했어요. 잠시 후 다시 시도해주세요.', style: const TextStyle(color: _C.textPri)),
             backgroundColor: _C.coral,
           ),
         );
@@ -242,11 +240,7 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
               paying: _paying,
               onPay: loadError ? null : _pay,
               onEnter: () {
-                if (_enrolledRoomId != null) {
-                  context.go('/student/home');
-                } else {
-                  context.go('/welcome');
-                }
+                context.go('/student/home');
               },
             ),
           ),
@@ -360,7 +354,9 @@ class _BottomBar extends StatelessWidget {
                     ? '수강 중'
                     : onPay == null
                         ? '연결 확인 필요'
-                        : '₩${_formatPrice(price)}',
+                        : price == 0
+                            ? '무료'
+                            : '₩${_formatPrice(price)}',
                 style: TextStyle(
                     color: enrolled ? _C.mint : _C.textPri,
                     fontSize: 20,
@@ -387,7 +383,7 @@ class _BottomBar extends StatelessWidget {
                           height: 20,
                           child: CircularProgressIndicator(
                               strokeWidth: 2, color: _C.limeDark))
-                      : const Text('결제하기',
+                      : Text(price == 0 ? '무료로 수강 시작' : '수강 신청',
                           style: TextStyle(
                               fontSize: 15, fontWeight: FontWeight.w700)),
                 ),

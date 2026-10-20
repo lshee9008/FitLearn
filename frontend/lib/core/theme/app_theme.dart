@@ -33,6 +33,7 @@ class AppColors {
 class AppTheme {
   static ThemeData get dark => ThemeData(
     useMaterial3: true,
+    fontFamily: 'Pretendard',
     splashFactory: InkSparkle.splashFactory,
     snackBarTheme: SnackBarThemeData(
       backgroundColor: FL.surface3,

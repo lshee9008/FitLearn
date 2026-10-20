@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,13 +10,73 @@ import '../../../../core/theme/app_theme.dart';
 
 // 지원 확장자 목록
 const _allowedExtensions = [
-  'pdf', 'ppt', 'pptx', 'docx', 'hwp', 'hwpx', 'md', 'txt',
-  'py', 'js', 'ts', 'java', 'c', 'cpp', 'cs', 'go', 'rs', 'kt', 'swift',
-  'jpg', 'jpeg', 'png', 'webp',
-  'csv', 'json', 'xml',
+  'pdf',
+  'ppt',
+  'pptx',
+  'docx',
+  'hwp',
+  'hwpx',
+  'md',
+  'txt',
+  'py',
+  'js',
+  'ts',
+  'java',
+  'c',
+  'cpp',
+  'cs',
+  'go',
+  'rs',
+  'kt',
+  'swift',
+  'jpg',
+  'jpeg',
+  'png',
+  'webp',
+  'csv',
+  'json',
+  'xml',
 ];
 
 const _videoExtensions = ['mp4', 'mov', 'webm', 'm4v'];
+
+// 체험용 샘플 교안 — 파일이 없어도 AI 핵심 포인트 추출을 바로 체험할 수 있게
+const _sampleLecture = """# 4강. 의사결정나무와 랜덤 포레스트
+
+## 1. 의사결정나무 (Decision Tree)
+데이터를 질문(조건)으로 반복 분할해 예측하는 모델이다. 각 노드는 하나의 특성에 대한 질문이고, 잎(leaf) 노드가 최종 예측값이다.
+- 분할 기준: 불순도(impurity)를 가장 크게 줄이는 질문을 선택한다
+- 지니 불순도: Gini = 1 − Σ pᵢ²  (한 노드에 한 클래스만 있으면 0)
+- 장점: 결과를 사람이 해석하기 쉽다 / 단점: 깊어질수록 과적합되기 쉽다
+
+## 2. 과적합 제어
+- max_depth: 나무의 최대 깊이를 제한
+- min_samples_leaf: 잎 노드의 최소 샘플 수 지정
+- 가지치기(pruning): 검증 성능이 좋아지지 않는 가지를 제거
+
+## 3. 랜덤 포레스트 (Random Forest)
+여러 개의 의사결정나무를 만들고 투표(분류) 또는 평균(회귀)으로 예측을 합치는 앙상블 기법이다.
+1. 부트스트랩: 학습 데이터에서 중복을 허용해 무작위로 샘플을 뽑아 나무마다 다른 데이터를 준다
+2. 특성 무작위 선택: 각 분할에서 일부 특성만 후보로 사용해 나무들의 상관관계를 낮춘다
+3. 집계: 다수결/평균으로 분산을 줄여 단일 나무보다 안정적인 성능을 얻는다
+
+## 4. 실습
+```python
+from sklearn.datasets import load_iris
+from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+
+X, y = load_iris(return_X_y=True)
+X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.3, random_state=0)
+
+tree = DecisionTreeClassifier(max_depth=3).fit(X_tr, y_tr)
+forest = RandomForestClassifier(n_estimators=100, random_state=0).fit(X_tr, y_tr)
+print("나무 정확도:", tree.score(X_te, y_te))
+print("숲 정확도:", forest.score(X_te, y_te))
+```
+특성 중요도(feature_importances_)로 어떤 특성이 예측에 크게 기여했는지 확인할 수 있다.
+""";
 
 class LectureUploadPage extends ConsumerStatefulWidget {
   final String roomId;
@@ -29,7 +91,7 @@ class _LectureUploadPageState extends ConsumerState<LectureUploadPage> {
   PlatformFile? _videoFile;
   bool _uploading = false;
   String? _error;
-  int _weekNumber = 0;       // 0 = 주차 미지정
+  int _weekNumber = 0; // 0 = 주차 미지정
   final _titleCtrl = TextEditingController();
   final _transcriptCtrl = TextEditingController();
   final _materialUrlCtrl = TextEditingController();
@@ -81,6 +143,16 @@ class _LectureUploadPageState extends ConsumerState<LectureUploadPage> {
     }
   }
 
+  void _useSample() {
+    final bytes = utf8.encode(_sampleLecture);
+    setState(() {
+      _file = PlatformFile(
+          name: '4강_의사결정나무와_랜덤포레스트.md', size: bytes.length, bytes: bytes);
+      _error = null;
+      if (_titleCtrl.text.trim().isEmpty) _titleCtrl.text = '의사결정나무와 랜덤 포레스트';
+    });
+  }
+
   Future<void> _pickVideoFile() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -111,7 +183,10 @@ class _LectureUploadPageState extends ConsumerState<LectureUploadPage> {
     final user = ref.read(authNotifierProvider);
     if (user == null) return;
 
-    setState(() { _uploading = true; _error = null; });
+    setState(() {
+      _uploading = true;
+      _error = null;
+    });
     try {
       final data = await ApiService().uploadLecture(
         roomId: widget.roomId,
@@ -135,15 +210,23 @@ class _LectureUploadPageState extends ConsumerState<LectureUploadPage> {
         if (!mounted) return;
         setState(() => _uploading = false);
         if (confirmed == true) {
-          context.pop();
+          if (context.canPop()) {
+            context.pop();
+          } else {
+            context.go('/professor/room/${widget.roomId}');
+          }
         }
       }
     } catch (e) {
-      setState(() { _error = '업로드 중 오류가 발생했습니다: $e'; _uploading = false; });
+      setState(() {
+        _error = '업로드 중 오류가 발생했습니다: $e';
+        _uploading = false;
+      });
     }
   }
 
-  bool get _canUpload => _file != null && _titleCtrl.text.trim().isNotEmpty && !_uploading;
+  bool get _canUpload =>
+      _file != null && _titleCtrl.text.trim().isNotEmpty && !_uploading;
 
   @override
   Widget build(BuildContext context) {
@@ -166,485 +249,548 @@ class _LectureUploadPageState extends ConsumerState<LectureUploadPage> {
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 880),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ── 섹션 1: 강의 정보 ──────────────────────────────────
+                _SectionHeader(index: '01', title: '강의 정보'),
+                const SizedBox(height: 16),
 
-            // ── 섹션 1: 강의 정보 ──────────────────────────────────
-            _SectionHeader(index: '01', title: '강의 정보'),
-            const SizedBox(height: 16),
-
-            const Text('등록된 강의 항목',
-                style: TextStyle(
-                    color: AppColors.textMuted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.5)),
-            const SizedBox(height: 10),
-            if (_lectureOptions.isEmpty)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.bgCard,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: const Text(
-                  '아직 강의 항목이 없습니다. 강의 개설 팝업에서 강의 목록을 먼저 구성하면 업로드 시 정확히 매칭됩니다.',
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 12, height: 1.5),
-                ),
-              )
-            else
-              SizedBox(
-                height: 114,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: _lectureOptions.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 10),
-                  itemBuilder: (_, i) {
-                    final lecture = _lectureOptions[i] as Map<String, dynamic>;
-                    final isSelected = _selectedLectureId == lecture['lecture_id'];
-                    final isPlaceholder = lecture['is_placeholder'] as bool? ?? false;
-                    return GestureDetector(
-                      onTap: () => _selectLecture(lecture),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        width: 220,
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? AppColors.primary.withValues(alpha: 0.08)
-                              : AppColors.bgCard,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: isSelected ? AppColors.primary : AppColors.border,
-                            width: isSelected ? 1.5 : 1,
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
+                const Text('등록된 강의 항목',
+                    style: TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.5)),
+                const SizedBox(height: 10),
+                if (_lectureOptions.isEmpty)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.bgCard,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: const Text(
+                      '아직 강의 항목이 없습니다. 강의 개설 팝업에서 강의 목록을 먼저 구성하면 업로드 시 정확히 매칭됩니다.',
+                      style: TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 12,
+                          height: 1.5),
+                    ),
+                  )
+                else
+                  SizedBox(
+                    height: 114,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _lectureOptions.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 10),
+                      itemBuilder: (_, i) {
+                        final lecture =
+                            _lectureOptions[i] as Map<String, dynamic>;
+                        final isSelected =
+                            _selectedLectureId == lecture['lecture_id'];
+                        final isPlaceholder =
+                            lecture['is_placeholder'] as bool? ?? false;
+                        return GestureDetector(
+                          onTap: () => _selectLecture(lecture),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 180),
+                            width: 220,
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? AppColors.primary.withValues(alpha: 0.08)
+                                  : AppColors.bgCard,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: isSelected
+                                    ? AppColors.primary
+                                    : AppColors.border,
+                                width: isSelected ? 1.5 : 1,
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: isSelected
-                                        ? AppColors.primary
-                                        : AppColors.bg,
-                                    borderRadius: BorderRadius.circular(999),
-                                  ),
-                                  child: Text(
-                                    '${lecture['order_index'] ?? i + 1}강',
-                                    style: TextStyle(
-                                      color: isSelected ? Colors.black : AppColors.textMuted,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w800,
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: isSelected
+                                            ? AppColors.primary
+                                            : AppColors.bg,
+                                        borderRadius:
+                                            BorderRadius.circular(999),
+                                      ),
+                                      child: Text(
+                                        '${lecture['order_index'] ?? i + 1}강',
+                                        style: TextStyle(
+                                          color: isSelected
+                                              ? Colors.black
+                                              : AppColors.textMuted,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
                                     ),
+                                    const Spacer(),
+                                    Icon(
+                                      isPlaceholder
+                                          ? Icons.schedule_rounded
+                                          : Icons.check_circle_rounded,
+                                      size: 16,
+                                      color: isPlaceholder
+                                          ? AppColors.gold
+                                          : AppColors.accent,
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  lecture['title'] as String? ?? '제목 없음',
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: AppColors.textPrimary,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    height: 1.35,
                                   ),
                                 ),
                                 const Spacer(),
-                                Icon(
-                                  isPlaceholder
-                                      ? Icons.schedule_rounded
-                                      : Icons.check_circle_rounded,
-                                  size: 16,
-                                  color: isPlaceholder ? AppColors.gold : AppColors.accent,
+                                Text(
+                                  isPlaceholder ? '교안 미연결' : '교안 연결됨',
+                                  style: TextStyle(
+                                    color: isPlaceholder
+                                        ? AppColors.gold
+                                        : AppColors.accent,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 12),
-                            Text(
-                              lecture['title'] as String? ?? '제목 없음',
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: AppColors.textPrimary,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                height: 1.35,
-                              ),
-                            ),
-                            const Spacer(),
-                            Text(
-                              isPlaceholder ? '교안 미연결' : '교안 연결됨',
-                              style: TextStyle(
-                                color: isPlaceholder ? AppColors.gold : AppColors.accent,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
 
-            const SizedBox(height: 20),
+                const SizedBox(height: 20),
 
-            const Text('제목',
-                style: TextStyle(
-                    color: AppColors.textMuted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.5)),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _titleCtrl,
-              style: const TextStyle(
-                  color: AppColors.textPrimary, fontSize: 14),
-              decoration: InputDecoration(
-                hintText: '업로드할 강의 제목',
-                hintStyle: const TextStyle(
-                    color: AppColors.textMuted, fontSize: 13),
-                filled: true,
-                fillColor: AppColors.bgCard,
-                contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 12),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: AppColors.border),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: AppColors.border),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(
-                      color: AppColors.primary, width: 1.5),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            const Text('영상 / 대본 연결',
-                style: TextStyle(
-                    color: AppColors.textMuted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.5)),
-            const SizedBox(height: 8),
-            GestureDetector(
-              onTap: _uploading ? null : _pickVideoFile,
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: AppColors.bgCard,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: _videoFile != null
-                        ? AppColors.primary.withValues(alpha: 0.45)
-                        : AppColors.border,
+                const Text('제목',
+                    style: TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.5)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _titleCtrl,
+                  style: const TextStyle(
+                      color: AppColors.textPrimary, fontSize: 14),
+                  decoration: InputDecoration(
+                    hintText: '업로드할 강의 제목',
+                    hintStyle: const TextStyle(
+                        color: AppColors.textMuted, fontSize: 13),
+                    filled: true,
+                    fillColor: AppColors.bgCard,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: AppColors.border),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: AppColors.border),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(
+                          color: AppColors.primary, width: 1.5),
+                    ),
                   ),
                 ),
-                child: Row(
-                  children: [
-                    Icon(
-                      _videoFile != null ? Icons.video_file_rounded : Icons.ondemand_video_rounded,
-                      color: _videoFile != null ? AppColors.primary : AppColors.textMuted,
+
+                const SizedBox(height: 20),
+
+                const Text('영상 / 대본 연결',
+                    style: TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.5)),
+                const SizedBox(height: 8),
+                GestureDetector(
+                  onTap: _uploading ? null : _pickVideoFile,
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppColors.bgCard,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: _videoFile != null
+                            ? AppColors.primary.withValues(alpha: 0.45)
+                            : AppColors.border,
+                      ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        _videoFile?.name ?? '또는 영상 파일 업로드 (mp4, mov, webm)',
-                        style: TextStyle(
+                    child: Row(
+                      children: [
+                        Icon(
+                          _videoFile != null
+                              ? Icons.video_file_rounded
+                              : Icons.ondemand_video_rounded,
                           color: _videoFile != null
-                              ? AppColors.textPrimary
+                              ? AppColors.primary
                               : AppColors.textMuted,
-                          fontSize: 13,
-                          fontWeight: _videoFile != null ? FontWeight.w600 : FontWeight.w400,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            _videoFile?.name ?? '또는 영상 파일 업로드 (mp4, mov, webm)',
+                            style: TextStyle(
+                              color: _videoFile != null
+                                  ? AppColors.textPrimary
+                                  : AppColors.textMuted,
+                              fontSize: 13,
+                              fontWeight: _videoFile != null
+                                  ? FontWeight.w600
+                                  : FontWeight.w400,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (_videoFile != null)
+                          GestureDetector(
+                            onTap: () => setState(() => _videoFile = null),
+                            child: const Icon(Icons.close_rounded,
+                                color: AppColors.textMuted, size: 18),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _transcriptCtrl,
+                  maxLines: 6,
+                  style: const TextStyle(
+                      color: AppColors.textPrimary, fontSize: 13, height: 1.45),
+                  decoration: InputDecoration(
+                    hintText:
+                        '영상 대본을 붙여넣으면 이 대본만 기준으로 요약/질문 답변을 생성합니다. 외부 링크 분석은 사용하지 않습니다.',
+                    hintStyle: const TextStyle(
+                        color: AppColors.textMuted, fontSize: 12, height: 1.45),
+                    filled: true,
+                    fillColor: AppColors.bgCard,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 14),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppColors.border),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppColors.border),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(
+                          color: AppColors.primary, width: 1.5),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                const Text('보조 자료 링크',
+                    style: TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.5)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _materialUrlCtrl,
+                  style: const TextStyle(
+                      color: AppColors.textPrimary, fontSize: 14),
+                  decoration: InputDecoration(
+                    hintText: '실습 링크, 외부 문서 링크 등',
+                    hintStyle: const TextStyle(
+                        color: AppColors.textMuted, fontSize: 13),
+                    filled: true,
+                    fillColor: AppColors.bgCard,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: AppColors.border),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: AppColors.border),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(
+                          color: AppColors.primary, width: 1.5),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 32),
+
+                // ── 섹션 2: 파일 ────────────────────────────────────────
+                _SectionHeader(index: '02', title: '강의 자료'),
+                const SizedBox(height: 16),
+
+                if (_file == null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: InkWell(
+                      onTap: _uploading ? null : _useSample,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 14),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.07),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                              color: AppColors.primary.withValues(alpha: 0.3)),
+                        ),
+                        child: const Row(children: [
+                          Icon(Icons.auto_awesome_rounded,
+                              color: AppColors.primary, size: 18),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                                '올릴 파일이 없나요? 샘플 교안(의사결정나무와 랜덤 포레스트)으로 체험하기',
+                                style: TextStyle(
+                                    color: AppColors.textPrimary,
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w700)),
+                          ),
+                          Icon(Icons.arrow_forward_rounded,
+                              color: AppColors.primary, size: 18),
+                        ]),
                       ),
                     ),
-                    if (_videoFile != null)
-                      GestureDetector(
-                        onTap: () => setState(() => _videoFile = null),
-                        child: const Icon(Icons.close_rounded, color: AppColors.textMuted, size: 18),
+                  ),
+                GestureDetector(
+                  onTap: _uploading ? null : _pickFile,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(28),
+                    decoration: BoxDecoration(
+                      color: _file != null
+                          ? AppColors.primary.withValues(alpha: 0.05)
+                          : AppColors.bgCard,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: _file != null
+                            ? AppColors.primary.withValues(alpha: 0.4)
+                            : AppColors.border,
+                        width: _file != null ? 1.5 : 1,
                       ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _transcriptCtrl,
-              maxLines: 6,
-              style: const TextStyle(
-                  color: AppColors.textPrimary, fontSize: 13, height: 1.45),
-              decoration: InputDecoration(
-                hintText: '영상 대본을 붙여넣으면 이 대본만 기준으로 요약/질문 답변을 생성합니다. 외부 링크 분석은 사용하지 않습니다.',
-                hintStyle: const TextStyle(
-                    color: AppColors.textMuted, fontSize: 12, height: 1.45),
-                filled: true,
-                fillColor: AppColors.bgCard,
-                contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 14),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.border),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.border),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(
-                      color: AppColors.primary, width: 1.5),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            const Text('보조 자료 링크',
-                style: TextStyle(
-                    color: AppColors.textMuted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.5)),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _materialUrlCtrl,
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
-              decoration: InputDecoration(
-                hintText: '실습 링크, 외부 문서 링크 등',
-                hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 13),
-                filled: true,
-                fillColor: AppColors.bgCard,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: AppColors.border),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: AppColors.border),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 32),
-
-            // ── 섹션 2: 파일 ────────────────────────────────────────
-            _SectionHeader(index: '02', title: '강의 자료'),
-            const SizedBox(height: 16),
-
-            GestureDetector(
-              onTap: _uploading ? null : _pickFile,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: double.infinity,
-                padding: const EdgeInsets.all(28),
-                decoration: BoxDecoration(
-                  color: _file != null
-                      ? AppColors.primary.withValues(alpha: 0.05)
-                      : AppColors.bgCard,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: _file != null
-                        ? AppColors.primary.withValues(alpha: 0.4)
-                        : AppColors.border,
-                    width: _file != null ? 1.5 : 1,
-                  ),
-                ),
-                child: _file == null
-                    ? Column(children: [
-                        const Icon(Icons.upload_rounded,
-                            color: AppColors.textMuted, size: 36),
-                        const SizedBox(height: 12),
-                        const Text('파일을 선택하세요',
-                            style: TextStyle(
-                                color: AppColors.textSecondary,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 6),
-                        const Text(
-                            'PDF · PPT · DOCX · HWP · 코드파일 · 이미지',
-                            style: TextStyle(
-                                color: AppColors.textMuted,
-                                fontSize: 12)),
-                      ])
-                    : Row(children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color:
-                                AppColors.primary.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(Icons.insert_drive_file_rounded,
-                              color: AppColors.primary, size: 22),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(_file!.name,
-                                    style: const TextStyle(
-                                        color: AppColors.textPrimary,
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis),
-                                const SizedBox(height: 3),
-                                Text(
-                                    '${(_file!.size / 1024).toStringAsFixed(1)} KB',
-                                    style: const TextStyle(
-                                        color: AppColors.textMuted,
-                                        fontSize: 12)),
-                              ]),
-                        ),
-                        GestureDetector(
-                          onTap: () => setState(() => _file = null),
-                          child: const Icon(Icons.close_rounded,
-                              color: AppColors.textMuted, size: 18),
-                        ),
-                      ]),
-              ),
-            ),
-
-            const SizedBox(height: 8),
-            const Text(
-                '* 이미지 파일은 OCR로, 코드 파일은 텍스트로 읽습니다',
-                style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
-
-            if (_error != null) ...[
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.rose.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                      color: AppColors.rose.withValues(alpha: 0.3)),
-                ),
-                child: Row(children: [
-                  const Icon(Icons.warning_amber_rounded,
-                      color: AppColors.rose, size: 16),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(_error!,
-                        style: const TextStyle(
-                            color: AppColors.rose, fontSize: 12)),
-                  ),
-                ]),
-              ),
-            ],
-
-            const SizedBox(height: 32),
-
-            // ── AI 파이프라인 안내 ──────────────────────────────────
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.bgCard,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('AI 분석 파이프라인',
-                      style: TextStyle(
-                          color: AppColors.textMuted,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.5)),
-                  const SizedBox(height: 12),
-                  ...[
-                    ('텍스트 추출', '다형식 파싱 — PDF·PPT·HWP·코드·이미지'),
-                    ('전처리', '노이즈 제거 · 구조 정규화'),
-                    ('핵심 추출', 'RAG 기반 핵심 포인트 5개 도출'),
-                    ('난이도 분류', 'Sweller CLT 기반 인지부하 추정'),
-                    ('학습 목표', '학습 목표 및 검토 질문 자동 생성'),
-                  ].map((e) => Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Row(children: [
-                          Container(
-                            width: 6,
-                            height: 6,
-                            decoration: BoxDecoration(
-                              color: AppColors.primary,
-                              shape: BoxShape.circle,
+                    ),
+                    child: _file == null
+                        ? Column(children: [
+                            const Icon(Icons.upload_rounded,
+                                color: AppColors.textMuted, size: 36),
+                            const SizedBox(height: 12),
+                            const Text('파일을 선택하세요',
+                                style: TextStyle(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600)),
+                            const SizedBox(height: 6),
+                            const Text('PDF · PPT · DOCX · HWP · 코드파일 · 이미지',
+                                style: TextStyle(
+                                    color: AppColors.textMuted, fontSize: 12)),
+                          ])
+                        : Row(children: [
+                            Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                color:
+                                    AppColors.primary.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(Icons.insert_drive_file_rounded,
+                                  color: AppColors.primary, size: 22),
                             ),
-                          ),
-                          const SizedBox(width: 10),
-                          Text('${e.$1}',
-                              style: const TextStyle(
-                                  color: AppColors.textSecondary,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600)),
-                          const SizedBox(width: 6),
-                          Text('— ${e.$2}',
-                              style: const TextStyle(
-                                  color: AppColors.textMuted,
-                                  fontSize: 12)),
-                        ]),
-                      )),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 28),
-
-            // ── 업로드 버튼 ─────────────────────────────────────────
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton(
-                onPressed: _canUpload ? _upload : null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      _canUpload ? AppColors.primary : AppColors.bgCard,
-                  disabledBackgroundColor: AppColors.bgCard,
-                  foregroundColor: _canUpload
-                      ? const Color(0xFF0A0A0F)
-                      : AppColors.textMuted,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(_file!.name,
+                                        style: const TextStyle(
+                                            color: AppColors.textPrimary,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                        '${(_file!.size / 1024).toStringAsFixed(1)} KB',
+                                        style: const TextStyle(
+                                            color: AppColors.textMuted,
+                                            fontSize: 12)),
+                                  ]),
+                            ),
+                            GestureDetector(
+                              onTap: () => setState(() => _file = null),
+                              child: const Icon(Icons.close_rounded,
+                                  color: AppColors.textMuted, size: 18),
+                            ),
+                          ]),
+                  ),
                 ),
-                child: _uploading
-                    ? Row(mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation(
-                                    AppColors.primaryLight)),
-                          ),
-                          const SizedBox(width: 10),
-                          const Text('AI 분석 중...',
-                              style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700)),
-                        ])
-                    : const Text('분석 시작 — 핵심 포인트 추출',
-                        style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800)),
-              ),
-            ),
 
-            const SizedBox(height: 40),
-          ],
+                const SizedBox(height: 8),
+                const Text('* 이미지 파일은 OCR로, 코드 파일은 텍스트로 읽습니다',
+                    style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+
+                if (_error != null) ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.rose.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                          color: AppColors.rose.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(children: [
+                      const Icon(Icons.warning_amber_rounded,
+                          color: AppColors.rose, size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(_error!,
+                            style: const TextStyle(
+                                color: AppColors.rose, fontSize: 12)),
+                      ),
+                    ]),
+                  ),
+                ],
+
+                const SizedBox(height: 32),
+
+                // ── AI 파이프라인 안내 ──────────────────────────────────
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.bgCard,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('AI 분석 파이프라인',
+                          style: TextStyle(
+                              color: AppColors.textMuted,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.5)),
+                      const SizedBox(height: 12),
+                      ...[
+                        ('텍스트 추출', '다형식 파싱 — PDF·PPT·HWP·코드·이미지'),
+                        ('전처리', '노이즈 제거 · 구조 정규화'),
+                        ('핵심 추출', 'RAG 기반 핵심 포인트 5개 도출'),
+                        ('난이도 분류', 'Sweller CLT 기반 인지부하 추정'),
+                        ('학습 목표', '학습 목표 및 검토 질문 자동 생성'),
+                      ].map((e) => Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Row(children: [
+                              Container(
+                                width: 6,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Text('${e.$1}',
+                                  style: const TextStyle(
+                                      color: AppColors.textSecondary,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600)),
+                              const SizedBox(width: 6),
+                              Text('— ${e.$2}',
+                                  style: const TextStyle(
+                                      color: AppColors.textMuted,
+                                      fontSize: 12)),
+                            ]),
+                          )),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 28),
+
+                // ── 업로드 버튼 ─────────────────────────────────────────
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: _canUpload ? _upload : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor:
+                          _canUpload ? AppColors.primary : AppColors.bgCard,
+                      disabledBackgroundColor: AppColors.bgCard,
+                      foregroundColor: _canUpload
+                          ? const Color(0xFF0A0A0F)
+                          : AppColors.textMuted,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: _uploading
+                        ? Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                                SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation(
+                                          AppColors.primaryLight)),
+                                ),
+                                const SizedBox(width: 10),
+                                const Text('AI 분석 중...',
+                                    style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700)),
+                              ])
+                        : const Text('분석 시작 — 핵심 포인트 추출',
+                            style: TextStyle(
+                                fontSize: 15, fontWeight: FontWeight.w800)),
+                  ),
+                ),
+
+                const SizedBox(height: 40),
+              ],
+            ),
+          ),
         ),
       ),
     );

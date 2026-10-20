@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../features/auth/provider/auth_provider.dart';
 import '../../../../shared/services/api_service.dart';
+import '../../../../shared/services/demo_launcher.dart';
 import '../../../../shared/widgets/fitlearn_logo.dart';
 
 // ── 컬러 ─────────────────────────────────────────────────────────
@@ -277,6 +278,30 @@ class _AuthPageState extends ConsumerState<AuthPage>
                           loading: _loading,
                           onSubmit: (name, email, pw, role) =>
                               _signUp(name, email, pw, role)),
+                    ],
+                  ),
+                ),
+                const Divider(color: _C.border, height: 1),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 14, 24, 18),
+                  child: Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 4,
+                    children: [
+                      const Text('계정 없이 둘러보고 싶다면',
+                          style: TextStyle(color: _C.textMute, fontSize: 13)),
+                      TextButton(
+                        onPressed: () => launchDemo(context, ref, UserRole.student),
+                        child: const Text('학생 체험',
+                            style: TextStyle(color: _C.lime, fontWeight: FontWeight.w800)),
+                      ),
+                      const Text('·', style: TextStyle(color: _C.textMute)),
+                      TextButton(
+                        onPressed: () => launchDemo(context, ref, UserRole.professor),
+                        child: const Text('교수 체험',
+                            style: TextStyle(color: _C.lime, fontWeight: FontWeight.w800)),
+                      ),
                     ],
                   ),
                 ),
