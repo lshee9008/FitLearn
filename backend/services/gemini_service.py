@@ -6,15 +6,18 @@ import json
 import os
 import re
 
-from google import genai
-from google.genai import types
 import logging
 
-MODEL = "gemma-4-31b-it"
+from .llm import generate_gemini_text
+
+
+class _Resp:
+    def __init__(self, text: str):
+        self.text = text
+
 
 # 6가지 재가공 스타일
 REFORGE_STYLES = ["시각형", "청각형", "읽기형", "실습형", "요약형", "상세형"]
-logger = logging.getLogger(__name__)
 logger = logging.getLogger(__name__)
 
 STYLE_GUIDES: dict[str, str] = {
@@ -70,19 +73,8 @@ def _extract_json(text: str) -> dict:
 
 class GeminiService:
     def __init__(self):
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
+        if not os.getenv("GEMINI_API_KEY"):
             logger.warning("[GeminiService] GEMINI_API_KEY 미설정 — AI 기능 동작 보장 불가")
-            self._client: genai.Client | None = None
-            return
-        self._client = genai.Client(api_key=api_key)
-
-    def _config(self, temperature: float = 0.3, max_tokens: int = 2048) -> types.GenerateContentConfig:
-        return types.GenerateContentConfig(
-            temperature=temperature,
-            max_output_tokens=max_tokens,
-            thinking_config={"thinking_budget": 0},
-        )
 
     # ── 6차원 심리 진단 ──────────────────────────────────────────
     async def analyze_psychology(self, answers: list[dict]) -> dict:
@@ -140,12 +132,7 @@ class GeminiService:
 - interaction: 독립형 | 협력형
 - scores 각 값: 0-100 정수"""
 
-        response = await asyncio.to_thread(
-            self._client.models.generate_content,
-            model=MODEL,
-            contents=prompt,
-            config=self._config(temperature=0.2, max_tokens=1024),
-        )
+        response = _Resp(await generate_gemini_text(prompt, temperature=0.2, max_output_tokens=max(1024, 1024), timeout=60.0, feature="gemini_service"))
         return _extract_json(response.text)
 
     # ── 핵심 포인트 추출 ─────────────────────────────────────────
@@ -170,12 +157,7 @@ class GeminiService:
 
 priority는 중요도 점수입니다 (5=매우중요, 1=보통). JSON만 출력하세요."""
 
-        response = await asyncio.to_thread(
-            self._client.models.generate_content,
-            model=MODEL,
-            contents=prompt,
-            config=self._config(temperature=0.2, max_tokens=1024),
-        )
+        response = _Resp(await generate_gemini_text(prompt, temperature=0.2, max_output_tokens=max(1024, 1024), timeout=60.0, feature="gemini_service"))
         data = _extract_json(response.text)
         return data.get("core_points", [])
 
@@ -212,12 +194,7 @@ priority는 중요도 점수입니다 (5=매우중요, 1=보통). JSON만 출력
 
 위 지침을 엄격히 따라 마크다운 형식으로 완성된 교안을 작성하세요."""
 
-        response = await asyncio.to_thread(
-            self._client.models.generate_content,
-            model=MODEL,
-            contents=prompt,
-            config=self._config(temperature=0.7, max_tokens=2048),
-        )
+        response = _Resp(await generate_gemini_text(prompt, temperature=0.7, max_output_tokens=max(2048, 1024), timeout=60.0, feature="gemini_service"))
         return response.text
 
     # ── 6스타일 병렬 재가공 (asyncio.gather) ────────────────────
@@ -253,10 +230,5 @@ priority는 중요도 점수입니다 (5=매우중요, 1=보통). JSON만 출력
 - 수업 방식 추천 (시각 자료 활용 등)
 - 주의할 점 (다양성 대응 방법)"""
 
-        response = await asyncio.to_thread(
-            self._client.models.generate_content,
-            model=MODEL,
-            contents=prompt,
-            config=self._config(temperature=0.3, max_tokens=400),
-        )
+        response = _Resp(await generate_gemini_text(prompt, temperature=0.3, max_output_tokens=max(400, 1024), timeout=60.0, feature="gemini_service"))
         return response.text

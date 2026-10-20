@@ -3,25 +3,14 @@ import json
 import os
 from typing import AsyncGenerator
 
-from google import genai
-from google.genai import types
+from .llm import generate_gemini_text
 
-MODEL = "gemma-4-31b-it"
 LEARNING_TYPES = ["요약형", "상세형", "예시형"]
 
 
 
 class ClaudeService:
-    def __init__(self):
-        api_key = os.getenv("GEMINI_API_KEY")
-        self._client = genai.Client(api_key=api_key) if api_key else None
-
-    def _config(self, temperature: float = 0.2, max_tokens: int = 100) -> types.GenerateContentConfig:
-        return types.GenerateContentConfig(
-            temperature=temperature,
-            max_output_tokens=max_tokens,
-            thinking_config={"thinking_budget": 0},
-        )
+    """레거시 클래스명 유지 — 실제 호출은 services.llm(Gemini) 사용"""
 
     async def classify_learning_type(self, answers: list[str]) -> str:
         """Few-shot + Self-consistency로 학습 유형 분류 (temperature=0.2)"""
@@ -33,13 +22,7 @@ class ClaudeService:
         return max(set(results), key=results.count)
 
     async def _classify_once(self, prompt: str) -> str:
-        response = await asyncio.to_thread(
-            self._client.models.generate_content,
-            model=MODEL,
-            contents=prompt,
-            config=self._config(temperature=0.2, max_tokens=100),
-        )
-        text = response.text.strip()
+        text = (await generate_gemini_text(prompt, temperature=0.2, max_output_tokens=256, feature="classify")).strip()
         for t in LEARNING_TYPES:
             if t in text:
                 return t
@@ -60,13 +43,7 @@ class ClaudeService:
 
     async def _reforge_one(self, lecture_content: str, learning_type: str) -> str:
         prompt = self._build_reforge_prompt(lecture_content, learning_type)
-        response = await asyncio.to_thread(
-            self._client.models.generate_content,
-            model=MODEL,
-            contents=prompt,
-            config=self._config(temperature=0.7, max_tokens=2048),
-        )
-        return response.text
+        return await generate_gemini_text(prompt, temperature=0.7, max_output_tokens=4096, feature="reforge-legacy")
 
     def _build_diagnosis_prompt(self, answers: list[str]) -> str:
         examples = (

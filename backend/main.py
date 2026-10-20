@@ -3,6 +3,13 @@ import logging
 import traceback
 from contextlib import asynccontextmanager
 
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+# 로컬 개발: backend/.env 자동 로드 (배포 환경 변수는 덮어쓰지 않음)
+load_dotenv(Path(__file__).resolve().parent / ".env", override=False)
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -105,6 +112,15 @@ async def lifespan(app: FastAPI):
     # (Render 환경에서 Google API DNS 불안정 → 시작 오류 방지)
     logger.info("[startup] RAG 벡터 DB 초기화 스킵 (PAPER_STRATEGY 폴백 사용)")
 
+    try:
+        from services.demo_seed import ensure_demo_content
+        from services.firebase_service import is_memory_mode
+        if is_memory_mode():
+            logger.warning("[startup] Firebase 미연결 — 인메모리 저장소로 동작 (재시작 시 초기화)")
+        await ensure_demo_content()
+    except Exception as e:
+        logger.error(f"[startup] 데모 콘텐츠 준비 실패: {e}")
+
     yield
     logger.info("[shutdown] 서버 종료")
 
@@ -134,6 +150,7 @@ async def health():
         "status": "ok",
         "version": "3.0.0",
         "rag": _rag_available and (PaperVectorStore is not None and PaperVectorStore.get_store() is not None),
+        "storage": "memory" if _memory_mode() else "firestore",
         "import_errors": _import_errors,
         "routers": {
             "auth": auth is not None,
@@ -141,8 +158,17 @@ async def health():
             "diagnosis": diagnosis is not None,
             "lectures": lectures is not None,
             "dashboard": dashboard is not None,
+            "demo": demo is not None,
         },
     }
+
+def _memory_mode() -> bool:
+    try:
+        from services.firebase_service import is_memory_mode
+        return is_memory_mode()
+    except Exception:
+        return True
+
 
 # ── 전역 500 에러 핸들러 — CORS 헤더 포함 ────────────────────────────────────
 @app.exception_handler(Exception)

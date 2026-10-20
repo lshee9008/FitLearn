@@ -6,20 +6,20 @@ import asyncio
 import json
 import logging
 import os
-import threading
-from google import genai
-from google.genai import types
+import uuid
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
+from services.demo_seed import DEMO_COURSES, FEATURED_ROOM_ID, bootstrap_demo_user
 from services.file_service import FileService
+from services.reforge_service import stream_gemini_text
 
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["demo"])
 file_svc = FileService()
 
-MODEL = "gemma-4-31b-it"
 
 # ── 성향별 재가공 가이드 ──────────────────────────────────────────────────────
 
@@ -73,54 +73,55 @@ def _build_prompt(content: str, types: list[str]) -> str:
 
 
 async def _stream_sse(content: str, learning_types: list[str]):
-    """Gemini 스트리밍 → SSE 이벤트"""
-    loop = asyncio.get_event_loop()
-    q: asyncio.Queue = asyncio.Queue()
-
-    def _sync():
-        try:
-            api_key = os.getenv("GEMINI_API_KEY")
-            if not api_key:
-                asyncio.run_coroutine_threadsafe(q.put(("error", "GEMINI_API_KEY 미설정")), loop)
-                return
-
-            _client = genai.Client(api_key=api_key)
-            prompt = _build_prompt(content, learning_types)
-            for chunk in _client.models.generate_content_stream(
-                model=MODEL,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    temperature=0.7,
-                    max_output_tokens=2048,
-                    thinking_config={"thinking_budget": 0},
-                ),
-            ):
-                if chunk.text:
-                    asyncio.run_coroutine_threadsafe(q.put(("data", chunk.text)), loop)
-            asyncio.run_coroutine_threadsafe(q.put(("done", None)), loop)
-        except Exception as e:
-            asyncio.run_coroutine_threadsafe(q.put(("error", str(e))), loop)
-
-    threading.Thread(target=_sync, daemon=True).start()
-
-    # 먼저 태그 전송
+    """Gemini 스트리밍 → SSE 이벤트 (모델 폴백은 reforge_service가 담당)"""
     tags = [_TAGS.get(t, t) for t in learning_types]
     yield f"data: {json.dumps({'tags': tags}, ensure_ascii=False)}\n\n"
+    try:
+        async for chunk in stream_gemini_text(
+            _build_prompt(content, learning_types),
+            temperature=0.7, max_output_tokens=4096, timeout=90.0, feature="demo-reforge",
+        ):
+            yield f"data: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
+        yield "data: [DONE]\n\n"
+    except Exception as e:
+        logger.warning(f"[demo] 스트리밍 실패: {e}")
+        yield f"data: {json.dumps({'error': '응답 생성에 실패했습니다. 잠시 후 다시 시도해주세요.'}, ensure_ascii=False)}\n\n"
 
-    while True:
-        try:
-            kind, value = await asyncio.wait_for(q.get(), timeout=90)
-        except asyncio.TimeoutError:
-            yield f"data: {json.dumps({'error': '응답 시간 초과'}, ensure_ascii=False)}\n\n"
-            break
-        if kind == "data":
-            yield f"data: {json.dumps({'text': value}, ensure_ascii=False)}\n\n"
-        elif kind == "done":
-            yield "data: [DONE]\n\n"
-            break
-        elif kind == "error":
-            yield f"data: {json.dumps({'error': value}, ensure_ascii=False)}\n\n"
-            break
+
+class _BootstrapRequest(BaseModel):
+    role: str = "student"           # student | professor
+    user_id: str = ""               # 재방문 시 기존 데모 ID 재사용
+    name: str = ""
+
+
+@router.post("/demo/bootstrap")
+async def demo_bootstrap(body: _BootstrapRequest):
+    """
+    원클릭 데모 체험 — 방문자별 독립 데모 계정 생성
+    - 학생: 대표 데모 강의 자동 수강
+    - 교수: 개인 데모 강의실 사본 + 가상 수강생(진단 완료)
+    """
+    role = "professor" if body.role == "professor" else "student"
+    user_id = body.user_id.strip()
+    if not user_id.startswith(f"demo-{role}-"):
+        user_id = f"demo-{role}-{uuid.uuid4().hex[:10]}"
+    name = body.name.strip() or ("체험 교수" if role == "professor" else "체험 학생")
+    try:
+        result = await bootstrap_demo_user(user_id, role, name)
+    except Exception as e:
+        logger.error(f"[demo/bootstrap] 실패: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="데모 계정 준비에 실패했습니다.")
+    featured = DEMO_COURSES[0]
+    return {
+        "user_id": user_id,
+        "name": name,
+        "role": role,
+        "room_id": result["room_id"],
+        "featured_room_id": FEATURED_ROOM_ID,
+        "featured_lecture_id": featured["lectures"][1]["lecture_id"],
+        "featured_lecture_title": featured["lectures"][1]["title"],
+        "featured_room_title": featured["subject"],
+    }
 
 
 @router.post("/reforge/demo")

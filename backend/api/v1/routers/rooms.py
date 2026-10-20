@@ -116,7 +116,12 @@ async def get_student_service_hub(user_id: str):
             confirmed_count,
         )
         progress_rate = 0 if confirmed_count == 0 else round(completed_count / confirmed_count * 100)
-        next_lecture = next((lecture for lecture in lectures if lecture.get("confirmed")), None)
+        confirmed_lectures = [lecture for lecture in lectures if lecture.get("confirmed")]
+        next_lecture = (
+            confirmed_lectures[completed_count]
+            if completed_count < len(confirmed_lectures)
+            else (confirmed_lectures[0] if confirmed_lectures else None)
+        )
         room_data = {
             **{k: room[k] for k in Room.model_fields if k in room},
             "lecture_count": len(lectures),

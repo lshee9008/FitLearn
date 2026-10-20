@@ -9,13 +9,18 @@ import logging
 import os
 import re
 
-try:
-    import google.generativeai as genai
-except ModuleNotFoundError:  #패키지 누락이 rooms 라우터 전체 장애로 번지지 않도록 방어
-    genai = None
+from .llm import generate_gemini_text
+
+
+class _Resp:
+    def __init__(self, text: str):
+        self.text = text
+
+
+async def _resp_async(coro) -> "_Resp":
+    return _Resp(await coro)
 
 logger = logging.getLogger(__name__)
-MODEL = "models/gemma-4-31b-it"
 
 
 def _extract_json(text: str) -> list | dict:
@@ -38,20 +43,6 @@ def _extract_json(text: str) -> list | dict:
 
 
 class QuizService:
-    def _model(self):
-        if genai is None:
-            raise RuntimeError("google-generativeai 패키지가 설치되지 않았습니다.")
-        if not os.getenv("GEMINI_API_KEY"):
-            raise RuntimeError("GEMINI_API_KEY가 설정되지 않았습니다.")
-        genai.configure(api_key=os.environ["GEMINI_API_KEY"], transport="rest")
-        return genai.GenerativeModel(
-            model_name=MODEL,
-            generation_config=genai.GenerationConfig(
-                temperature=0.3,
-                max_output_tokens=2048,
-            ),
-        )
-
     async def generate_quiz(
         self, synopsis: str, core_concepts: list[str], subject: str = ""
     ) -> list[dict]:
@@ -91,7 +82,7 @@ class QuizService:
         try:
             try:
                 response = await asyncio.wait_for(
-                    asyncio.to_thread(self._model().generate_content, prompt),
+                    _resp_async(generate_gemini_text(prompt, temperature=0.3, max_output_tokens=4096, timeout=40.0, feature="quiz")),
                     timeout=40.0,
                 )
                 questions = _extract_json(response.text)

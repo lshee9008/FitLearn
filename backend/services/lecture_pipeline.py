@@ -9,15 +9,20 @@ import logging
 import os
 import re
 
-try:
-    import google.generativeai as genai
-except ModuleNotFoundError:  # 배포 의존성 누락 시 라우터 전체가 죽지 않도록 방어
-    genai = None
+from .llm import generate_gemini_text
+
+
+class _Resp:
+    def __init__(self, text: str):
+        self.text = text
+
+
+async def _resp_async(coro) -> "_Resp":
+    return _Resp(await coro)
 
 from .rag_pipeline.knowledge_base import PAPER_CHUNKS
 
 logger = logging.getLogger(__name__)
-MODEL = "models/gemma-4-31b-it"
 
 # ── 교육 이론 기반 난이도 가중치 ────────────────────────────────────────────
 DIFFICULTY_CUES = {
@@ -114,24 +119,6 @@ class LecturePipeline:
     Stage 8 — 후처리 (Python): 우선순위 재정렬, 패키징
     """
 
-    def __init__(self):
-        if genai is not None and os.getenv("GEMINI_API_KEY"):
-            genai.configure(api_key=os.environ["GEMINI_API_KEY"], transport="rest")
-
-    def _model(self, temp: float = 0.2):
-        if genai is None:
-            raise RuntimeError("google-generativeai 패키지가 설치되지 않았습니다.")
-        if not os.getenv("GEMINI_API_KEY"):
-            raise RuntimeError("GEMINI_API_KEY가 설정되지 않았습니다.")
-        return genai.GenerativeModel(
-            model_name=MODEL,
-            generation_config=genai.GenerationConfig(
-                temperature=temp,
-                max_output_tokens=2048,
-            ),
-        )
-        
-
     # ── Stage 3+4+5+6: 핵심 추출 + 분류 + 난이도 + 학습목표 (단일 프롬프트 병렬화) ──
 
     async def _stage_extract_all(self, text: str) -> dict:
@@ -174,9 +161,7 @@ class LecturePipeline:
 - estimated_difficulty: 전체 난이도 상|중|하
 - JSON만 출력하세요"""
 
-        response = await asyncio.to_thread(
-            self._model(temp=0.2).generate_content, prompt
-        )
+        response = _Resp(await generate_gemini_text(prompt, temperature=0.2, max_output_tokens=4096, timeout=60.0, feature="pipeline"))
         return _extract_json(response.text)
 
     async def _stage_review_questions(
@@ -215,9 +200,7 @@ class LecturePipeline:
 3. JSON 형식 외 어떠한 텍스트도 출력하지 마세요."""
 
         try:
-            response = await asyncio.to_thread(
-                self._model(temp=0.4).generate_content, prompt
-            )
+            response = _Resp(await generate_gemini_text(prompt, temperature=0.4, max_output_tokens=4096, timeout=60.0, feature="pipeline"))
             data = _extract_json(response.text)
             return data.get("questions", [])
         except Exception as e:

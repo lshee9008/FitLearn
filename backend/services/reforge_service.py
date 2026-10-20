@@ -5,152 +5,23 @@ asyncio.gather() 6스타일 병렬 생성
 """
 import asyncio
 import logging
-import os
 import re
-import time
-
-import httpx
 
 from .rag_pipeline.knowledge_base import PAPER_CHUNKS
 from .gemini_service import STYLE_GUIDES
 
 logger = logging.getLogger(__name__)
-DEFAULT_MODEL = "gemini-2.5-flash"
-MODEL = os.getenv("GEMINI_MODEL", DEFAULT_MODEL)
-MODEL_FALLBACKS = [
-    model.strip()
-    for model in os.getenv(
-        "GEMINI_MODEL_FALLBACKS",
-        "gemini-2.5-flash,gemini-2.5-flash-lite",
-    ).split(",")
-    if model.strip()
-]
-_working_model = MODEL
-_quota_cooldown_until = 0.0
-
-
-def _is_quota_error(error: Exception) -> bool:
-    message = str(error).lower()
-    return "429" in message or "quota" in message or "rate-limit" in message
-
-
-def _activate_quota_cooldown(seconds: int = 75) -> None:
-    global _quota_cooldown_until
-    _quota_cooldown_until = max(_quota_cooldown_until, time.monotonic() + seconds)
-
-
-async def _call_gemini_rest(
-    contents,
-    *,
-    model: str,
-    temperature: float,
-    max_output_tokens: int,
-    timeout: float,
-) -> str:
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY가 설정되지 않았습니다.")
-
-    url = (
-        f"https://generativelanguage.googleapis.com/v1beta/models/"
-        f"{model}:generateContent?key={api_key}"
-    )
-
-    # contents가 문자열이면 단순 텍스트 메시지로 변환
-    if isinstance(contents, str):
-        parts = [{"text": contents}]
-    elif isinstance(contents, list):
-        # 파일 객체 + 텍스트 혼합 리스트 처리
-        parts = []
-        for item in contents:
-            if isinstance(item, str):
-                parts.append({"text": item})
-            elif hasattr(item, "uri") and hasattr(item, "mime_type"):
-                parts.append({"file_data": {"mime_type": item.mime_type, "file_uri": item.uri}})
-            else:
-                parts.append({"text": str(item)})
-    else:
-        parts = [{"text": str(contents)}]
-
-    body = {
-        "contents": [{"role": "user", "parts": parts}],
-        "generationConfig": {
-            "temperature": temperature,
-            "maxOutputTokens": max_output_tokens,
-            # thinkingConfig는 thinking-exp 모델에서만 지원되므로 일반 flash 모델에서는 삭제하거나 0으로 설정
-            # "thinkingConfig": {"thinkingBudget": 0}, 
-        },
-    }
-
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        response = await client.post(url, json=body)
-        data = response.json()
-
-    if not response.is_success:
-        raise Exception(f"Gemini API 오류 ({response.status_code}): {data}")
-
-    try:
-        return data["candidates"][0]["content"]["parts"][0]["text"]
-    except (KeyError, IndexError) as e:
-        raise RuntimeError(f"Gemini 응답 파싱 실패: {data}") from e
-
-
-async def generate_gemini_text(
-    contents,
-    *,
-    temperature: float = 0.7,
-    max_output_tokens: int = 2048,
-    timeout: float = 60.0,
-    feature: str = "gemini",
-) -> str:
-    global _working_model
-
-    if time.monotonic() < _quota_cooldown_until:
-        raise RuntimeError("Gemini quota cooldown active")
-
-    candidates = []
-    for model_name in [_working_model, MODEL, *MODEL_FALLBACKS]:
-        if model_name and model_name not in candidates:
-            candidates.append(model_name)
-
-    loop = asyncio.get_running_loop()
-    deadline = loop.time() + timeout
-    last_error: Exception | None = None
-    for model_name in candidates:
-        remaining = deadline - loop.time()
-        if remaining <= 0:
-            raise asyncio.TimeoutError(f"{feature} 전체 생성 시간 초과 ({timeout}s)")
-        try:
-            text = await asyncio.wait_for(
-                _call_gemini_rest(
-                    contents,
-                    model=model_name,
-                    temperature=temperature,
-                    max_output_tokens=max_output_tokens,
-                    timeout=remaining,
-                ),
-                timeout=remaining,
-            )
-            if not text:
-                raise RuntimeError("Gemini 응답이 비어 있습니다.")
-            _working_model = model_name
-            return text
-        except asyncio.TimeoutError:
-            logger.warning(f"[{feature}] model={model_name} 시간 초과 ({timeout}s)")
-            raise
-        except Exception as e:
-            if _is_quota_error(e):
-                _activate_quota_cooldown()
-                logger.warning(f"[{feature}] Gemini quota 감지 — fallback 중단: {e}")
-                raise RuntimeError("Gemini quota exceeded") from e
-            last_error = e
-            logger.warning(f"[{feature}] model={model_name} 실패 — 다음 모델 시도: {e}")
-
-    raise RuntimeError(f"Gemini 생성 실패: {last_error}")
+from .llm import (  # noqa: E402,F401 — 하위호환 re-export
+    MODEL,
+    MODEL_FALLBACKS,
+    _call_gemini_rest,
+    generate_gemini_text,
+    stream_gemini_text,
+)
 
 
 # ── 마크다운 후처리 ───────────────────────────────────────────────────────────
-def _clean_markdown(text: str) -> str:
+def _clean_prose(text: str) -> str:
     """
     AI 출력의 마크다운 오염 요소 정리:
     - LaTeX 수식 ($...$) → 일반 텍스트 변환
@@ -192,8 +63,15 @@ def _clean_markdown(text: str) -> str:
     # 연속 빈줄 압축
     text = re.sub(r'\n{3,}', '\n\n', text)
     # 잘못된 굵은글씨 (** 안에 공백만 있을 때)
-    text = re.sub(r'\*\*\s+\*\*', '', text)
-    return text.strip()
+    text = re.sub(r'^[ \t]*\*\*[ \t]*\*\*[ \t]*$', '', text, flags=re.MULTILINE)
+    return text
+
+
+def _clean_markdown(text: str) -> str:
+    """코드블록(```)은 그대로 두고 본문만 정리한다."""
+    segments = re.split(r"(```[\s\S]*?```)", text or "")
+    cleaned = [seg if seg.startswith("```") else _clean_prose(seg) for seg in segments]
+    return re.sub(r"\n{3,}", "\n\n", "".join(cleaned)).strip()
 
 
 def _fallback_content(
@@ -594,51 +472,8 @@ class ReforgeService:
             yield {"error": str(e)}
 
     def _build_reforge_prompt(self, original_content: str, profile: dict) -> str:
-        """기존 _reforge_one_with_context의 프롬프트 로직 재사용"""
         style = _normalize_learning_style(profile.get("learning_style", "읽기형"))
-        paper_strategy = PAPER_STRATEGY.get(style, "")
-        profile_instruction = _build_profile_instruction(style, profile)
-        
-        # profile_summary 생성
-        vark = _normalize_learning_style(profile.get("learning_style", style))
-        focus = profile.get("focus_pattern", "")
-        diff_resp = profile.get("difficulty_response") or profile.get("pace", "")
-        subject_level = profile.get("subject_level", "")
-        level_label = {"beginner": "초급", "intermediate": "중급", "advanced": "고급"}.get(subject_level, "")
-        profile_summary = f"VARK:{vark} / 집중:{focus} / 대응:{diff_resp} / 수준:{level_label}"
-        source_excerpt = _build_source_excerpt(original_content, max_chars=22000)
-
-        return f"""당신은 교육 콘텐츠 재해석 전문가입니다.
-원본 교안을 학생 프로파일에 맞게 재해석하세요. 한국어로만 출력하세요.
-
-━━━ 절대 원칙 ━━━
-1. 원본 내용을 요약하지 마세요 — 재해석(reinterpretation)이 목표입니다
-2. 코드 블록·수식·실습 예제·터미널 명령어·터미널 출력은 원본 그대로 보존, ``` 코드블록으로 감싸세요
-3. 원본에 없는 내용을 추가하지 마세요 (환각 금지)
-4. [시각자료], [다이어그램], [슬라이드 이미지], [코드 캡처] 블록은 삭제하지 말고 해당 위치에 남기세요
-5. 실습 절차는 학생이 강의 중 그대로 따라할 수 있도록 단계별로 재배치하세요
-6. 인사말·역할 설명 등 메타 문장 절대 금지
-7. 순수 마크다운 본문만 출력
-
-━━━ 학습 이론 근거 [{style}] ━━━
-{paper_strategy}
-
-━━━ 학생 프로파일 ━━━
-{profile_summary}
-
-━━━ 5차원 재해석 지침 ━━━
-{profile_instruction}
-
-━━━ 원본 교안 ━━━
-{source_excerpt}
-
-━━━ 출력 형식 ━━━
-# [강의 제목] — {style} 맞춤 교안
-> 학습 프로파일: {profile_summary}
-
----
-
-[재해석된 본문 — 노션 스타일 마크다운]"""
+        return build_reforge_prompt(style, original_content, [], profile)
 
     async def _reforge_one_with_context(
         self,
@@ -648,113 +483,159 @@ class ReforgeService:
         profile: dict,
         paper_context: str,
     ) -> str:
-        """단일 스타일 재가공 — CoT + Few-shot + 환각방지 고급 프롬프트"""
-
-        core_text = "\n".join(
-            f"[중요도 {p.get('priority', 1)}/5] {p['content']}"
-            for p in sorted(core_points, key=lambda x: x.get("priority", 0), reverse=True)
-        )
-        paper_strategy = PAPER_STRATEGY.get(style, "")
-        profile_instruction = _build_profile_instruction(style, profile)
-
-        # 학생 프로파일 요약 (헤더용)
-        vark = _normalize_learning_style(profile.get("learning_style", style))
-        focus = profile.get("focus_pattern", "")
-        diff_resp = profile.get("difficulty_response") or profile.get("pace", "")
-        dropout = profile.get("dropout_risk", "")
-        conf = profile.get("confidence_score", 0)
-        subject_level = profile.get("subject_level", "")
-        level_label = {"beginner": "초급", "intermediate": "중급", "advanced": "고급"}.get(subject_level, "")
-        profile_summary = f"VARK:{vark} / 집중:{focus} / 대응:{diff_resp}" + \
-                         (f" / 이탈위험:{dropout}" if dropout else "") + \
-                         (f" / 신뢰도:{conf}%" if conf else "") + \
-                         (f" / 과목수준:{level_label}" if level_label else "")
-        source_excerpt = _build_source_excerpt(original_content, max_chars=24000)
-
-        prompt = f"""당신은 교육 콘텐츠 재해석 전문가입니다.
-원본 교안을 학생 프로파일에 맞게 재해석하세요. 한국어로만 출력하세요.
-
-━━━ 절대 원칙 ━━━
-1. 원본 내용을 요약하지 마세요 — 재해석(reinterpretation)이 목표입니다
-2. 코드 블록·수식·실습 예제·터미널 명령어·터미널 출력은 원본 그대로 보존, ``` 코드블록으로 감싸세요
-3. 원본에 없는 내용을 추가하지 마세요 (환각 금지)
-4. [시각자료], [다이어그램], [슬라이드 이미지], [코드 캡처] 블록은 삭제하지 말고 해당 위치에 남기세요
-5. 이미지·시각자료가 있으면 원본에서 확인 가능한 구성요소와 관계를 보존해 [시각자료: ...]로 표시
-6. 실습 절차는 학생이 강의 중 그대로 따라할 수 있도록 단계별로 재배치하세요
-7. 교수 핵심 포인트는 모두 빠짐없이 포함
-8. 인사말·역할 설명·"재해석하겠습니다" 같은 메타 문장 절대 금지
-9. 순수 마크다운 본문만 출력 (노션 스타일)
-10. 너무 짧게 쓰지 마세요. 원본 근거를 최소 10개 이상 살리고, 섹션을 6개 이상 구성하세요
-11. 이미지/슬라이드에서 추출된 [시각자료/코드 캡처]는 반드시 별도 섹션으로 재배치하고, 수업 중 따라 해야 할 코드·명령어는 절대 압축하지 마세요
-12. 출력이 길어도 완성된 마크다운 문서로 끝내세요. 마지막 섹션을 중간에 끊지 마세요
-
-━━━ 학습 이론 근거 [{style}] ━━━
-{paper_strategy}
-{paper_context}
-
-━━━ 학생 프로파일 ━━━
-{profile_summary}
-
-━━━ 5차원 재해석 지침 ━━━
-{profile_instruction}
-
-━━━ 교수 확정 핵심 포인트 (모두 포함 필수) ━━━
-{core_text}
-
-━━━ 원본 교안 ━━━
-{source_excerpt}
-
-━━━ 재해석 절차 ━━━
-1. 원본에서 핵심 개념·사실·코드·시각자료를 식별한다
-2. '{style}' 학습자에게 최적인 구조·어조·형식을 결정한다
-3. 교수 핵심 포인트를 가장 잘 전달하는 섹션 배치를 계획한다
-4. 코드·실습·시각자료를 보존한 채 완성된 교안을 노션 스타일 마크다운으로 작성한다
-
-━━━ 출력 형식 ━━━
-# [강의 제목] — {style} 맞춤 교안
-> 학습 프로파일: {profile_summary}
-
----
-
-## 핵심 포인트
-[교수가 강조한 핵심 포인트를 {style} 방식으로 전달]
-
----
-
-## 실습/코드 따라하기
-[원본에 코드·명령어·실습 절차가 있으면 절대 요약하지 말고 그대로 보존한 뒤 단계별 안내를 붙임]
-
----
-
-## 시각자료
-[원본에 이미지·도식·표·코드 캡처가 있으면 삭제하지 말고 보존 설명]
-
----
-
-[재해석된 본문 — 노션 스타일 마크다운]
-
-━━━ 지금 바로 완성본만 작성하세요 ━━━"""
-
+        """단일 스타일 재가공 (비스트리밍). 실패 시 근거형 폴백."""
+        prompt = build_reforge_prompt(style, original_content, core_points, profile, paper_context)
+        core_text = _core_points_text(core_points)
         try:
             raw = await generate_gemini_text(
                 prompt,
-                temperature=0.35,
+                temperature=0.5,
                 max_output_tokens=8192,
                 timeout=90.0,
                 feature=f"reforge:{style}",
             )
-            cleaned = _clean_markdown(raw)
-            if _needs_grounded_boost(cleaned, original_content):
-                logger.warning(f"[reforge] {style} 출력이 짧거나 끊긴 것으로 판단 — 원본 근거 보강")
-                cleaned = _append_grounded_boost(cleaned, style, original_content, core_text)
-            return cleaned
+            return _clean_markdown(raw)
         except asyncio.TimeoutError:
-            logger.error(f"[reforge] {style} 타임아웃 (35s 초과)")
-            return _fallback_content(style, core_text, original_content, profile_summary)
+            logger.error(f"[reforge] {style} 타임아웃")
+            return _fallback_content(style, core_text, original_content, profile_label(style, profile))
         except Exception as e:
-            err = str(e)
-            if "429" in err or "quota" in err.lower():
-                logger.warning(f"[reforge] {style} 429 할당량 초과 — fallback 사용")
-            else:
-                logger.error(f"[reforge] {style} 모델 호출 실패: {err}")
-            return _fallback_content(style, core_text, original_content, profile_summary)
+            logger.error(f"[reforge] {style} 모델 호출 실패: {e}")
+            return _fallback_content(style, core_text, original_content, profile_label(style, profile))
+
+    async def stream_for_student(
+        self,
+        original_content: str,
+        core_points: list[dict],
+        profile: dict,
+        style: str | None = None,
+    ):
+        """학생 맞춤 교안 스트리밍 — 텍스트 청크를 순서대로 yield."""
+        style = _normalize_learning_style(style or profile.get("learning_style", "읽기형"))
+        paper_context = await _get_paper_context_for_style(style)
+        prompt = build_reforge_prompt(style, original_content, core_points, profile, paper_context)
+        async for chunk in stream_gemini_text(
+            prompt, temperature=0.5, max_output_tokens=8192, timeout=150.0, feature=f"reforge-stream:{style}"
+        ):
+            yield chunk
+
+
+# ── 프롬프트 ────────────────────────────────────────────────────────────────
+
+STYLE_BLUEPRINTS: dict[str, str] = {
+    "시각형": """구조가 글보다 먼저 보이게 만드세요.
+- 맨 앞: '## 🗺️ 한눈에 보는 개념 지도' — 핵심 개념들의 관계를 마크다운 표(개념 | 한 줄 정의 | 연결되는 개념)로
+- 과정·순서는 '① 단계 → ② 단계 → ③ 단계' 형태의 한 줄 흐름이나 번호 목록으로
+- 비교가 가능한 개념은 반드시 비교표로
+- 원본 [시각자료: ...]는 '> 🖼️ **그림으로 보기** — 설명' 인용 블록으로 바꾸고, 그림의 구성요소와 관계를 글로 그려주세요
+- 각 섹션 맨 위에 그 섹션에서 다루는 교수 핵심 포인트를 '> 📌 ' 인용 한 줄로 표시""",
+    "청각형": """옆에서 선생님이 말로 설명해주는 것처럼 쓰세요.
+- 문체: 부드러운 구어체('~예요', '~해볼까요?'). 소리 내어 읽기 좋은 짧은 문장
+- 각 섹션 시작에 학생이 실제로 할 법한 질문을 '> 🙋 질문' 인용으로 던지고, 그 아래 대화하듯 답하기
+- 비유와 이야기를 적극 활용 (원본 개념의 의미를 바꾸지 않는 범위)
+- 섹션 끝마다 '🔊 소리 내어 말해보기:' 한 문장 요약
+- 마지막에 '## 🎧 3문장으로 다시 듣기'""",
+    "읽기형": """잘 정리된 교재처럼 체계적으로 쓰세요.
+- 각 개념: **정의** → **원리** → **예시** → **정리** 순서
+- 번호 매긴 소제목(### 1.1, 1.2 …)과 개조식 목록
+- 마지막에 '## 📚 용어 사전' 표 (용어 | 정의 | 예시)
+- 정확한 전문 용어를 쓰되 처음 등장할 때 괄호로 영문/설명 병기""",
+    "실습형": """손으로 따라 하며 배우는 미션형 가이드로 쓰세요.
+- 맨 앞: '## 🎯 오늘의 미션' — 이 교안을 끝내면 직접 할 수 있게 되는 것 2~3개
+- 개념 설명은 짧게, 바로 '### 🛠️ 따라 하기' 단계(1, 2, 3…)로 연결
+- 원본 코드는 그대로 보존하고, 각 코드 블록 바로 아래에 '✅ 확인:' 으로 실행 후 무엇을 봐야 하는지
+- 원본에 코드가 없으면 원본 내용 범위 안에서 '직접 해보기' 활동(손으로 계산·분류·작성하기)을 설계
+- 마지막에 '## 🚀 응용 과제' 1~2개와 체크리스트(- [ ] 형식)""",
+    "요약형": """바쁜 학습자가 3분 안에 핵심을 잡게 하세요.
+- 맨 앞: '## ⚡ TL;DR' — 핵심 3줄
+- 각 개념은 '**개념명** — 한 줄 설명' 형태의 카드 목록으로, 부연 설명 최소화
+- 꼭 알아야 할 공식·코드·명령어만 남기되, 남긴 것은 원본 그대로
+- 마지막에 '## 🔁 1분 복습' — 빈칸 채우기 3문항(정답은 바로 아래 괄호)""",
+    "상세형": """처음 배우는 사람도 막히지 않도록 빠짐없이 쓰세요.
+- 각 개념: 배경(왜 필요한가) → 개념 → 작동 원리 → 예시 → 주의할 점
+- '### ⚠️ 자주 하는 실수' 를 개념마다 1~2개
+- 어려운 단계 앞에는 쉬운 비유로 먼저 감을 잡게 하기
+- 마지막에 '## 🔍 더 깊이 알아보기' — 원본 범위 내 심화 포인트""",
+}
+
+STYLE_TAGLINES = {
+    "시각형": "구조와 도식으로 한눈에",
+    "청각형": "선생님이 말로 설명하듯",
+    "읽기형": "교재처럼 체계적으로",
+    "실습형": "직접 따라 하며",
+    "요약형": "3분 만에 핵심만",
+    "상세형": "막힘없이 빠짐없이",
+}
+
+
+def _core_points_text(core_points: list[dict]) -> str:
+    return "\n".join(
+        f"[중요도 {p.get('priority', 1)}/5] {p.get('content', '')}"
+        for p in sorted(core_points or [], key=lambda x: x.get("priority", 0), reverse=True)
+        if p.get("content")
+    )
+
+
+def profile_label(style: str, profile: dict) -> str:
+    """학생에게 보여줄 사람이 읽기 쉬운 프로필 한 줄."""
+    level = {"beginner": "입문", "intermediate": "중급", "advanced": "고급"}.get(profile.get("subject_level", ""), "")
+    parts = [style, profile.get("focus_pattern", ""), f"{level} 수준" if level else ""]
+    return " · ".join(p for p in parts if p)
+
+
+def _lecture_title(original_content: str) -> str:
+    for line in (original_content or "").splitlines():
+        line = line.strip()
+        if line.startswith("#"):
+            return line.lstrip("#").strip()
+    return ""
+
+
+def build_reforge_prompt(
+    style: str,
+    original_content: str,
+    core_points: list[dict],
+    profile: dict,
+    paper_context: str = "",
+) -> str:
+    style = _normalize_learning_style(style)
+    core_text = _core_points_text(core_points)
+    title = _lecture_title(original_content) or "강의"
+    label = profile_label(style, profile)
+    profile_instruction = _build_profile_instruction(style, {**profile, "learning_style": style})
+    source_excerpt = _build_source_excerpt(original_content, max_chars=24000)
+    paper = PAPER_STRATEGY.get(style, "")
+
+    return f"""당신은 같은 강의 내용을 학습자 성향에 맞게 다시 설계하는 교육 콘텐츠 디자이너입니다.
+아래 원본 교안을 '{style}' 학습자를 위한 맞춤 교안으로 재구성하세요. 한국어로만 작성합니다.
+
+## 반드시 지킬 원칙
+1. 요약이 아니라 재구성입니다. 원본의 개념·사실·예시를 빠뜨리지 말고, 전달 방식과 구조를 바꾸세요.
+2. 원본에 없는 사실·수치·코드를 지어내지 마세요. 비유와 설명 방식만 새로 만들 수 있습니다.
+3. 코드·수식·명령어·실행 결과는 원본 그대로 ``` 코드블록에 보존하세요 (언어 표기 포함).
+4. 교수 확정 핵심 포인트는 전부, 눈에 띄게 다루세요. 핵심 포인트가 나오는 곳에 **굵게** 강조하세요.
+5. 코드블록 안에 상자(┌─┐│└┘) 같은 ASCII 그림을 그리지 마세요. 한글 폭 때문에 정렬이 깨집니다. 구조는 마크다운 표·번호 목록·화살표(→) 한 줄 흐름으로 표현하세요.
+6. 원본에 해당 내용이 없으면 그 섹션은 아예 만들지 마세요. "원본에 ~이 없습니다" 같은 문장은 쓰지 마세요.
+7. 인사말, "재구성했습니다" 같은 메타 문장, LaTeX($...$)는 쓰지 마세요. 수식은 일반 텍스트(ŷ = w·x + b)로.
+8. 마크다운 본문만 출력하고, 마지막 섹션까지 완결된 문서로 끝내세요.
+
+## '{style}' 설계도 — {STYLE_TAGLINES.get(style, '')}
+{STYLE_BLUEPRINTS.get(style, STYLE_BLUEPRINTS['읽기형'])}
+
+## 학습자 세부 성향 (설계도 위에 덧입히기)
+{profile_instruction}
+
+## 학습 이론 근거
+{paper}
+{paper_context}
+
+## 교수 확정 핵심 포인트 (모두 포함)
+{core_text or '(교수 핵심 포인트 없음 — 원본에서 중요한 개념을 스스로 선별)'}
+
+## 원본 교안
+{source_excerpt}
+
+## 출력 시작 형식
+# {title}
+> 💡 **{label}** 학습자에게 맞춰 다시 구성한 교안입니다.
+
+(이어서 설계도에 따른 본문, 마지막은 '## ✍️ 스스로 점검하기' — 핵심 포인트를 확인하는 질문 2~3개)"""

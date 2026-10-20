@@ -3,26 +3,39 @@ import os
 import re
 import uuid
 from pathlib import Path
-from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+import json
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, StreamingResponse
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from pydantic import BaseModel
 
 from models.lecture import LectureUploadResponse, CorePoint, CorePointConfirmRequest
 from services.lecture_pipeline import LecturePipeline
-from services.reforge_service import ReforgeService, generate_gemini_text
+from services.reforge_service import (
+    ReforgeService,
+    STYLE_TAGLINES,
+    _clean_markdown,
+    _core_points_text,
+    _fallback_content,
+    _normalize_learning_style,
+    generate_gemini_text,
+    profile_label,
+)
 from services.file_service import FileService
 from services.firebase_service import FirebaseService
 from services.video_pipeline import VideoPipeline, summarize_transcript_locally
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["lectures"])
+limiter = Limiter(key_func=get_remote_address)
 pipeline = LecturePipeline()
 reforge_svc = ReforgeService()
 file_svc = FileService()
 firebase = FirebaseService()
 video_pipeline = VideoPipeline()
 LOCAL_ASSET_DIR = Path(os.getenv("FITLEARN_ASSET_DIR", "/tmp/fitlearn_assets"))
-REFORGED_CACHE_VERSION = 5
+REFORGED_CACHE_VERSION = 6
 FALLBACK_CACHE_MARKERS = (
     "AI 서버 응답 지연",
     "AI 응답이 지연",
@@ -910,3 +923,94 @@ async def get_reforged(
         "profile": _public_profile_summary(profile),
         "styles": styles,
     }
+
+def _sse(payload: dict) -> str:
+    return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+
+@router.get("/lectures/{room_id}/{lecture_id}/reforged/stream")
+@limiter.limit("20/minute")
+async def stream_reforged(
+    request: Request,
+    room_id: str,
+    lecture_id: str,
+    user_id: str = "",
+    style: str = "",
+    refresh: bool = False,
+):
+    """
+    학생 맞춤 교안 SSE 스트리밍.
+    이벤트: meta → delta(여러 번) → done  |  error
+    오류도 SSE 이벤트로 전달해 EventSource 자동 재접속을 막는다(클라이언트가 close).
+    """
+
+    async def _events():
+        yield ": stream-open\n\n"
+        try:
+            profile = await _resolve_student_profile(user_id, room_id) if user_id else dict(_TEST_PROFILES["읽기형"])
+            primary_style = _normalize_learning_style(profile.get("learning_style", "읽기형"))
+            target_style = _normalize_learning_style(style) if style else primary_style
+
+            lecture = await firebase.get_lecture(room_id, lecture_id)
+            if not lecture:
+                yield _sse({"type": "error", "message": "교안을 찾을 수 없습니다."})
+                return
+            if not lecture.get("confirmed"):
+                yield _sse({"type": "error", "message": "교수님이 아직 핵심 포인트를 확정하지 않은 교안입니다."})
+                return
+
+            meta = {
+                "type": "meta",
+                "style": target_style,
+                "primary_style": primary_style,
+                "tagline": STYLE_TAGLINES.get(target_style, ""),
+                "label": profile_label(target_style, profile),
+                "profile": _public_profile_summary(profile),
+            }
+
+            cached = await firebase.get_reforged_all(room_id, lecture_id, user_id) if user_id else None
+            cached_styles = (cached or {}).get("styles") or {}
+            cache_valid = cached and cached.get("cache_version") == REFORGED_CACHE_VERSION
+            hit = cached_styles.get(target_style) if cache_valid else None
+            if hit and not refresh and not _has_fallback_content({target_style: hit}):
+                yield _sse({**meta, "cached": True})
+                yield _sse({"type": "done", "content": hit, "cached": True})
+                return
+
+            yield _sse({**meta, "cached": False})
+            original = lecture.get("original_text", "")
+            core_points = lecture.get("core_points", [])
+            buffer: list[str] = []
+            try:
+                async for chunk in reforge_svc.stream_for_student(original, core_points, profile, style=target_style):
+                    buffer.append(chunk)
+                    yield _sse({"type": "delta", "text": chunk})
+                    if await request.is_disconnected():
+                        logger.info(f"[reforged/stream] 클라이언트 연결 종료 user={user_id}")
+                        return
+            except Exception as e:
+                logger.warning(f"[reforged/stream] 스트리밍 중단 style={target_style}: {e}")
+                if len("".join(buffer)) < 600:
+                    fallback = _fallback_content(
+                        target_style, _core_points_text(core_points), original, profile_label(target_style, profile)
+                    )
+                    yield _sse({"type": "done", "content": fallback, "fallback": True})
+                    return
+
+            content = _clean_markdown("".join(buffer))
+            if user_id and content:
+                styles = {**(cached_styles if cache_valid else {}), target_style: content}
+                await firebase.save_reforged_all(
+                    room_id, lecture_id, user_id, styles, primary_style,
+                    profile.get("subject_level", ""), cache_version=REFORGED_CACHE_VERSION,
+                )
+            yield _sse({"type": "done", "content": content})
+        except Exception as e:
+            logger.error(f"[reforged/stream] 실패: {e}", exc_info=True)
+            yield _sse({"type": "error", "message": "맞춤 교안 생성 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요."})
+
+    return StreamingResponse(
+        _events(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive"},
+    )

@@ -10,6 +10,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import secrets
 import string
 from datetime import datetime, timezone
@@ -24,16 +25,44 @@ _cache = RedisService()
 _CACHE_TTL = 60 * 5
 
 
+def _load_credentials_dict() -> Optional[dict]:
+    """FIREBASE_CREDENTIALS를 JSON 문자열 / 파일 경로 / 이스케이프가 깨진 JSON 모두 허용해 파싱."""
+    raw = (os.getenv("FIREBASE_CREDENTIALS") or "").strip()
+    if not raw:
+        return None
+    if not raw.startswith("{") and os.path.isfile(raw):
+        with open(raw, encoding="utf-8") as f:
+            return json.load(f)
+    if (raw[0] == raw[-1]) and raw[0] in "'\"":
+        raw = raw[1:-1]
+    candidates = [
+        raw,
+        re.sub(r'\\(?![\"\\/bfnrtu])', r"\\\\", raw),
+        raw.replace("\r", "").replace("\n", "\\n"),
+    ]
+    last_err: Exception | None = None
+    for c in candidates:
+        try:
+            data = json.loads(c, strict=False)
+            if isinstance(data.get("private_key"), str):
+                # PEM(base64)에는 백슬래시가 없으므로 이중 이스케이프 잔여물 제거
+                data["private_key"] = data["private_key"].replace("\\n", "\n").replace("\\", "")
+            return data
+        except Exception as e:  # noqa: PERF203
+            last_err = e
+    raise ValueError(f"FIREBASE_CREDENTIALS 파싱 실패: {last_err}")
+
+
 def _storage_bucket_name() -> str:
     """Resolve Firebase Storage bucket even when Render env omits the bucket variable."""
     explicit = os.getenv("FIREBASE_STORAGE_BUCKET") or os.getenv("FIREBASE_STORAGE_BUCKET_NAME")
     if explicit:
         return explicit
     try:
-        cred_json = os.getenv("FIREBASE_CREDENTIALS")
-        if not cred_json:
+        data = _load_credentials_dict()
+        if not data:
             return ""
-        project_id = json.loads(cred_json).get("project_id", "")
+        project_id = data.get("project_id", "")
         return f"{project_id}.firebasestorage.app" if project_id else ""
     except Exception:
         return ""
@@ -62,12 +91,11 @@ def _init_firebase() -> bool:
             _firebase_ok = True
             return True
 
-        cred_json = os.getenv("FIREBASE_CREDENTIALS")
-        if not cred_json:
+        cred_data = _load_credentials_dict()
+        if not cred_data:
             logger.warning("[Firebase] FIREBASE_CREDENTIALS 미설정 — no-op 모드")
             return False
 
-        cred_data = json.loads(cred_json)
         cred = credentials.Certificate(cred_data)
         bucket_name = _storage_bucket_name()
         options = {}
@@ -93,13 +121,19 @@ def _generate_room_code() -> str:
 
 
 def _get_db():
-    """Firestore 클라이언트 반환. 실패 시 None."""
-    try:
-        from firebase_admin import firestore
-        return firestore.client()
-    except Exception as e:
-        logger.error(f"[Firebase] DB 클라이언트 획득 실패: {e}")
-        return None
+    """Firestore 클라이언트 반환. Firebase를 쓸 수 없으면 인메모리 대체 클라이언트."""
+    if _firebase_ok:
+        try:
+            from firebase_admin import firestore
+            return firestore.client()
+        except Exception as e:
+            logger.error(f"[Firebase] DB 클라이언트 획득 실패 — 인메모리 폴백: {e}")
+    from services.memory_firestore import get_memory_db
+    return get_memory_db()
+
+
+def is_memory_mode() -> bool:
+    return not _firebase_ok
 
 
 # ── 초기화 실행 ──────────────────────────────────────────────────────────────
@@ -397,10 +431,19 @@ class FirebaseService:
                 result = []
                 for room_doc in room_docs:
                     room = _normalize_firestore_value(room_doc.to_dict())
+                    if room.get("is_demo_copy"):
+                        continue  # 방문자별 교수 데모 사본은 공개 카탈로그에서 제외
                     room_id = room.get("room_id") or room_doc.id
                     course_doc = db.collection("courses").document(room_id).get()
                     course = _normalize_firestore_value(course_doc.to_dict()) if course_doc.exists else {}
-                    result.append(self._room_to_course(room, course))
+                    item = self._room_to_course(room, course)
+                    item["is_demo"] = bool(room.get("is_demo"))
+                    item["lecture_count"] = len(list(
+                        room_doc.reference.collection("lectures").where("confirmed", "==", True).stream()
+                    ))
+                    result.append(item)
+                # 데모 강의를 맨 앞에 노출 (stable sort라 기존 최신순 유지)
+                result.sort(key=lambda c: not c.get("is_demo"))
                 return result
             return await _run(_read)
         except Exception as e:
@@ -766,7 +809,7 @@ class FirebaseService:
                 result = []
                 for doc in docs:
                     data = _normalize_firestore_value(doc.to_dict())
-                    if user_id in (data.get("students") or []):
+                    if user_id in (data.get("students") or []) or data.get("is_demo_copy"):
                         continue
                     result.append({
                         **data,
