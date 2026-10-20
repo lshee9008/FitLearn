@@ -58,7 +58,13 @@ class ProfessorRoomDetailSummary {
 
 final professorRoomsProvider = FutureProvider.autoDispose
     .family<List<dynamic>, String>((ref, userId) async {
-  return ApiService().getProfessorRooms(userId);
+  final rooms = await ApiService().getProfessorRooms(userId);
+  // 무료 서버 재시작으로 체험 강의실이 사라졌다면 자동 복구
+  if (rooms.isEmpty && userId.startsWith('demo-professor-')) {
+    await ApiService().demoBootstrap(role: 'professor', userId: userId);
+    return ApiService().getProfessorRooms(userId);
+  }
+  return rooms;
 });
 
 final studentHomeSummaryProvider = FutureProvider.autoDispose
@@ -110,6 +116,17 @@ final studentServiceHubProvider = FutureProvider.autoDispose
 
 final professorRoomDetailProvider = FutureProvider.autoDispose
     .family<ProfessorRoomDetailSummary, String>((ref, roomId) async {
+  const demoPrefix = 'demo-copy-';
+  if (roomId.startsWith(demoPrefix)) {
+    try {
+      await ApiService().getRoom(roomId);
+    } catch (_) {
+      await ApiService().demoBootstrap(
+        role: 'professor',
+        userId: roomId.substring(demoPrefix.length),
+      );
+    }
+  }
   final results = await Future.wait([
     ApiService().getRoom(roomId),
     ApiService().getRoomLectures(roomId),

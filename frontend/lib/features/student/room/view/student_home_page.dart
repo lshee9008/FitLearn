@@ -50,7 +50,14 @@ class _StudentHomePageState extends ConsumerState<StudentHomePage> {
       ApiService().getStudentServiceHub(userId),
     ]);
     final diagnosis = results[0];
-    final hub = results[1] as Map<String, dynamic>;
+    var hub = results[1] as Map<String, dynamic>;
+    // 무료 서버 재시작으로 체험 데이터가 초기화된 경우 데모 수강을 자동 복구
+    if ((hub['enrolled_rooms'] as List? ?? const []).isEmpty && userId.startsWith('demo-student-')) {
+      try {
+        await ApiService().demoBootstrap(role: 'student', userId: userId);
+        hub = await ApiService().getStudentServiceHub(userId);
+      } catch (_) {}
+    }
     final rooms = (hub['enrolled_rooms'] as List? ?? const [])
         .whereType<Map>()
         .map((e) => Map<String, dynamic>.from(e))
