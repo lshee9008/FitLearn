@@ -394,8 +394,8 @@ class _CreateRoomPageState extends ConsumerState<CreateRoomPage> {
   Widget _buildTopBar() {
     return Container(
       height: 56,
-      color: _C.surface,
       decoration: const BoxDecoration(
+          color: _C.surface,
           border: Border(bottom: BorderSide(color: _C.border))),
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(children: [

@@ -82,7 +82,7 @@ class _LandingPageState extends ConsumerState<LandingPage> {
     final ok = await ApiService().ping();
     if (!mounted) return;
     setState(() => _server = ok ? _ServerState.ready : _ServerState.waking);
-    if (ok) setState(() => _courses = _loadCourses());
+    if (ok) setState(() { _courses = _loadCourses(); });
   }
 
   Future<List<CourseModel>> _loadCourses() async {
@@ -132,7 +132,7 @@ class _LandingPageState extends ConsumerState<LandingPage> {
                 key: _coursesKey,
                 child: _CourseSection(
                   future: _courses,
-                  onRetry: () => setState(() => _courses = _loadCourses()),
+                  onRetry: () => setState(() { _courses = _loadCourses(); }),
                   onTap: (c) => context.push('/course/${c.id}'),
                 ),
               ),

@@ -38,7 +38,7 @@ class FLMarkdown extends StatelessWidget {
       data: _normalize(data),
       selectable: true,
       extensionSet: md.ExtensionSet.gitHubFlavored,
-      builders: {'pre': _CodeBlockBuilder(accent)},
+      builders: {'code': _CodeBlockBuilder(accent)},
       checkboxBuilder: (checked) => Padding(
         padding: const EdgeInsets.only(right: 8, top: 4),
         child: Icon(
@@ -85,6 +85,8 @@ class FLMarkdown extends StatelessWidget {
         tableCellsPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         tableCellsDecoration: const BoxDecoration(color: FL.surface),
         tableColumnWidth: const FlexColumnWidth(),
+        codeblockPadding: EdgeInsets.zero,
+        codeblockDecoration: const BoxDecoration(),
         horizontalRuleDecoration: const BoxDecoration(
           border: Border(top: BorderSide(color: FL.border, width: 1)),
         ),
@@ -124,17 +126,16 @@ class _CodeBlockBuilder extends MarkdownElementBuilder {
   _CodeBlockBuilder(this.accent);
 
   @override
-  bool isBlockElement() => true;
-
-  @override
   Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
-    var language = '';
-    final first = element.children?.isNotEmpty == true ? element.children!.first : null;
-    if (first is md.Element) {
-      language = (first.attributes['class'] ?? '').replaceFirst('language-', '');
-    }
-    final code = element.textContent.replaceAll(RegExp(r'\n$'), '');
-    return _CodeBlock(code: code, language: language, accent: accent);
+    final cls = element.attributes['class'] ?? '';
+    final text = element.textContent;
+    // 인라인 코드는 기본 스타일(styleSheet.code)로 렌더링
+    if (cls.isEmpty && !text.contains('\n')) return null;
+    return _CodeBlock(
+      code: text.replaceAll(RegExp(r'\n$'), ''),
+      language: cls.replaceFirst('language-', ''),
+      accent: accent,
+    );
   }
 }
 

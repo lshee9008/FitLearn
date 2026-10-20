@@ -682,31 +682,75 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
                   ? const Center(
                       child: Text('강의실 데이터를 불러오지 못했습니다',
                           style: TextStyle(color: _C.textMute)))
-                  : Row(children: [
-                      _LeftPanel(
-                        selectedIndex: _selectedIndex,
-                        onSelect: (i) => setState(() {
+                  : LayoutBuilder(builder: (context, constraints) {
+                      final narrow = constraints.maxWidth < 760;
+                      void select(int i) {
+                        if (i == 9) {
+                          context.push('/professor/dashboard/${widget.roomId}');
+                          return;
+                        }
+                        setState(() {
                           _selectedIndex = i;
                           _showLectureForm = false;
-                        }),
-                        students: students,
-                        lectures: lectures,
-                        notices: notices,
-                        pendingCount: pendingApplications.length,
-                      ),
-                      Expanded(
-                        child: IndexedStack(
-                          index: _selectedIndex,
-                          children: [
-                            _buildLectures(lectures, roomName: roomName),
-                            _buildNotices(room, notices),
-                            _buildStudents(students, pendingApplications),
-                          ],
+                        });
+                      }
+
+                      final content = Column(children: [
+                        if (room['is_demo'] == true)
+                          _DemoGuideBanner(
+                            onDashboard: () => select(9),
+                            onPreview: lectures.isEmpty
+                                ? null
+                                : () => context.push(
+                                    '/learn/${widget.roomId}/${(lectures[1 < lectures.length ? 1 : 0] as Map)['lecture_id']}'),
+                            onUpload: () => context.push(
+                                '/professor/lecture/${widget.roomId}/upload'),
+                          ),
+                        if (narrow)
+                          _MobileTabs(
+                              selectedIndex: _selectedIndex, onSelect: select),
+                        Expanded(
+                            child: _buildIndexedContent(
+                                room,
+                                lectures,
+                                students,
+                                notices,
+                                pendingApplications,
+                                roomName)),
+                      ]);
+                      if (narrow) return content;
+                      return Row(children: [
+                        _LeftPanel(
+                          selectedIndex: _selectedIndex,
+                          onSelect: select,
+                          students: students,
+                          lectures: lectures,
+                          notices: notices,
+                          pendingCount: pendingApplications.length,
                         ),
-                      ),
-                    ]),
+                        Expanded(child: content),
+                      ]);
+                    }),
         ),
       ]),
+    );
+  }
+
+  Widget _buildIndexedContent(
+    Map<String, dynamic> room,
+    List<dynamic> lectures,
+    List<dynamic> students,
+    List<dynamic> notices,
+    List<Map<String, dynamic>> pendingApplications,
+    String roomName,
+  ) {
+    return IndexedStack(
+      index: _selectedIndex,
+      children: [
+        _buildLectures(lectures, roomName: roomName),
+        _buildNotices(room, notices),
+        _buildStudents(students, pendingApplications),
+      ],
     );
   }
 
@@ -714,8 +758,8 @@ class _RoomDetailPageState extends ConsumerState<RoomDetailPage> {
   Widget _buildTopBar(String roomName) {
     return Container(
       height: 52,
-      color: _C.surface,
       decoration: const BoxDecoration(
+          color: _C.surface,
           border: Border(bottom: BorderSide(color: _C.border))),
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(children: [
@@ -1774,8 +1818,8 @@ class _LeftPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: 220,
-      color: _C.surface,
       decoration: const BoxDecoration(
+          color: _C.surface,
           border: Border(right: BorderSide(color: _C.border))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // 네비 목록
@@ -1810,6 +1854,13 @@ class _LeftPanel extends StatelessWidget {
                 index: 2,
                 accentColor: _C.lavender,
                 selected: selectedIndex == 2,
+                onTap: onSelect),
+            _NavItem(
+                icon: Icons.insights_rounded,
+                label: '학습 분석',
+                index: 9,
+                accentColor: _C.mint,
+                selected: false,
                 onTap: onSelect),
           ]),
         ),
@@ -2843,6 +2894,105 @@ class _DlgBtn extends StatelessWidget {
                 fontSize: 13,
                 fontWeight: FontWeight.w600)),
       ),
+    );
+  }
+}
+
+// ── 체험 안내 배너 (데모 강의실 전용) ─────────────────────────────
+class _DemoGuideBanner extends StatelessWidget {
+  final VoidCallback onDashboard;
+  final VoidCallback? onPreview;
+  final VoidCallback onUpload;
+  const _DemoGuideBanner(
+      {required this.onDashboard,
+      required this.onPreview,
+      required this.onUpload});
+
+  @override
+  Widget build(BuildContext context) {
+    Widget step(String n, String label, IconData icon, VoidCallback? onTap) =>
+        InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(
+              color: _C.surface2,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _C.border2),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Text(n,
+                  style: const TextStyle(
+                      color: _C.lime,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900)),
+              const SizedBox(width: 8),
+              Icon(icon, size: 15, color: _C.textSec),
+              const SizedBox(width: 6),
+              Text(label,
+                  style: const TextStyle(
+                      color: _C.textPri,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700)),
+            ]),
+          ),
+        );
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _C.limeDark,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _C.lime.withValues(alpha: 0.3)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('🎓 교수 체험 중이에요 — 가상 수강생 8명이 이미 성향 진단을 마쳤어요',
+            style: TextStyle(
+                color: _C.textPri, fontSize: 14, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 12),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          step('1', '수강생 성향 대시보드', Icons.insights_rounded, onDashboard),
+          step('2', '학생 화면으로 교안 미리보기', Icons.visibility_rounded, onPreview),
+          step(
+              '3', '내 교안 올려 AI 핵심 포인트 추출', Icons.upload_file_rounded, onUpload),
+        ]),
+      ]),
+    );
+  }
+}
+
+class _MobileTabs extends StatelessWidget {
+  final int selectedIndex;
+  final ValueChanged<int> onSelect;
+  const _MobileTabs({required this.selectedIndex, required this.onSelect});
+
+  @override
+  Widget build(BuildContext context) {
+    const tabs = [(0, '교안'), (1, '공지'), (2, '수강생'), (9, '학습 분석')];
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Row(children: [
+        for (final (i, label) in tabs)
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ChoiceChip(
+              label: Text(label),
+              selected: selectedIndex == i,
+              onSelected: (_) => onSelect(i),
+              selectedColor: _C.lime,
+              backgroundColor: _C.surface2,
+              labelStyle: TextStyle(
+                color: selectedIndex == i ? _C.limeDark : _C.textSec,
+                fontWeight: FontWeight.w700,
+              ),
+              side: const BorderSide(color: _C.border2),
+              showCheckmark: false,
+            ),
+          ),
+      ]),
     );
   }
 }

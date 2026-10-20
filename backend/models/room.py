@@ -28,6 +28,7 @@ class Room(BaseModel):
     price: int = 0
     completion_rate: int = 0
     has_quiz: bool = False                  # 수준판단 퀴즈 생성 여부
+    is_demo: bool = False                   # 체험용 데모 강의실
     created_at: Optional[str] = None        # ISO 8601 문자열로 직렬화
 
 

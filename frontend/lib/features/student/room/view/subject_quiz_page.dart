@@ -30,13 +30,13 @@ class _SubjectQuizPageState extends ConsumerState<SubjectQuizPage> {
     try {
       final res = await ApiService().getRoomQuiz(widget.roomId);
       final questions = res['questions'] as List<dynamic>? ?? [];
-      
+
       if (questions.isEmpty) {
         // 교수가 아직 퀴즈를 생성하지 않았다면 바로 넘어가도 됨 (MVP)
         if (mounted) context.pop();
         return;
       }
-      
+
       setState(() {
         _questions = questions;
         _answers = List.filled(questions.length, -1);
@@ -53,15 +53,18 @@ class _SubjectQuizPageState extends ConsumerState<SubjectQuizPage> {
   Future<void> _submit() async {
     final user = ref.read(authNotifierProvider);
     if (user == null || _answers.contains(-1)) return;
-    
+
     setState(() => _submitting = true);
     try {
-      final result = await ApiService().submitQuiz(widget.roomId, user.userId, _answers);
+      final result =
+          await ApiService().submitQuiz(widget.roomId, user.userId, _answers);
       if (mounted) {
-        _showResultDialog(result['subject_level'] as String, result['score'] as int);
+        _showResultDialog(
+            result['subject_level'] as String, result['score'] as int);
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('제출 실패: $e')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('제출 실패: $e')));
       setState(() => _submitting = false);
     }
   }
@@ -70,7 +73,7 @@ class _SubjectQuizPageState extends ConsumerState<SubjectQuizPage> {
     String message = '';
     Color levelColor = AppColors.primary;
     String badge = '';
-    
+
     if (level == 'advanced') {
       badge = '고급';
       levelColor = AppColors.primaryLight;
@@ -78,7 +81,7 @@ class _SubjectQuizPageState extends ConsumerState<SubjectQuizPage> {
     } else if (level == 'intermediate') {
       badge = '중급';
       levelColor = AppColors.gold;
-      message = '기본기는 갖추셨군요! 응용과 사례 충심으로 구성된 교안을 준비할게요.';
+      message = '기본기는 갖추셨군요! 응용과 사례 중심으로 구성된 교안을 준비할게요.';
     } else {
       badge = '입문';
       levelColor = AppColors.accent;
@@ -98,29 +101,42 @@ class _SubjectQuizPageState extends ConsumerState<SubjectQuizPage> {
             children: [
               Text('🎉', style: const TextStyle(fontSize: 48)),
               const SizedBox(height: 16),
-              Text('$score점', style: TextStyle(color: levelColor, fontSize: 32, fontWeight: FontWeight.w900)),
+              Text('$score점',
+                  style: TextStyle(
+                      color: levelColor,
+                      fontSize: 32,
+                      fontWeight: FontWeight.w900)),
               const SizedBox(height: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                 decoration: BoxDecoration(
                   color: levelColor.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: Text('수준: $badge', style: TextStyle(color: levelColor, fontWeight: FontWeight.bold)),
+                child: Text('수준: $badge',
+                    style: TextStyle(
+                        color: levelColor, fontWeight: FontWeight.bold)),
               ),
               const SizedBox(height: 16),
-              Text(message, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.textSecondary, height: 1.5)),
+              Text(message,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      color: AppColors.textSecondary, height: 1.5)),
               const SizedBox(height: 32),
               SizedBox(
                 width: double.infinity,
                 height: 48,
                 child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.black),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.black),
                   onPressed: () {
                     Navigator.pop(ctx);
                     context.pop(true); // 완료되었음을 반환
                   },
-                  child: const Text('강의실 입장하기', style: TextStyle(fontWeight: FontWeight.bold)),
+                  child: const Text('강의실 입장하기',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ),
             ],
@@ -141,7 +157,8 @@ class _SubjectQuizPageState extends ConsumerState<SubjectQuizPage> {
             children: [
               CircularProgressIndicator(color: AppColors.primary),
               SizedBox(height: 16),
-              Text('과목 수준 퀴즈를 불러오는 중...', style: TextStyle(color: AppColors.textMuted)),
+              Text('과목 수준 퀴즈를 불러오는 중...',
+                  style: TextStyle(color: AppColors.textMuted)),
             ],
           ),
         ),
@@ -156,7 +173,11 @@ class _SubjectQuizPageState extends ConsumerState<SubjectQuizPage> {
       appBar: AppBar(
         backgroundColor: AppColors.bg,
         elevation: 0,
-        automaticallyImplyLeading: false, // 뒤로가기 방지 (퀴즈 필수)
+        leading: IconButton(
+          tooltip: '나중에 하기',
+          icon: const Icon(Icons.close_rounded, color: AppColors.textSecondary),
+          onPressed: () => context.pop(false),
+        ),
         title: Text('과목 수준 진단 (${_currentIndex + 1}/${_questions.length})'),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(4),
@@ -168,95 +189,141 @@ class _SubjectQuizPageState extends ConsumerState<SubjectQuizPage> {
         ),
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 32),
-              Text(
-                q['question'] as String? ?? '',
-                style: const TextStyle(color: AppColors.textPrimary, fontSize: 22, fontWeight: FontWeight.bold, height: 1.4),
-              ),
-              const SizedBox(height: 48),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: options.length,
-                  itemBuilder: (_, i) {
-                    final isSelected = _answers[_currentIndex] == i;
-                    return GestureDetector(
-                      onTap: () {
-                        setState(() { _answers[_currentIndex] = i; });
-                      },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        margin: const EdgeInsets.only(bottom: 16),
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: isSelected ? AppColors.primary.withValues(alpha: 0.1) : AppColors.bgSurface,
-                          border: Border.all(color: isSelected ? AppColors.primary : AppColors.border),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 24, height: 24,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(color: isSelected ? AppColors.primary : AppColors.textMuted),
-                                color: isSelected ? AppColors.primary : Colors.transparent,
-                              ),
-                              child: isSelected ? const Icon(Icons.check, size: 16, color: Colors.black) : null,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 680),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 32),
+                  Text(
+                    q['question'] as String? ?? '',
+                    style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        height: 1.4),
+                  ),
+                  const SizedBox(height: 48),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: options.length,
+                      itemBuilder: (_, i) {
+                        final isSelected = _answers[_currentIndex] == i;
+                        return GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _answers[_currentIndex] = i;
+                            });
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            margin: const EdgeInsets.only(bottom: 16),
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? AppColors.primary.withValues(alpha: 0.1)
+                                  : AppColors.bgSurface,
+                              border: Border.all(
+                                  color: isSelected
+                                      ? AppColors.primary
+                                      : AppColors.border),
+                              borderRadius: BorderRadius.circular(16),
                             ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Text(
-                                options[i] as String,
-                                style: TextStyle(
-                                  color: isSelected ? AppColors.primaryLight : AppColors.textPrimary,
-                                  fontSize: 16,
-                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 24,
+                                  height: 24,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                        color: isSelected
+                                            ? AppColors.primary
+                                            : AppColors.textMuted),
+                                    color: isSelected
+                                        ? AppColors.primary
+                                        : Colors.transparent,
+                                  ),
+                                  child: isSelected
+                                      ? const Icon(Icons.check,
+                                          size: 16, color: Colors.black)
+                                      : null,
                                 ),
-                              ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Text(
+                                    options[i] as String,
+                                    style: TextStyle(
+                                      color: isSelected
+                                          ? AppColors.primaryLight
+                                          : AppColors.textPrimary,
+                                      fontSize: 16,
+                                      fontWeight: isSelected
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
       bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: SizedBox(
-            height: 56,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _answers[_currentIndex] != -1 ? AppColors.primary : AppColors.bgSurface,
-                foregroundColor: Colors.black,
-              ),
-              onPressed: _answers[_currentIndex] == -1 || _submitting ? null : () {
-                if (_currentIndex < _questions.length - 1) {
-                  setState(() => _currentIndex++);
-                } else {
-                  _submit();
-                }
-              },
-              child: _submitting 
-                ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
-                : Text(
-                    _currentIndex < _questions.length - 1 ? '다음 문제' : '제출하고 결과 보기',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: _answers[_currentIndex] != -1 ? Colors.black : AppColors.textMuted
-                    ),
+        child: Center(
+          heightFactor: 1,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 680),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: SizedBox(
+                height: 56,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _answers[_currentIndex] != -1
+                        ? AppColors.primary
+                        : AppColors.bgSurface,
+                    foregroundColor: Colors.black,
                   ),
+                  onPressed: _answers[_currentIndex] == -1 || _submitting
+                      ? null
+                      : () {
+                          if (_currentIndex < _questions.length - 1) {
+                            setState(() => _currentIndex++);
+                          } else {
+                            _submit();
+                          }
+                        },
+                  child: _submitting
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                              color: Colors.black, strokeWidth: 2))
+                      : Text(
+                          _currentIndex < _questions.length - 1
+                              ? '다음 문제'
+                              : '제출하고 결과 보기',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: _answers[_currentIndex] != -1
+                                  ? Colors.black
+                                  : AppColors.textMuted),
+                        ),
+                ),
+              ),
             ),
           ),
         ),
