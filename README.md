@@ -1,248 +1,242 @@
+<div align="center">
+
 # FitLearn
 
-## AI 기반 개인 맞춤형 교안 재해석 학습 플랫폼
+### 같은 교안, 나에게 맞는 설명으로.
 
-FitLearn은 교수자가 업로드한 강의 자료를 AI가 분석하고, 학생의 학습 성향과 과목 수준에 맞게 교안을 재구성해 제공하는 교육 서비스입니다.  
-본 프로젝트는 **KIT 바이브코딩 공모전** 참가작으로, 교수자는 강의 개설과 교안 관리에 집중하고 학생은 자신에게 맞는 형태로 강의 자료를 학습할 수 있도록 설계되었습니다.
+1분 성향 진단으로 학습 스타일을 파악하고, 교수님이 올린 교안을<br>
+**시각형 · 청각형 · 읽기형 · 실습형 · 요약형 · 상세형** 중 내게 맞는 방식으로 **실시간 재구성**하는 AI 맞춤 학습 엔진
 
-강의 자료는 PDF, PPT/PPTX, DOCX, HWP/HWPX, Markdown, 텍스트, 코드 파일, 이미지 등 다양한 형식을 지원합니다. 업로드된 자료는 텍스트 추출, 시각자료/OCR 보조 분석, 핵심 포인트 추출, 교수 검토, 학생 맞춤형 재해석 과정을 거쳐 Notion 문서처럼 읽기 쉬운 마크다운 기반 학습 자료로 변환됩니다.
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-바로%20체험하기-C8F135?style=for-the-badge&labelColor=0E0E11)](https://fit-learn-phi.vercel.app)
+[![Intro Page](https://img.shields.io/badge/서비스%20소개%20페이지-docs%2Findex.html-A78BFA?style=for-the-badge&labelColor=0E0E11)](docs/index.html)
 
-### 🚀 바로 체험하기 (회원가입 불필요)
+![Flutter](https://img.shields.io/badge/Flutter_Web-02569B?logo=flutter&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
+![Gemini](https://img.shields.io/badge/Gemini_3.5_Flash-8E75B2?logo=googlegemini&logoColor=white)
+![Firebase](https://img.shields.io/badge/Firestore-FFCA28?logo=firebase&logoColor=black)
+![Vercel](https://img.shields.io/badge/Vercel-000000?logo=vercel&logoColor=white)
+![Railway](https://img.shields.io/badge/Railway-0B0D0E?logo=railway&logoColor=white)
 
-**https://fit-learn-phi.vercel.app**
+<img src="docs/screenshots/01-landing.png" alt="FitLearn 랜딩" width="100%">
 
-| 체험 | 흐름 |
-|---|---|
-| 학생 | 「학생으로 바로 체험」 → 1분(6문항) 성향 진단 → 데모 강의 맞춤 교안이 **실시간 스트리밍**으로 생성 → 6가지 설명 방식 전환 · 원본과 나란히 비교 · 교안 근거 AI 튜터 질문 |
-| 교수 | 「교수 대시보드 체험」 → 개인 데모 강의실(가상 수강생 8명) → 수강생 성향 대시보드 · AI 수업 인사이트 → 샘플 교안 업로드로 AI 핵심 포인트 추출·검토 |
-
-> 백엔드는 무료 인스턴스라 한동안 접속이 없으면 잠듭니다. 첫 접속 시 서버를 깨우는 데 최대 1분이 걸릴 수 있으며, 화면에 진행 상황이 표시됩니다.
-
----
-
-## 1. 개발 동기
-
-같은 강의 자료를 보더라도 학생마다 이해 방식은 다릅니다. 어떤 학생은 그림과 구조도를 먼저 볼 때 이해가 빠르고, 어떤 학생은 텍스트 정리나 실습 예제가 있어야 학습 흐름을 따라갈 수 있습니다. 또한 교수자가 업로드한 교안에는 수업 중 반드시 따라 해야 하는 코드, 실습 순서, 도식, 핵심 개념이 함께 섞여 있어 단순 요약만으로는 실제 수업 활용성이 떨어질 수 있습니다.
-
-FitLearn은 이러한 문제를 해결하기 위해 **교수의 핵심 포인트 판단**, **학생 학습성향 진단**, **과목 수준 진단**, **교안 재해석 AI 파이프라인**을 하나의 흐름으로 연결했습니다.
+</div>
 
 ---
 
-## 2. 해결하고자 한 문제
+## 목차
 
-- 교수자가 올린 교안의 핵심 내용을 학생 수준과 성향에 맞춰 다시 설명하기 어렵다.
-- 교안 요약만으로는 실습 코드, 수업 순서, 시각자료의 의미가 사라질 수 있다.
-- 학생의 학습 성향과 과목별 이해 수준이 교안 제공 방식에 충분히 반영되지 않는다.
-- 온라인 강의와 업로드 자료가 분리되어 있어 영상, 원본 자료, 재해석 교안을 함께 보기 어렵다.
-- 교수자는 강의 자료 업로드 후 “무엇을 반드시 강조해야 하는지”를 다시 점검할 수 있는 도구가 부족하다.
+1. [바로 체험하기](#-바로-체험하기)
+2. [왜 FitLearn인가](#-왜-fitlearn인가)
+3. [서비스 화면](#-서비스-화면)
+4. [서비스 소개 페이지](#-서비스-소개-페이지)
+5. [작동 방식](#-작동-방식)
+6. [아키텍처](#-아키텍처)
+7. [기술 스택](#-기술-스택)
+8. [로컬 실행](#-로컬-실행)
+9. [배포](#-배포)
+10. [API](#-api)
+11. [디렉터리 구조](#-디렉터리-구조)
+12. [팀](#-팀)
 
 ---
 
-## 3. 핵심 기능
+## 🚀 바로 체험하기
 
-| 구분 | 기능 | 설명 |
+> **https://fit-learn-phi.vercel.app** — 회원가입 없이 버튼 하나로 체험 계정이 만들어집니다.
+
+| 체험 | 흐름 | 소요 |
 |---|---|---|
-| 교수 | 강의 생성 및 관리 | 강의명, 소개, 커리큘럼, 가격, 강의별 자료/영상 업로드 |
-| 교수 | 교안 업로드 | PDF, PPT/PPTX, DOCX, HWP/HWPX, 이미지, 코드 파일 등 다형식 자료 업로드 |
-| 교수 | 핵심 포인트 검토 | AI가 추출한 핵심 포인트를 교수가 선택, 수정, 우선순위 조정 |
-| 학생 | 강의 탐색 및 수강 | 공개 강의 목록 조회, 수강 등록, 내 강의함 연동 |
-| 학생 | 학습 성향 진단 | VARK, 집중 패턴, 난이도 대응, 이탈 위험, 신뢰도 기반 프로필 생성 |
-| 학생 | 과목 수준 진단 | 강의 입장 전 퀴즈를 통해 beginner/intermediate/advanced 수준 판단 |
-| 학생 | 맞춤 교안 보기 | 교안 + 교수 핵심 포인트 + 학생 성향 + 과목 수준을 반영한 마크다운 교안 |
-| 학생 | 원본/재해석 병행 | 원본 자료와 AI 재해석 교안을 함께 확인 |
-| AI | 강의 자료 분석 | 텍스트 추출, 시각자료 OCR, 핵심 포인트, 난이도, 학습 목표 생성 |
-| AI | 영상 보조 | 업로드 영상 전사/요약 및 구간 질문 기반 학습 보조 |
+| 🎓 **학생** | 「학생으로 바로 체험」 → 6문항 성향 진단 → 데모 강의 맞춤 교안 **실시간 스트리밍** → 6가지 설명 방식 전환 · 원본과 비교 · AI 튜터 질문 | 약 2분 |
+| 📈 **교수** | 「교수 대시보드 체험」 → 개인 데모 강의실(가상 수강생 8명) → 학습 성향 대시보드 · AI 수업 인사이트 → 샘플 교안 업로드로 AI 핵심 포인트 추출·검토 | 약 3분 |
+
+같은 브라우저로 다시 접속하면 이전 체험 계정을 이어서 사용합니다.
 
 ---
 
-## 4. 학습성향 및 개인화 기준
+## 💡 왜 FitLearn인가
 
-FitLearn의 맞춤형 교안은 단순한 요약이 아니라 아래 기준을 조합해 재해석하는 것을 목표로 합니다.
+같은 강의 자료를 보더라도 학생마다 이해하는 방식은 다릅니다. 어떤 학생은 그림과 구조도를 먼저 볼 때, 어떤 학생은 말로 풀어 줄 때, 어떤 학생은 직접 해볼 때 가장 잘 배웁니다. 하지만 온라인 강의는 **하나의 교안, 하나의 설명 방식**만 제공하고, 단순 요약 AI는 실습 코드와 교수님의 의도마저 지워버립니다.
 
-| 기준 | 예시 |
-|---|---|
-| VARK 유형 | 시각 / 청각 / 읽기 / 실습 |
-| 집중 패턴 | 단기집중형 / 장기몰입형 / 분산형 |
-| 난이도 대응 | 직진형 / 우회형 / 지원요청형 |
-| 이탈 위험 인자 | 난이도 / 동기 / 고립 / 루틴 |
-| 신뢰도 점수 | S8↔S16, S9↔S17, S11↔S18 교차 검증 |
-| 과목 수준 | beginner / intermediate / advanced |
+FitLearn은 **요약이 아니라 재구성**합니다.
 
-교안 재해석 시에는 교수자가 확정한 핵심 포인트를 기준으로 삼고, 실습 코드와 수업 중 따라 해야 하는 절차는 가능한 한 보존하도록 설계했습니다.
+| | 기존 방식 | FitLearn |
+|---|---|---|
+| 설명 방식 | 모든 학생에게 동일 | 학습 성향별 6가지 구조로 재구성 |
+| 교수 의도 | AI 요약 과정에서 손실 | 교수 확정 핵심 포인트를 100% 반영 |
+| 실습 코드 | 압축·누락 | 원본 그대로 보존 |
+| 신뢰성 | 무엇이 바뀌었는지 알 수 없음 | 원본과 나란히 비교 |
+| 대기 시간 | 생성 완료까지 수십 초 대기 | SSE 스트리밍으로 첫 문장 약 2초 |
 
 ---
 
-## 5. 전체 서비스 흐름
+## 📸 서비스 화면
+
+### 학생
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/02-quick-diagnosis.png" alt="1분 진단"><br><b>① 1분 성향 진단</b><br>6문항, AI 호출 없이 즉시 결과</td>
+<td width="50%"><img src="docs/screenshots/03-diagnosis-result.png" alt="진단 결과"><br><b>② 진단 결과</b><br>내 유형과 교안이 바뀌는 방식을 바로 안내</td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/05-reader.png" alt="시각형 맞춤 교안"><br><b>③ 시각형 맞춤 교안</b><br>개념 지도 표 · 교수 핵심 포인트 · 바뀐 이유</td>
+<td><img src="docs/screenshots/06-reader-practice.png" alt="실습형 맞춤 교안"><br><b>④ 실습형으로 전환</b><br>같은 강의가 미션·따라 하기·체크포인트 구조로</td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/06-reader-compare-practice.png" alt="원본과 비교"><br><b>⑤ 원본과 나란히 비교</b><br>무엇이 어떻게 바뀌었는지 투명하게</td>
+<td><img src="docs/screenshots/06-reader-tutor.png" alt="AI 튜터"><br><b>⑥ 교안 근거 AI 튜터</b><br>내 스타일에 맞춘 답변을 실시간 스트리밍</td>
+</tr>
+<tr>
+<td colspan="2"><img src="docs/screenshots/04-student-home.png" alt="학생 홈"><br><b>⑦ 학생 홈</b> — 내 학습 성향, 이어서 학습, 강의실별 진도와 과목 수준 퀴즈</td>
+</tr>
+</table>
+
+### 교수
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/08-professor-dashboard.png" alt="교수 대시보드"><br><b>학습 분석 대시보드</b><br>성향 분포 + AI 수업 설계 인사이트</td>
+<td width="50%"><img src="docs/screenshots/07-professor-room.png" alt="교수 강의실"><br><b>강의실 · 교안 관리</b><br>체험 가이드, 교안 업로드 → AI 핵심 포인트 → 검토·확정</td>
+</tr>
+</table>
+
+### 모바일
+
+<p align="center">
+<img src="docs/screenshots/m-landing.png" alt="모바일 랜딩" width="260">
+&nbsp;&nbsp;
+<img src="docs/screenshots/m-reader.png" alt="모바일 교안" width="260">
+</p>
+
+---
+
+## 🧭 서비스 소개 페이지
+
+[`docs/index.html`](docs/index.html)은 이 README의 캡처를 그대로 사용하는 **단일 파일 서비스 소개(랜딩) 페이지 템플릿**입니다.
+
+- 앱과 같은 디자인 토큰(다크 + 라임/라벤더)으로 작성되어 브랜드가 일관됩니다.
+- 히어로 → 문제 정의 → 작동 방식 → 학생/교수 기능 쇼케이스 → 모바일 → 기술 → CTA 구성
+- `docs/screenshots/`의 이미지만 교체하면 레이아웃은 그대로 유지됩니다.
+- **GitHub Pages로 바로 공개**: Settings → Pages → Branch `main` / Folder `/docs`
+
+<img src="docs/screenshots/intro-preview.png" alt="서비스 소개 페이지 상단" width="100%">
+
+<details>
+<summary><b>소개 페이지 전체 보기 (클릭)</b></summary>
+<br>
+<img src="docs/screenshots/intro-page.png" alt="서비스 소개 페이지 전체">
+</details>
+
+---
+
+## ⚙️ 작동 방식
 
 ```mermaid
-flowchart TB
-    A["교수: 강의 생성"] --> B["강의별 교안/영상 업로드"]
-    B --> C["파일 파싱: PDF/PPT/DOCX/HWP/이미지/코드"]
-    C --> D["AI 핵심 포인트/난이도/학습목표 추출"]
-    D --> E["교수 핵심 포인트 검토 및 확정"]
-    E --> F["강의 공개 및 학생 수강"]
-
-    G["학생: 학습 성향 진단"] --> H["VARK/집중/난이도/이탈위험/신뢰도 프로필"]
-    F --> I["학생: 과목 수준 진단 퀴즈"]
-    H --> J["맞춤 교안 재해석"]
-    I --> J
-    E --> J
-    J --> K["학생: 원본 자료 + Notion형 맞춤 교안 학습"]
+flowchart LR
+    subgraph 교수
+      A[교안 업로드<br/>PDF·PPT·DOCX·HWP·코드] --> B[AI 핵심 포인트 추출<br/>+ 교수용 검토 질문]
+      B --> C[교수 검토·확정]
+    end
+    subgraph 학생
+      D[1분 성향 진단] --> E[학습 프로필<br/>VARK·집중 패턴·선호 분량]
+      F[과목 수준 퀴즈] --> E
+    end
+    C --> G{{맞춤 재구성 엔진}}
+    E --> G
+    G -->|SSE 스트리밍| H[6가지 스타일 맞춤 교안]
+    H --> I[원본 비교 · AI 튜터 · 진도]
+    I --> J[교수 대시보드<br/>성향 분포 · AI 수업 인사이트]
 ```
+
+### 맞춤 재구성 엔진의 원칙
+
+1. **요약이 아니라 재구성** — 원본의 개념·사실·예시는 남기고 전달 구조와 어조만 바꿉니다.
+2. **환각 금지** — 원본에 없는 사실·수치·코드를 만들지 않습니다.
+3. **원본 보존** — 코드·수식·명령어·실행 결과는 그대로 코드블록에 둡니다.
+4. **교수 의도 우선** — 교수가 확정한 핵심 포인트를 모두, 눈에 띄게 포함합니다.
+5. **스타일별 설계도** — 시각형은 개념 지도·비교표, 청각형은 질문→대화체, 실습형은 미션→따라 하기→응용 과제처럼 스타일마다 문서 구조 자체가 다릅니다.
+6. **세부 성향 반영** — 집중 패턴(단기/장기), 난이도 대응(직진/우회/지원요청), 과목 수준(입문/중급/고급)을 지침으로 덧입힙니다.
 
 ---
 
-## 6. 아키텍처
+## 🏗 아키텍처
 
 ```mermaid
 graph TB
-    subgraph Client["Frontend"]
-        FLUTTER["Flutter Web<br/>Riverpod + GoRouter + Dio"]
+    subgraph Client["Frontend · Vercel"]
+        F["Flutter Web<br/>Riverpod · GoRouter · Dio"]
+        SSE["EventSource<br/>SSE 수신"]
     end
-
-    subgraph Backend["Backend"]
-        API["FastAPI<br/>Auth / Rooms / Lectures / Diagnosis / Dashboard"]
-        FILE["FileService<br/>PDF/PPT/DOCX/HWP/Image/Code Parsing"]
-        LECTURE["LecturePipeline<br/>Core Point Extraction"]
-        REFORGE["ReforgeService<br/>Personalized Markdown"]
-        QUIZ["QuizService<br/>Subject Level Quiz"]
-        VIDEO["VideoPipeline<br/>Uploaded Video Transcript/Summary"]
+    subgraph API["Backend · Railway (Docker)"]
+        R["FastAPI 라우터<br/>demo · diagnosis · lectures · rooms · dashboard"]
+        RF["ReforgeService<br/>스타일별 프롬프트 설계"]
+        LP["LecturePipeline<br/>핵심 포인트 추출"]
+        FS["FileService<br/>다형식 파싱 · OCR"]
+        LLM["services/llm.py<br/>모델 폴백 · 스트리밍 · 쿼터 쿨다운"]
     end
-
-    subgraph AI["AI Layer"]
-        GEMINI["Gemini API<br/>Text + Vision Analysis"]
-        RAG["Educational Knowledge Base<br/>VARK / CLT / Learning Strategy"]
+    subgraph Data["Data"]
+        DB[("Firestore")]
+        MEM[("인메모리 폴백<br/>+ 데모 시드")]
     end
+    G["Gemini 3.5 Flash<br/>→ flash-latest → 2.5-flash"]
 
-    subgraph Data["Data Layer"]
-        FIREBASE["Firebase Auth / Firestore / Storage"]
-        REDIS["Redis Cache<br/>Optional"]
-    end
-
-    FLUTTER --> API
-    API --> FILE
-    API --> LECTURE
-    API --> REFORGE
-    API --> QUIZ
-    API --> VIDEO
-    FILE --> GEMINI
-    LECTURE --> GEMINI
-    REFORGE --> GEMINI
-    QUIZ --> GEMINI
-    VIDEO --> GEMINI
-    REFORGE --> RAG
-    API --> FIREBASE
-    API --> REDIS
+    F --> R
+    SSE --> R
+    R --> RF & LP & FS
+    RF & LP & FS --> LLM --> G
+    R --> DB
+    R -.Firebase 미연결 시.-> MEM
 ```
+
+| 설계 포인트 | 내용 |
+|---|---|
+| **원클릭 데모** | `POST /demo/bootstrap`이 방문자별 `demo-student-*` / `demo-professor-*` 계정을 만들고, 학생은 데모 강의에 자동 수강, 교수는 가상 수강생 8명이 있는 개인 강의실 사본을 받습니다. |
+| **장애 내성** | Firebase 자격증명이 없거나 실패하면 인메모리 Firestore로 자동 전환되고, 서버 시작 시 데모 강의를 시드합니다. 재시작으로 데이터가 사라져도 프론트가 체험 계정을 자동 복구합니다. |
+| **체감 속도** | 맞춤 교안·AI 튜터 모두 SSE 스트리밍. 모델별 사고(thinking) 단계를 최소화해 첫 토큰 약 2초. 스타일별 결과는 캐시되어 재방문 시 즉시 표시됩니다. |
+| **모델 안정성** | 단일 진입점 `services/llm.py`에서 모델 폴백 체인과 쿼터 초과 쿨다운을 처리하고, 실패 시 원본 근거 기반 교안으로 대체합니다. |
+| **출력 품질** | 마크다운 후처리(LaTeX → 유니코드 수식, 코드블록 보존), 한글 굵게 렌더링 보정, 표·코드 복사·체크리스트를 지원하는 공용 렌더러. |
 
 ---
 
-## 7. 기술 스택
+## 🧰 기술 스택
 
 | 영역 | 기술 |
 |---|---|
-| Frontend | Flutter, Dart, Riverpod, GoRouter, Dio, Flutter Markdown |
-| Auth / Data | Firebase Auth, Cloud Firestore, Firebase Storage |
-| Backend | Python, FastAPI, Uvicorn, Pydantic |
-| AI | Gemini API (기본 `gemini-3.5-flash` + 폴백 체인, SSE 스트리밍) |
-| File Parsing | PyPDF2, pdfplumber, PyMuPDF, python-pptx, python-docx |
-| RAG / Search | LangChain, FAISS, 자체 교육 이론 지식 베이스 |
-| Cache / Monitoring | Redis, Sentry |
-| Deploy | Vercel(Frontend), Render(Backend) |
+| Frontend | Flutter Web, Dart 3, Riverpod, GoRouter, Dio, flutter_markdown(GFM), EventSource, Pretendard |
+| Backend | Python 3.11, FastAPI, Uvicorn, Pydantic, httpx(SSE), slowapi |
+| AI | Gemini API (`gemini-3.5-flash` 기본 + 폴백 체인), 교육 이론(VARK·CLT·Kolb·Felder-Silverman) 기반 프롬프트 |
+| 파일 파싱 | PyMuPDF, pdfplumber, python-pptx, python-docx, Gemini Vision OCR |
+| Data | Firebase Auth / Firestore / Storage, 인메모리 폴백, Redis(선택) |
+| Infra | Vercel(Frontend), Railway Docker(Backend), GitHub Actions(스모크 테스트) |
 
 ---
 
-## 8. 디렉토리 구조
+## 💻 로컬 실행
 
-```text
-FitLearn/
-├── backend/
-│   ├── main.py                         # FastAPI 앱 진입점
-│   ├── requirements.txt                # Python 의존성
-│   ├── api/v1/routers/
-│   │   ├── auth.py                     # 사용자 등록/프로필/활성 상태
-│   │   ├── rooms.py                    # 강의방, 강의 목록, 수강, 퀴즈, 공지
-│   │   ├── lectures.py                 # 교안 업로드, 핵심 포인트 확정, 재해석, 영상 보조
-│   │   ├── diagnosis.py                # 학습 성향 진단
-│   │   ├── dashboard.py                # 대시보드 데이터
-│   │   └── reforge.py                  # 교안 재가공 API
-│   ├── models/                         # Pydantic 요청/응답 모델
-│   └── services/
-│       ├── file_service.py             # 다형식 파일 텍스트/OCR 추출
-│       ├── lecture_pipeline.py         # 핵심 포인트 추출 파이프라인
-│       ├── reforge_service.py          # 학생 맞춤 교안 생성
-│       ├── quiz_service.py             # 과목 수준 퀴즈 생성/채점
-│       ├── video_pipeline.py           # 업로드 영상 전사/요약
-│       ├── firebase_service.py         # Firestore/Storage 연동
-│       └── rag_pipeline/               # 교육 이론 기반 RAG 보조 모듈
-│
-├── frontend/
-│   ├── lib/
-│   │   ├── core/                       # 라우터, 테마, API 상수
-│   │   ├── features/
-│   │   │   ├── landing/                # 강의 탐색/상세
-│   │   │   ├── auth/                   # 로그인/회원가입
-│   │   │   ├── professor/              # 교수 홈, 강의 관리, 핵심 포인트 검토
-│   │   │   └── student/                # 학생 홈, 진단, 강의 보기
-│   │   └── shared/                     # 공용 서비스, Provider, 위젯
-│   ├── web/                            # Flutter Web 정적 파일, favicon, manifest
-│   └── pubspec.yaml
-│
-├── docs/
-│   └── firebase_schema.md              # Firestore 스키마 정리
-└── render.yaml                         # Render 백엔드 배포 설정
-```
-
----
-
-## 9. 실행 방법
-
-### 9.1 사전 요구사항
-
-- Flutter SDK 3.4 이상
-- Dart SDK 3.4 이상
-- Python 3.11 이상
-- Firebase 프로젝트 및 서비스 계정
-- Gemini API Key
-- 선택 사항: Redis, Sentry DSN
-
-### 9.2 백엔드 실행
+### 백엔드
 
 ```bash
 cd backend
-python -m venv .venv
-source .venv/bin/activate
+python3.11 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-`backend/.env`(서버 시작 시 자동 로드) 또는 실행 환경에 아래 값을 설정합니다. Firebase 자격증명이 없으면 **인메모리 저장소로 자동 전환**되어 데모 강의와 함께 바로 실행됩니다.
+`backend/.env` (서버 시작 시 자동 로드)
 
 ```bash
 GEMINI_API_KEY=your_gemini_api_key
-GEMINI_MODEL=gemini-3.5-flash            # 선택 (기본값)
-GEMINI_MODEL_FALLBACKS=gemini-flash-latest,gemini-2.5-flash  # 선택
-FIREBASE_PROJECT_ID=your_firebase_project_id
-FIREBASE_CREDENTIALS='{"type":"service_account", "...":"..."}'
-FIREBASE_STORAGE_BUCKET=your_bucket_name
-REDIS_URL=redis://localhost:6379
-SENTRY_DSN=
-PUBLIC_BACKEND_URL=http://localhost:10000
+# 선택
+GEMINI_MODEL=gemini-3.5-flash
+GEMINI_MODEL_FALLBACKS=gemini-flash-latest,gemini-2.5-flash
+FIREBASE_CREDENTIALS='{"type":"service_account", ...}'   # 없으면 인메모리 저장소 + 데모 강의로 실행
 ```
-
-로컬 서버 실행:
 
 ```bash
-uvicorn main:app --host 0.0.0.0 --port 10000 --reload
+uvicorn main:app --port 10000 --reload
+curl localhost:10000/api/v1/health
 ```
 
-상태 확인:
-
-```bash
-curl http://localhost:10000/
-curl http://localhost:10000/api/v1/health
-```
-
-### 9.3 프론트엔드 실행
+### 프론트엔드
 
 ```bash
 cd frontend
@@ -250,111 +244,81 @@ flutter pub get
 flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:10000
 ```
 
-배포 백엔드를 그대로 사용할 경우:
+### 테스트
 
 ```bash
-cd frontend
-flutter pub get
-flutter run -d chrome
-```
-
-기본 API 주소는 코드상 `https://fitlearn-backend-production.up.railway.app`로 설정되어 있습니다.
-
-### 9.4 테스트 및 정적 분석
-
-백엔드 테스트 (외부 API 없이 인메모리로 실행되는 스모크 테스트):
-
-```bash
-cd backend
-pytest -q
-```
-
-프론트엔드 분석:
-
-```bash
-cd frontend
-flutter analyze
-```
-
-### 9.5 배포
-
-백엔드는 `render.yaml` 기준으로 Render에 배포합니다.
-
-```yaml
-rootDir: backend
-buildCommand: pip install -r requirements.txt
-startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
-```
-
-프론트엔드는 Flutter Web 빌드 후 Vercel 등 정적 호스팅에 배포할 수 있습니다.
-
-```bash
-cd frontend
-flutter build web --dart-define=API_BASE_URL=https://fitlearn-backend-production.up.railway.app
+cd backend && pytest -q        # 외부 API 없이 인메모리로 도는 스모크 테스트
+cd frontend && flutter analyze
 ```
 
 ---
 
-## 10. 주요 API 요약
+## ☁️ 배포
 
-| API | 설명 |
+| 대상 | 방식 |
 |---|---|
-| `POST /api/v1/auth/register` | 사용자 등록 및 프로필 저장 |
-| `GET /api/v1/courses` | 공개 강의 목록 조회 |
-| `POST /api/v1/courses/{course_id}/enroll` | 학생 수강 등록 |
-| `POST /api/v1/rooms` | 교수 강의 생성 |
-| `GET /api/v1/rooms/professor/{professor_uid}` | 교수 강의 목록 조회 |
-| `GET /api/v1/rooms/student/{user_id}/hub` | 학생 홈 통합 데이터 조회 |
-| `POST /api/v1/lectures/upload` | 교안/영상 업로드 및 교안 분석 |
-| `POST /api/v1/lectures/{room_id}/{lecture_id}/confirm` | 교수 핵심 포인트 확정 |
-| `GET /api/v1/lectures/{room_id}/{lecture_id}/reforged` | 학생 맞춤 교안 생성/조회 |
-| `POST /api/v1/demo/bootstrap` | 원클릭 체험 계정 생성 (학생: 데모 강의 자동 수강 / 교수: 개인 데모 강의실) |
-| `GET /api/v1/lectures/{room_id}/{lecture_id}/reforged/stream` | 맞춤 교안 SSE 스트리밍 (스타일 전환·캐시) |
-| `GET /api/v1/lectures/{room_id}/{lecture_id}/ask/stream` | 교안 근거 AI 튜터 SSE 스트리밍 |
-| `POST /api/v1/diagnosis/quick` | 6문항 빠른 성향 진단 (AI 호출 없이 즉시) |
-| `POST /api/v1/diagnosis` | 학습 성향 진단 |
-| `GET /api/v1/rooms/{room_id}/quiz` | 과목 수준 진단 퀴즈 조회 |
-| `POST /api/v1/rooms/{room_id}/quiz/submit` | 과목 수준 진단 퀴즈 제출 |
+| Frontend | `main` push → Vercel 자동 빌드 (`frontend/vercel.json`) |
+| Backend | `cd backend && railway up` → Railway가 `Dockerfile`로 빌드, `$PORT` 자동 주입 |
+
+프론트의 기본 API 주소는 `https://fitlearn-backend-production.up.railway.app`이며, `--dart-define=API_BASE_URL=...`로 바꿀 수 있습니다.
 
 ---
 
-## 11. 데이터 구조 요약
+## 🔌 API
 
-Firestore는 다음 구조를 중심으로 사용합니다. 자세한 내용은 `docs/firebase_schema.md`를 참고합니다.
+| Method | Path | 설명 |
+|---|---|---|
+| `POST` | `/api/v1/demo/bootstrap` | 원클릭 체험 계정 생성 (학생: 데모 강의 자동 수강 / 교수: 개인 데모 강의실) |
+| `POST` | `/api/v1/diagnosis/quick` | 6문항 빠른 성향 진단 (즉시 결과) |
+| `POST` | `/api/v1/diagnosis` | 22문항 정밀 성향 진단 (RAG + AI 분석) |
+| `GET` | `/api/v1/lectures/{room}/{lecture}/reforged/stream` | 맞춤 교안 **SSE 스트리밍** (`style`로 스타일 전환, 캐시) |
+| `GET` | `/api/v1/lectures/{room}/{lecture}/ask/stream` | 교안 근거 AI 튜터 **SSE 스트리밍** |
+| `POST` | `/api/v1/lectures/upload` | 교안 업로드 → 파싱 → AI 핵심 포인트 추출 |
+| `POST` | `/api/v1/lectures/{room}/{lecture}/confirm` | 교수 핵심 포인트 확정 |
+| `GET` | `/api/v1/courses` | 공개 강의 목록 |
+| `GET` | `/api/v1/rooms/student/{user}/hub` | 학생 홈 통합 데이터 |
+| `GET` | `/api/v1/rooms/{room}/quiz` · `POST .../quiz/submit` | 과목 수준 퀴즈 |
+| `GET` | `/api/v1/dashboard/{room}` | 교수 대시보드 (성향 분포 + AI 인사이트) |
+| `GET` | `/api/v1/health` | 헬스체크 (저장소 모드 포함) |
+
+---
+
+## 📁 디렉터리 구조
 
 ```text
-users/{userId}
-diagnosis/{userId}
-rooms/{roomId}
-rooms/{roomId}/lectures/{lectureId}
-rooms/{roomId}/lectures/{lectureId}/reforged/{userId}
-rooms/{roomId}/notices/{noticeId}
-room_applications/{roomId}_{userId}
-subject_levels/{userId}_{roomId}
+FitLearn/
+├── backend/
+│   ├── main.py                      # FastAPI 진입점, .env 자동 로드, 데모 시드
+│   ├── Dockerfile                   # Railway 배포 ($PORT)
+│   ├── api/v1/routers/              # demo · diagnosis · lectures · rooms · dashboard · auth
+│   ├── services/
+│   │   ├── llm.py                   # Gemini 호출 단일 진입점 (폴백·스트리밍)
+│   │   ├── reforge_service.py       # 스타일별 맞춤 재구성 프롬프트
+│   │   ├── lecture_pipeline.py      # 핵심 포인트 추출
+│   │   ├── demo_seed.py             # 데모 강의·체험 계정
+│   │   ├── memory_firestore.py      # Firestore 인메모리 폴백
+│   │   └── firebase_service.py
+│   └── tests/                       # 오프라인 스모크 테스트
+├── frontend/
+│   ├── lib/
+│   │   ├── core/theme/tokens.dart   # 디자인 토큰
+│   │   ├── features/
+│   │   │   ├── landing/             # 랜딩 · 강의 상세
+│   │   │   ├── student/             # 1분 진단 · 홈 · 교안 리더 · 퀴즈
+│   │   │   └── professor/           # 강의실 · 업로드 · 핵심 포인트 검토 · 대시보드
+│   │   └── shared/                  # SSE 클라이언트 · 마크다운 렌더러 · 공용 UI
+│   └── assets/fonts/                # Pretendard Std (OFL)
+└── docs/
+    ├── index.html                   # 서비스 소개 페이지 템플릿
+    ├── screenshots/                 # README·소개 페이지 캡처
+    └── firebase_schema.md
 ```
 
 ---
 
-## 12. 기대효과와 사회적 가치
+## 👥 팀
 
-FitLearn은 학생에게는 “나에게 맞는 교안”을 제공하고, 교수에게는 “강의 자료의 핵심을 다시 점검하는 도구”를 제공합니다. 이를 통해 학습 격차를 줄이고, 자료를 잘 읽는 학생과 그렇지 못한 학생 사이의 접근성 차이를 완화할 수 있습니다. 특히 실습 코드와 시각자료를 보존하는 방향으로 설계되어 단순 요약형 AI보다 실제 수업 현장에서 활용 가능성이 높습니다.
-
-장기적으로는 학습자 개개인의 인지 특성과 과목별 수준을 반영한 교육 콘텐츠 제공 방식으로 확장할 수 있으며, 이는 개인 맞춤형 교육과 학습 접근성 향상에 기여할 수 있습니다.
-
----
-
-## 13. 개선 예정 사항
-
-- 기존 업로드 교안을 서버에서 다시 읽어 재분석하는 재분석 API 고도화
-- 영상 전사 품질 개선 및 긴 영상 비동기 처리 큐 도입
-- OCR 기반 시각자료 보존 품질 향상
-- Redis 캐시 운영 환경 안정화 및 캐시 무효화 정책 정교화
-- 과목 수준 진단 퀴즈 품질 평가 및 문항 난이도 자동 보정
-- 교수/학생 대시보드 지표 고도화
-
----
-
-## 14. 팀
+**표리부동** — KIT 바이브코딩 공모전 출품작
 
 | 이름 | 역할 |
 |---|---|
@@ -363,9 +327,10 @@ FitLearn은 학생에게는 “나에게 맞는 교안”을 제공하고, 교�
 
 ---
 
-## 15. 프로젝트 정보
+<div align="center">
 
-- 프로젝트명: FitLearn
-- 참가 공모전: KIT 바이브코딩 공모전
-- 서비스 유형: AI 기반 개인 맞춤형 학습 플랫폼
-- 핵심 키워드: 학습성향 진단, 과목 수준 진단, 교안 재해석, 교수 핵심 포인트 검토, AI 교안 파이프라인
+© 2026 이승희, 표제원. All Rights Reserved. — [LICENSE](LICENSE)
+
+Pretendard 폰트는 [SIL Open Font License 1.1](frontend/assets/fonts/LICENSE.txt)을 따릅니다.
+
+</div>

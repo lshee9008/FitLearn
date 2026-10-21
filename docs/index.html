@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FitLearn — 같은 교안, 나에게 맞는 설명으로</title>
+  <meta name="description" content="1분 성향 진단으로 교수님의 교안을 나에게 맞는 설명 방식으로 실시간 재구성하는 AI 맞춤 학습 엔진">
+  <meta property="og:title" content="FitLearn — 같은 교안, 나에게 맞는 설명으로">
+  <meta property="og:description" content="1분 성향 진단 → 교안을 내 방식으로 실시간 재구성. 회원가입 없이 바로 체험.">
+  <meta property="og:image" content="screenshots/01-landing.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;800;900&display=swap" rel="stylesheet">
+  <style>
+    /* ── 디자인 토큰 (앱과 동일) ─────────────────────────── */
+    :root {
+      --bg: #0E0E11; --surface: #13131A; --surface2: #1A1A24; --border: #23232F;
+      --text: #F0F0F4; --text-sec: #9D9DB0; --text-mute: #6E6E80;
+      --lime: #C8F135; --lime-ink: #151C00; --lavender: #A78BFA;
+      --sky: #60A5FA; --mint: #34D399; --amber: #FBBF24; --coral: #FB7185;
+      --radius: 18px; --max: 1160px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0; background: var(--bg); color: var(--text);
+      font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont, sans-serif;
+      line-height: 1.6; -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+    img { max-width: 100%; display: block; }
+    .wrap { max-width: var(--max); margin: 0 auto; padding: 0 24px; }
+
+    /* ── 내비게이션 ─────────────────────────────────────── */
+    nav {
+      position: sticky; top: 0; z-index: 10; backdrop-filter: blur(12px);
+      background: rgba(14,14,17,.82); border-bottom: 1px solid var(--border);
+    }
+    nav .wrap { display: flex; align-items: center; height: 64px; gap: 28px; }
+    .logo { font-weight: 900; font-size: 20px; letter-spacing: -.5px; }
+    .logo b { color: var(--lime); }
+    nav .links { display: flex; gap: 22px; color: var(--text-sec); font-size: 14px; font-weight: 600; }
+    nav .links a:hover { color: var(--text); }
+    nav .spacer { flex: 1; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px; padding: 13px 22px; border-radius: 12px;
+      font-weight: 800; font-size: 15px; border: 1px solid transparent; transition: transform .15s, filter .15s;
+    }
+    .btn:hover { transform: translateY(-1px); filter: brightness(1.05); }
+    .btn-primary { background: var(--lime); color: var(--lime-ink); }
+    .btn-ghost { background: var(--surface2); color: var(--text); border-color: #32323F; }
+    .btn-sm { padding: 9px 16px; font-size: 14px; }
+
+    /* ── 히어로 ─────────────────────────────────────────── */
+    .hero {
+      padding: 88px 0 56px;
+      background: radial-gradient(circle at 75% 0%, #1E2A08 0%, transparent 55%);
+    }
+    .tag {
+      display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px;
+      background: rgba(200,241,53,.1); border: 1px solid rgba(200,241,53,.3); color: var(--lime);
+      font-size: 13px; font-weight: 800;
+    }
+    .hero h1 { font-size: clamp(38px, 6vw, 68px); line-height: 1.15; letter-spacing: -2px; margin: 22px 0 18px; font-weight: 900; }
+    .hero h1 em { font-style: normal; color: var(--lime); }
+    .hero p.lead { color: var(--text-sec); font-size: clamp(16px, 2vw, 19px); max-width: 620px; margin: 0 0 30px; }
+    .hero .ctas { display: flex; flex-wrap: wrap; gap: 10px; }
+    .checks { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 18px; color: var(--text-sec); font-size: 14px; font-weight: 600; }
+    .checks span::before { content: "✓ "; color: var(--lime); font-weight: 900; }
+    .hero-shot {
+      margin-top: 56px; border-radius: 22px; overflow: hidden; border: 1px solid var(--border);
+      box-shadow: 0 40px 120px rgba(200,241,53,.08), 0 20px 60px rgba(0,0,0,.5);
+    }
+
+    /* ── 섹션 공통 ─────────────────────────────────────── */
+    section { padding: 88px 0; }
+    .eyebrow { color: var(--lime); font-size: 13px; font-weight: 800; letter-spacing: .6px; }
+    h2 { font-size: clamp(28px, 4vw, 40px); letter-spacing: -1px; line-height: 1.25; margin: 10px 0 14px; font-weight: 900; }
+    .sub { color: var(--text-sec); font-size: 17px; max-width: 680px; margin: 0; }
+
+    /* ── 숫자 ──────────────────────────────────────────── */
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 40px; }
+    .stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; }
+    .stat b { display: block; font-size: 34px; font-weight: 900; letter-spacing: -1px; }
+    .stat span { color: var(--text-mute); font-size: 14px; font-weight: 600; }
+
+    /* ── 단계 카드 ─────────────────────────────────────── */
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 40px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 26px; }
+    .card .num { font-size: 13px; font-weight: 900; color: var(--lime); }
+    .card h3 { margin: 10px 0 8px; font-size: 19px; }
+    .card p { margin: 0; color: var(--text-sec); font-size: 15px; }
+
+    /* ── 기능 쇼케이스 (텍스트 + 캡처 교차 배치) ───────── */
+    .feature { display: grid; grid-template-columns: 5fr 7fr; gap: 48px; align-items: center; margin-top: 72px; }
+    .feature.reverse { grid-template-columns: 7fr 5fr; }
+    .feature.reverse .copy { order: 2; }
+    .feature .copy h3 { font-size: 26px; letter-spacing: -.6px; margin: 10px 0 12px; line-height: 1.35; }
+    .feature .copy p { color: var(--text-sec); margin: 0 0 16px; }
+    .feature ul { margin: 0; padding: 0; list-style: none; }
+    .feature li { padding: 6px 0 6px 26px; position: relative; color: var(--text); font-size: 15px; }
+    .feature li::before { content: "●"; position: absolute; left: 4px; top: 6px; font-size: 10px; color: var(--accent, var(--lime)); }
+    .shot { border-radius: 16px; overflow: hidden; border: 1px solid var(--border); box-shadow: 0 20px 60px rgba(0,0,0,.45); }
+    .label { display: inline-block; font-size: 12.5px; font-weight: 800; padding: 4px 10px; border-radius: 999px; }
+
+    /* ── 스타일 칩 ─────────────────────────────────────── */
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 28px; }
+    .chip { padding: 9px 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); font-size: 14px; font-weight: 700; }
+
+    /* ── 모바일 캡처 ───────────────────────────────────── */
+    .mobiles { display: flex; gap: 22px; justify-content: center; margin-top: 44px; flex-wrap: wrap; }
+    .mobiles img { width: 260px; border-radius: 28px; border: 1px solid var(--border); box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+
+    /* ── 기술 스택 ─────────────────────────────────────── */
+    .stack { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 36px; }
+    .stack .card h4 { margin: 0 0 8px; font-size: 15px; color: var(--lime); }
+    .stack .card p { font-size: 14.5px; }
+
+    /* ── CTA / 푸터 ───────────────────────────────────── */
+    .final {
+      text-align: center; border-radius: 28px; padding: 64px 24px;
+      background: linear-gradient(120deg, #1C2609, #16121F); border: 1px solid rgba(200,241,53,.2);
+    }
+    .final h2 { margin-top: 0; }
+    footer { border-top: 1px solid var(--border); padding: 28px 0; color: var(--text-mute); font-size: 13.5px; }
+    footer .wrap { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+
+    @media (max-width: 900px) {
+      nav .links { display: none; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .steps, .stack { grid-template-columns: 1fr; }
+      .feature, .feature.reverse { grid-template-columns: 1fr; gap: 24px; margin-top: 56px; }
+      .feature.reverse .copy { order: 0; }
+      section { padding: 64px 0; }
+      .hero { padding-top: 56px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ════════ 템플릿 사용법 ════════
+  1) 아래 [DEMO_URL] 링크와 텍스트를 서비스에 맞게 바꾸세요.
+  2) screenshots/ 폴더의 이미지를 교체하면 레이아웃은 그대로 유지됩니다.
+  3) GitHub Pages: 저장소 Settings → Pages → Branch: main / folder: /docs 로 바로 공개할 수 있습니다.
+════════════════════════════════ -->
+
+<nav>
+  <div class="wrap">
+    <a class="logo" href="#"><b>Fit</b>Learn</a>
+    <div class="links">
+      <a href="#how">작동 방식</a>
+      <a href="#features">주요 기능</a>
+      <a href="#professor">교수자</a>
+      <a href="#stack">기술</a>
+    </div>
+    <div class="spacer"></div>
+    <a class="btn btn-primary btn-sm" href="https://fit-learn-phi.vercel.app" target="_blank" rel="noopener">무료로 체험하기 →</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="tag">✦ AI 개인 맞춤 학습 엔진</span>
+    <h1>같은 교안,<br><em>나에게 맞는 설명으로.</em></h1>
+    <p class="lead">FitLearn은 1분 진단으로 학습 성향을 파악하고, 교수님이 올린 교안을 시각형·청각형·실습형 등 내게 맞는 방식으로 <b>실시간 재구성</b>합니다.</p>
+    <div class="ctas">
+      <a class="btn btn-primary" href="https://fit-learn-phi.vercel.app" target="_blank" rel="noopener">🎓 학생으로 바로 체험</a>
+      <a class="btn btn-ghost" href="https://fit-learn-phi.vercel.app" target="_blank" rel="noopener">📈 교수 대시보드 체험</a>
+    </div>
+    <div class="checks"><span>회원가입 없이 바로</span><span>1분 진단</span><span>실시간 AI 재구성</span></div>
+    <div class="hero-shot"><img src="screenshots/05-reader.png" alt="성향 맞춤 교안 리더 화면"></div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <div class="eyebrow">PROBLEM</div>
+    <h2>모든 학생에게 같은 교안,<br>정말 괜찮을까요?</h2>
+    <p class="sub">어떤 학생은 그림으로, 어떤 학생은 말로, 어떤 학생은 직접 해봐야 이해합니다. 하지만 온라인 강의는 하나의 교안과 하나의 설명 방식만 제공합니다. 단순 요약 AI는 실습 코드와 교수님의 의도마저 지워버립니다.</p>
+    <div class="stats">
+      <div class="stat"><b style="color:var(--lime)">6가지</b><span>설명 방식으로 즉시 전환</span></div>
+      <div class="stat"><b style="color:var(--sky)">~2초</b><span>첫 문장이 나오기까지</span></div>
+      <div class="stat"><b style="color:var(--lavender)">6문항</b><span>1분 학습 성향 진단</span></div>
+      <div class="stat"><b style="color:var(--mint)">0단계</b><span>회원가입 없이 바로 체험</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="how" style="background:var(--surface)">
+  <div class="wrap">
+    <div class="eyebrow">HOW IT WORKS</div>
+    <h2>요약이 아니라, 재구성입니다</h2>
+    <p class="sub">원본의 개념·코드·수식은 그대로 두고, 전달하는 구조와 어조만 학습자에게 맞게 바꿉니다.</p>
+    <div class="steps">
+      <div class="card"><div class="num">01</div><h3>1분 성향 진단</h3><p>6가지 질문으로 시각·청각·읽기·실습 중 어떤 방식이 잘 맞는지, 집중 패턴과 선호 분량까지 파악합니다.</p></div>
+      <div class="card"><div class="num">02</div><h3>교수님 핵심 포인트</h3><p>교안을 올리면 AI가 내용상의 핵심을 뽑고 교수님이 검토·확정합니다. 맞춤 교안은 이 포인트를 절대 빠뜨리지 않아요.</p></div>
+      <div class="card"><div class="num">03</div><h3>실시간 맞춤 재구성</h3><p>성향·집중 패턴·과목 수준을 반영해 교안을 다시 씁니다. 글이 써지는 과정을 스트리밍으로 바로 확인합니다.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="features">
+  <div class="wrap">
+    <div class="eyebrow">FOR STUDENTS</div>
+    <h2>내가 이해하는 방식으로 다시 쓴 교안</h2>
+
+    <div class="feature">
+      <div class="copy">
+        <span class="label" style="background:rgba(200,241,53,.12);color:var(--lime)">STEP 1 · 1분 진단</span>
+        <h3>여섯 번의 클릭으로<br>나의 학습 성향 파악</h3>
+        <p>AI 호출 없이 즉시 결과가 나오고, 결과에 맞춘 교안 전략을 바로 보여줍니다. 더 정밀한 22문항 진단도 준비되어 있어요.</p>
+        <ul style="--accent:var(--lime)"><li>VARK 학습 채널 · 집중 패턴 · 선호 분량</li><li>결과 즉시 맞춤 교안으로 연결</li></ul>
+      </div>
+      <div class="shot"><img src="screenshots/03-diagnosis-result.png" alt="1분 진단 결과"></div>
+    </div>
+
+    <div class="feature reverse">
+      <div class="copy">
+        <span class="label" style="background:rgba(167,139,250,.14);color:var(--lavender)">STEP 2 · 맞춤 교안</span>
+        <h3>같은 강의, 여섯 가지 다른 교안</h3>
+        <p>버튼 하나로 설명 방식을 바꾸면 AI가 즉시 다시 구성합니다. 시각형은 개념 지도와 비교표, 실습형은 미션과 따라 하기, 청각형은 질문과 대화체로.</p>
+        <ul style="--accent:var(--lavender)"><li>원본 코드·수식은 그대로 보존</li><li>교수님 확정 핵심 포인트 100% 반영</li><li>SSE 스트리밍으로 첫 문장 약 2초</li></ul>
+      </div>
+      <div class="shot"><img src="screenshots/06-reader-practice.png" alt="실습형 맞춤 교안"></div>
+    </div>
+
+    <div class="feature">
+      <div class="copy">
+        <span class="label" style="background:rgba(96,165,250,.14);color:var(--sky)">STEP 3 · 원본 비교</span>
+        <h3>원본과 맞춤 교안을<br>나란히 비교</h3>
+        <p>무엇이 어떻게 바뀌었는지 투명하게 확인할 수 있어 AI 결과를 믿고 학습할 수 있습니다.</p>
+        <ul style="--accent:var(--sky)"><li>좌: 교수님 원본 · 우: 내 맞춤 교안</li><li>수업 중 따라 해야 할 코드는 그대로</li></ul>
+      </div>
+      <div class="shot"><img src="screenshots/06-reader-compare-practice.png" alt="원본과 비교"></div>
+    </div>
+
+    <div class="feature reverse">
+      <div class="copy">
+        <span class="label" style="background:rgba(52,211,153,.14);color:var(--mint)">STEP 4 · AI 튜터</span>
+        <h3>막히면 바로 묻는<br>교안 근거 AI 튜터</h3>
+        <p>질문에 교안을 근거로, 내 학습 스타일에 맞춰 답합니다. 교안에 없는 내용은 없다고 밝힙니다.</p>
+        <ul style="--accent:var(--mint)"><li>“더 쉽게 설명해줘”, “실생활 예시” 원클릭 질문</li><li>답변도 실시간 스트리밍</li></ul>
+      </div>
+      <div class="shot"><img src="screenshots/06-reader-tutor.png" alt="AI 튜터"></div>
+    </div>
+
+    <div class="chips">
+      <span class="chip">👁️ 시각형 — 구조와 도식으로</span>
+      <span class="chip">🎧 청각형 — 말로 설명하듯</span>
+      <span class="chip">📖 읽기형 — 교재처럼 체계적으로</span>
+      <span class="chip">🛠️ 실습형 — 직접 따라 하며</span>
+      <span class="chip">⚡ 요약형 — 3분 만에 핵심만</span>
+      <span class="chip">🔍 상세형 — 막힘없이 빠짐없이</span>
+    </div>
+  </div>
+</section>
+
+<section id="professor" style="background:var(--surface)">
+  <div class="wrap">
+    <div class="eyebrow">FOR PROFESSORS</div>
+    <h2>교안 한 번 올리면,<br>학생 수만큼의 교안</h2>
+
+    <div class="feature">
+      <div class="copy">
+        <span class="label" style="background:rgba(167,139,250,.14);color:var(--lavender)">학습 분석 대시보드</span>
+        <h3>우리 반은 어떤 학생들로<br>이루어져 있을까?</h3>
+        <p>수강생 성향 분포와 함께, AI가 다음 수업에서 바로 쓸 수 있는 자료·진행·주의 학생군 제안을 정리합니다.</p>
+        <ul style="--accent:var(--lavender)"><li>학습 스타일 · 인지 유형 · 상호작용 분포</li><li>AI 수업 설계 인사이트</li><li>평균 진도와 진단 완료율</li></ul>
+      </div>
+      <div class="shot"><img src="screenshots/08-professor-dashboard.png" alt="교수 대시보드"></div>
+    </div>
+
+    <div class="feature reverse">
+      <div class="copy">
+        <span class="label" style="background:rgba(200,241,53,.12);color:var(--lime)">교안 관리</span>
+        <h3>PDF·PPT·HWP를 올리면<br>AI가 핵심 포인트를 정리</h3>
+        <p>교수님은 핵심 포인트를 검토·확정만 하면 됩니다. 수업 의도가 모든 맞춤 교안에 그대로 반영됩니다.</p>
+        <ul><li>PDF · PPT · DOCX · HWP · 코드 · 이미지 지원</li><li>포인트별 교수용 검토 질문 자동 생성</li><li>샘플 교안으로 즉시 체험</li></ul>
+      </div>
+      <div class="shot"><img src="screenshots/07-professor-room.png" alt="교수 강의실"></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap" style="text-align:center">
+    <div class="eyebrow">MOBILE READY</div>
+    <h2>이동 중에도 내 교안</h2>
+    <p class="sub" style="margin:0 auto">모든 화면이 모바일에 맞춰 재배치됩니다.</p>
+    <div class="mobiles">
+      <img src="screenshots/m-landing.png" alt="모바일 랜딩">
+      <img src="screenshots/m-reader.png" alt="모바일 교안">
+    </div>
+  </div>
+</section>
+
+<section id="stack" style="background:var(--surface)">
+  <div class="wrap">
+    <div class="eyebrow">TECHNOLOGY</div>
+    <h2>빠르고, 끊기지 않게</h2>
+    <div class="stack">
+      <div class="card"><h4>Frontend</h4><p>Flutter Web · Riverpod · GoRouter · EventSource(SSE) 스트리밍 · 자체 디자인 시스템 · Vercel</p></div>
+      <div class="card"><h4>Backend</h4><p>FastAPI · SSE 스트리밍 · Firestore + 인메모리 자동 폴백 · 원클릭 데모 부트스트랩 · Railway</p></div>
+      <div class="card"><h4>AI</h4><p>Gemini 3.5 Flash + 모델 폴백 체인 · 스타일별 재구성 설계도 · 교육 이론(VARK·CLT·Kolb) 기반 프롬프트</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="final">
+      <h2>지금 1분이면 내 교안이 생겨요</h2>
+      <p class="sub" style="margin:0 auto 26px">로그인 없이 체험 계정이 바로 만들어지고, 같은 브라우저에서 이어서 학습할 수 있어요.</p>
+      <a class="btn btn-primary" href="https://fit-learn-phi.vercel.app" target="_blank" rel="noopener">무료로 체험 시작 →</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span><b style="color:var(--text)"><span style="color:var(--lime)">Fit</span>Learn</b> · KIT 바이브코딩 공모전 출품작</span>
+    <span>팀 표리부동 — 이승희 · 표제원</span>
+  </div>
+</footer>
+
+</body>
+</html>
