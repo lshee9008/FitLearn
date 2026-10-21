@@ -6,6 +6,7 @@ asyncio.gather() 6스타일 병렬 생성
 import asyncio
 import logging
 import re
+import unicodedata
 
 from .rag_pipeline.knowledge_base import PAPER_CHUNKS
 from .gemini_service import STYLE_GUIDES
@@ -21,6 +22,24 @@ from .llm import (  # noqa: E402,F401 — 하위호환 re-export
 
 
 # ── 마크다운 후처리 ───────────────────────────────────────────────────────────
+_LATEX_ACCENTS = {"hat": "\u0302", "bar": "\u0304", "tilde": "\u0303", "vec": "\u20d7"}
+
+
+def _latex_to_text(expr: str) -> str:
+    """간단한 인라인 LaTeX를 읽을 수 있는 유니코드 텍스트로 변환 (\\hat{y} → ŷ, \\frac{a}{b} → a/b)."""
+    expr = re.sub(r"\\(hat|bar|tilde|vec)\{(\w)\}", lambda m: m.group(2) + _LATEX_ACCENTS[m.group(1)], expr)
+    expr = re.sub(r"\\frac\{([^{}]+)\}\{([^{}]+)\}", r"(\1)/(\2)", expr)
+    expr = re.sub(r"\\sqrt\{([^{}]+)\}", r"√(\1)", expr)
+    for k, v in {r"\sum": "Σ", r"\partial": "∂", r"\infty": "∞", r"\cdot": "·", r"\times": "×",
+                 r"\alpha": "α", r"\beta": "β", r"\theta": "θ", r"\lambda": "λ", r"\sigma": "σ",
+                 r"\mu": "μ", r"\leq": "≤", r"\geq": "≥", r"\neq": "≠", r"\approx": "≈",
+                 r"\rightarrow": "→", r"\leftarrow": "←", r"\in": "∈"}.items():
+        expr = expr.replace(k, v)
+    expr = re.sub(r"\^\{([^{}]+)\}", r"^\1", expr).replace("^2", "²").replace("^3", "³")
+    expr = re.sub(r"_\{([^{}]+)\}", r"_\1", expr)
+    return unicodedata.normalize("NFC", expr.replace("{", "").replace("}", "").replace("\\", ""))
+
+
 def _clean_prose(text: str) -> str:
     """
     AI 출력의 마크다운 오염 요소 정리:
@@ -31,7 +50,7 @@ def _clean_prose(text: str) -> str:
     # LaTeX 블록 수식 ($$...$$) → 코드블록으로
     text = re.sub(r'\$\$(.*?)\$\$', lambda m: f'```\n{m.group(1).strip()}\n```', text, flags=re.DOTALL)
     # LaTeX 인라인 수식 ($...$) → 백틱 인라인 코드
-    text = re.sub(r'\$([^$\n]+?)\$', lambda m: f'`{m.group(1).strip()}`', text)
+    text = re.sub(r'\$([^$\n]+?)\$', lambda m: _latex_to_text(m.group(1).strip()), text)
     # LaTeX 명령어 잔재 (\blacksquare, \rightarrow 등)
     latex_map = {
         r'\blacksquare': '■',
@@ -523,7 +542,7 @@ class ReforgeService:
 
 STYLE_BLUEPRINTS: dict[str, str] = {
     "시각형": """구조가 글보다 먼저 보이게 만드세요.
-- 맨 앞: '## 🗺️ 한눈에 보는 개념 지도' — 핵심 개념들의 관계를 마크다운 표(개념 | 한 줄 정의 | 연결되는 개념)로
+- 맨 앞: '## 📊 한눈에 보는 개념 지도' — 핵심 개념들의 관계를 마크다운 표(개념 | 한 줄 정의 | 연결되는 개념)로
 - 과정·순서는 '① 단계 → ② 단계 → ③ 단계' 형태의 한 줄 흐름이나 번호 목록으로
 - 비교가 가능한 개념은 반드시 비교표로
 - 원본 [시각자료: ...]는 '> 🖼️ **그림으로 보기** — 설명' 인용 블록으로 바꾸고, 그림의 구성요소와 관계를 글로 그려주세요

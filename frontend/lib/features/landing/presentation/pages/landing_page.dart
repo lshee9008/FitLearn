@@ -401,7 +401,7 @@ class _StyleShowcase extends StatefulWidget {
 
 class _StyleShowcaseState extends State<_StyleShowcase> {
   static const _samples = <String, String>{
-    '시각형': '''### 🗺️ 경사하강법 한눈에 보기
+    '시각형': '''### 📊 경사하강법 한눈에 보기
 
 | 단계 | 하는 일 | 핵심 |
 |---|---|---|

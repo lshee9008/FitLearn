@@ -54,8 +54,8 @@ def test_professor_bootstrap_creates_private_room_hidden_from_catalog():
 
 
 def test_markdown_cleaner_keeps_code_and_lines():
-    text = "**가중치** | **목표**\n\n**선형회귀** $x^2$\n\n```bash\necho $HOME\n```"
+    text = "**가중치** | **목표**\n\n**선형회귀** $\\hat{y} = x^2$\n\n```bash\necho $HOME\n```"
     out = _clean_markdown(text)
     assert "**가중치** | **목표**\n\n**선형회귀**" in out
-    assert "`x^2`" in out
+    assert "ŷ = x²" in out
     assert "echo $HOME" in out

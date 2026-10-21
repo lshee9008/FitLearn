@@ -1048,6 +1048,8 @@ async def stream_lecture_question(
 - '{target}' 학습자에게 맞는 방식으로 설명하세요 ({STYLE_TAGLINES.get(target, '')}).
 - 400~700자, 마크다운 사용. 필요하면 짧은 예시나 코드. 마지막 줄에 '👉 다음으로 확인해볼 것:' 한 문장.
 - 인사말·메타 설명 금지.
+- LaTeX($...$, \\hat 등)를 쓰지 말고 수식은 일반 텍스트(ŷ = w·x + b)로 쓰세요.
+- 코드블록 안에 상자(┌─┐│, [ ] ---> 등) ASCII 그림을 그리지 마세요. 구조는 표나 번호 목록으로.
 
 [교수 핵심 포인트]
 {_core_points_text(lecture.get('core_points', []))}
