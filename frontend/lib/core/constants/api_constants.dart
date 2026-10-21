@@ -1,7 +1,7 @@
 class ApiConstants {
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://fitlearn-backend.onrender.com',
+    defaultValue: 'https://fitlearn-backend-production.up.railway.app',
   );
 
   // Auth

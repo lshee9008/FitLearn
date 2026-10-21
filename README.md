@@ -258,7 +258,7 @@ flutter pub get
 flutter run -d chrome
 ```
 
-기본 API 주소는 코드상 `https://fitlearn-backend.onrender.com`로 설정되어 있습니다.
+기본 API 주소는 코드상 `https://fitlearn-backend-production.up.railway.app`로 설정되어 있습니다.
 
 ### 9.4 테스트 및 정적 분석
 
@@ -290,7 +290,7 @@ startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
 
 ```bash
 cd frontend
-flutter build web --dart-define=API_BASE_URL=https://fitlearn-backend.onrender.com
+flutter build web --dart-define=API_BASE_URL=https://fitlearn-backend-production.up.railway.app
 ```
 
 ---
